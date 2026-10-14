@@ -1,12 +1,13 @@
 /* ══════════════════════════════════════════════════════════
    Interface : vue réglages (téléphone debout, incliné) et vue applications
    (téléphone couché). Les applications, groupes, dossiers et lancements
-   fonctionnent comme dans le premier lanceur ; le reste de la vue réglages
-   garde pour l'instant les données de la maquette.
+   fonctionnent comme dans le premier lanceur. Dans la vue réglages, l'heure,
+   le débit réseau et le profil sont réels ; le reste garde pour l'instant
+   les données de la maquette.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host } from './host';
+import { PREVIEW, host, type NetRate, type Profile } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -59,6 +60,50 @@ const TOGGLES: { key: ToggleKey; label: string; on: string; off: string; d: () =
   { key: 'mic', label: 'Micro', on: 'Actif', off: 'Coupé', d: () => (quick.mic ? MIC : MIC + 'M3 3l18 18') },
   { key: 'out', label: 'Sortie audio', on: 'Casque', off: 'Enceintes', d: () => (quick.out ? HEADSET : SPEAKER) },
 ];
+
+/* ── Profil : prénom du compte Windows et son initiale ── */
+function renderProfile(p: Profile) {
+  $('user-name').textContent = p.name;
+  $('avatar').textContent = p.name.charAt(0).toUpperCase();
+  $('user-os').textContent = p.system;
+}
+
+/* ── Débit réseau : toutes les secondes, seulement quand la vue réglages est affichée.
+   Ko et Mo de 1024, comme le premier lanceur. ── */
+const KO = 1024;
+const MO = 1024 ** 2;
+const fmt0 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+const fmt1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+
+function rateText(perSecond: number) {
+  if (perSecond < 1000 * KO) return fmt0.format(perSecond / KO) + ' Ko/s';
+  return (perSecond < 10 * MO ? fmt1 : fmt0).format(perSecond / MO) + ' Mo/s';
+}
+
+function renderNetwork(rate: NetRate) {
+  $('net-down').textContent = '↓ ' + rateText(rate.down);
+  $('net-up').textContent = '↑ ' + rateText(rate.up);
+}
+
+let netRun = 0;     // change à chaque arrêt : une réponse en retard est ignorée
+let netTimer = 0;
+
+async function pollNetwork(run: number) {
+  const rate = await host.network().catch(() => null);
+  if (run !== netRun) return;
+  if (rate) renderNetwork(rate);
+  netTimer = setTimeout(() => pollNetwork(run), 1000);
+}
+
+function startNetwork() {
+  stopNetwork();
+  pollNetwork(netRun);
+}
+
+function stopNetwork() {
+  netRun++;
+  clearTimeout(netTimer);
+}
 
 /* Boutons du haut : pas encore branchés */
 function renderActions() {
@@ -299,6 +344,7 @@ function showApps(query = '') {
   $q().value = query;
   $('stage').classList.add('landscape');
   $('settings').hidden = true;
+  stopNetwork();
   $('apps').hidden = false;   // affichée : tp-land repart
   renderApps();
   $q().focus({ preventScroll: true });
@@ -311,6 +357,7 @@ function showSettings() {
   $('settings').classList.add('tp-fade-late');
   $('settings').hidden = false;   // affichée : ses animations repartent
   renderSettings();
+  startNetwork();
 }
 
 /* ── Lancement : masquer après un succès, signaler un échec ── */
@@ -461,6 +508,7 @@ function playEntrance() {
   $('settings').classList.remove('tp-fade-late');
   $('settings').hidden = false;
   renderSettings();
+  startNetwork();
   fitStage();
   stage.hidden = false;
 }
@@ -483,6 +531,7 @@ function afterNextPaint(fn: () => void) {
 
 function hideLauncher() {
   if (leaving || $('stage').hidden) return;   // déjà en train de se fermer
+  stopNetwork();
   $('phone').classList.add('leaving');
   const n = shownCount;
   leaving = setTimeout(() => {
@@ -518,6 +567,7 @@ export async function init() {
 
   renderActions();
   bindEvents();
+  host.profile().then(renderProfile).catch(console.error);
   addEventListener('resize', fitStage);   // Rust agrandit la fenêtre à l'écran à chaque ouverture
   await loadConfig();
   host.onConfigChanged(() => {

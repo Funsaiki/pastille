@@ -2,6 +2,7 @@ mod config;
 mod launcher;
 mod shell;
 mod steam;
+mod system;
 mod tray;
 
 use tauri::{Manager, WindowEvent};
@@ -35,12 +36,18 @@ pub fn run() {
             // Lit apps.json et enregistre le raccourci ; s'il est déjà pris, l'app démarre
             // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
             config::init(app.handle());
+            app.manage(system::NetMeter::default());
             let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());
             tray::create(app.handle(), &tooltip)?;
             launcher::disable_key_menu(app.handle());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![config::get_config, shell::launch])
+        .invoke_handler(tauri::generate_handler![
+            config::get_config,
+            shell::launch,
+            system::profile,
+            system::network
+        ])
         .on_window_event(|window, event| match event {
             // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)
             WindowEvent::CloseRequested { api, .. } => {

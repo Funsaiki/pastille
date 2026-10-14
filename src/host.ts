@@ -15,6 +15,16 @@ export interface ConfigPayload {
   problems: string[];   // à afficher dans le lanceur (config invalide, raccourci indisponible…)
 }
 
+export interface Profile {
+  name: string;     // prénom du compte Windows
+  system: string;   // « Windows 11 »
+}
+
+export interface NetRate {
+  down: number;     // octets par seconde, cartes physiques
+  up: number;
+}
+
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
     if (PREVIEW) return { config: EXAMPLE, problems: [] };
@@ -25,6 +35,15 @@ export const host = {
   async launch(item: AppItem | Favorite) {
     if (PREVIEW) console.info('[aperçu] ouvrir :', item.target, ('args' in item && item.args) || []);
     else await invoke('launch', { id: item.id });
+  },
+  async profile(): Promise<Profile> {
+    if (PREVIEW) return { name: 'Funsaiki', system: 'Windows 11' };
+    return invoke<Profile>('profile');
+  },
+  /* Débit depuis l'appel précédent ; le premier d'une ouverture mesure sur 250 ms */
+  async network(): Promise<NetRate> {
+    if (PREVIEW) return { down: 1.2 * 1024 ** 2 * (0.8 + Math.random() * 0.4), up: 84 * 1024 * (0.8 + Math.random() * 0.4) };
+    return invoke<NetRate>('network');
   },
   hide() {
     if (PREVIEW) console.info('[aperçu] masquer le lanceur');
