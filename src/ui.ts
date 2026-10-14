@@ -293,6 +293,18 @@ function latestOnly(send: (level: number) => Promise<void>) {
 
 const sendVolume = latestOnly((level) => host.setVolume(level).catch((e) => report('Volume', e)));
 
+function setVolume(level: number) {
+  level = Math.max(0, Math.min(100, Math.round(level)));
+  sound.volume = level;
+  if (level > 0) sound.muted = false;   // Windows rétablit le son (audio.rs)
+  audioRun++;
+  renderVolume();
+  sendVolume(level);
+}
+
+/* Un cran de molette : 2 %, vers le haut pour monter */
+const wheelStep = (e: WheelEvent) => (e.deltaY < 0 ? 2 : -2);
+
 /* ── Mélangeur (demandé par Funsaiki) : un curseur par application, relu à chaque ouverture.
    Fermé par son bouton, Échap ou un clic à côté. ── */
 const appSenders = new Map<string, (level: number) => void>();
@@ -332,6 +344,12 @@ function renderMixer(apps: AppVolume[]) {
       show(Number(input.value));
       sendAppVolume(app.key, Number(input.value));
     });
+    input.addEventListener('wheel', (e) => {
+      if (Math.abs(e.deltaY) < 4) return;
+      const level = Math.max(0, Math.min(100, Number(input.value) + wheelStep(e)));
+      show(level);
+      sendAppVolume(app.key, level);
+    }, { passive: true });
     const badge = el('span', 'mixer-badge', app.name.charAt(0).toUpperCase());
     badge.setAttribute('aria-hidden', 'true');
     badge.style.background = color;
@@ -819,14 +837,13 @@ function bindEvents() {
     if (e.target === e.currentTarget) closePowerMenu();   // clic sur l'écran assombri, hors des boutons
   });
 
-  $('volume').addEventListener('input', () => {
-    const level = Number(($('volume') as HTMLInputElement).value);
-    sound.volume = level;
-    if (level > 0) sound.muted = false;   // Windows rétablit le son (audio.rs)
-    audioRun++;
-    renderVolume();
-    sendVolume(level);
-  });
+  $('volume').addEventListener('input', () => setVolume(Number(($('volume') as HTMLInputElement).value)));
+  /* Molette sur la carte du volume (demande de Funsaiki) : 2 % par cran, comme Windows ; les
+     tranches du mélangeur ont la leur */
+  $('volume').closest<HTMLElement>('.sliders')!.addEventListener('wheel', (e) => {
+    if ((e.target as Element).closest('#mixer') || sound.volume === null || Math.abs(e.deltaY) < 4) return;
+    setVolume(sound.volume + wheelStep(e));
+  }, { passive: true });
   $('strap').addEventListener('pointerenter', swingStrap);
   $('mixer-toggle').addEventListener('click', () => (mixerOpen() ? closeMixer() : openMixer()));
   $('play').addEventListener('click', () => controlMedia('toggle'));
