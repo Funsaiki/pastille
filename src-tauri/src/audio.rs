@@ -4,7 +4,9 @@
 use serde::Serialize;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::Media::Audio::{eCapture, eConsole, eRender, EDataFlow, IMMDeviceEnumerator, MMDeviceEnumerator};
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
+
+use crate::com::{blocking, with_com};
 
 #[derive(Serialize, Default)]
 pub struct AudioState {
@@ -18,7 +20,7 @@ pub struct AudioState {
 #[tauri::command]
 pub async fn audio() -> AudioState {
     blocking(|| {
-        with_com(|| {
+        with_com(|| -> windows::core::Result<AudioState> {
             let (volume, muted) = match endpoint(eRender) {
                 Ok(out) => unsafe {
                     (Some((out.GetMasterVolumeLevelScalar()? * 100.0).round() as u8), out.GetMute()?.as_bool())
@@ -38,11 +40,13 @@ pub async fn audio() -> AudioState {
 #[tauri::command]
 pub async fn set_volume(level: u8) -> Result<(), String> {
     blocking(move || {
-        with_com(|| unsafe {
+        with_com(|| -> windows::core::Result<()> {
             let out = endpoint(eRender)?;
-            out.SetMasterVolumeLevelScalar(f32::from(level.min(100)) / 100.0, std::ptr::null())?;
-            if level > 0 {
-                out.SetMute(false, std::ptr::null())?;
+            unsafe {
+                out.SetMasterVolumeLevelScalar(f32::from(level.min(100)) / 100.0, std::ptr::null())?;
+                if level > 0 {
+                    out.SetMute(false, std::ptr::null())?;
+                }
             }
             Ok(())
         })
@@ -66,20 +70,6 @@ fn endpoint(flow: EDataFlow) -> windows::core::Result<IAudioEndpointVolume> {
         let devices: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
         devices.GetDefaultAudioEndpoint(flow, eConsole)?.Activate(CLSCTX_ALL, None)
     }
-}
-
-/// COM sur le fil courant le temps de `f` (les objets COM doivent être libérés dans `f`)
-fn with_com<T>(f: impl FnOnce() -> windows::core::Result<T>) -> windows::core::Result<T> {
-    let com = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-    let result = f();
-    if com.is_ok() {
-        unsafe { CoUninitialize() };
-    }
-    result
-}
-
-async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())
 }
 
 // Lecture seule : ne jamais changer le volume ni le micro de Funsaiki dans un test.

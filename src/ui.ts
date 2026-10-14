@@ -2,12 +2,13 @@
    Interface : vue réglages (téléphone debout, incliné) et vue applications
    (téléphone couché). Les applications, groupes, dossiers et lancements
    fonctionnent comme dans le premier lanceur. Dans la vue réglages, l'heure,
-   le débit réseau, le profil, les boutons du haut, le volume, le micro et les
-   performances sont réels ; le reste garde pour l'instant les données de la maquette.
+   le débit réseau, le profil, les boutons du haut, le volume, le micro, les
+   performances et la lecture en cours (Spotify) sont réels ; les notifications
+   gardent pour l'instant les exemples de la maquette.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type AudioState, type PowerAction, type Profile, type Stats } from './host';
+import { PREVIEW, host, type AudioState, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -38,11 +39,12 @@ const state = {
   query: '',
 };
 
-/* Réglages rapides : lecture et notifications gardent l'état local de la maquette
-   (étapes suivantes) ; le son et les relevés viennent de Windows */
-const quick = { playing: true, cleared: false };
+/* Réglages rapides : les notifications gardent l'état local de la maquette (étape suivante) ;
+   le son, les relevés et la lecture en cours viennent de Windows */
+const quick = { cleared: false };
 let sound: AudioState = { volume: null, muted: false, mic_muted: null };
 let stats: Stats | null = null;
+let media: NowPlaying | null = null;
 
 /* ══ Vue réglages ══ */
 const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
@@ -134,6 +136,7 @@ async function pollStats(run: number) {
     renderNetwork(s);
     updateTiles();
   }
+  refreshMedia();   // morceau suivant, pause depuis Spotify…
   statsTimer = setTimeout(() => pollStats(run), 1000);
 }
 
@@ -294,10 +297,45 @@ async function toggleMic() {
   }
 }
 
+/* ── Lecture en cours : Spotify seulement (choix de Funsaiki), relue à l'affichage de la vue
+   réglages puis toutes les secondes avec les relevés ── */
 function renderMedia() {
-  $('eq').classList.toggle('on', quick.playing);
-  $('play').classList.toggle('paused', !quick.playing);
-  $('play').setAttribute('aria-label', quick.playing ? 'Pause' : 'Lecture');
+  const playing = media?.playing ?? false;
+  const title = media?.title || 'Rien en lecture';
+  $('media-title').textContent = title;
+  $('media-title').title = title;   // titre complet au survol s'il est coupé
+  $('media-artist').textContent = media ? media.artist || 'Spotify' : 'Spotify est fermé';
+  $('eq').classList.toggle('on', playing);
+  $('play').classList.toggle('paused', !playing);
+  $('play').setAttribute('aria-label', playing ? 'Pause' : 'Lecture');
+  for (const id of ['previous', 'play', 'next']) ($(id) as HTMLButtonElement).disabled = !media;
+}
+
+let mediaRun = 0;    // une réponse plus ancienne que la dernière demande est ignorée
+let mediaHold = 0;   // juste après un clic, Spotify annonce encore l'ancien état
+
+async function refreshMedia() {
+  if (performance.now() < mediaHold) return;
+  const run = ++mediaRun;
+  const now = await host.media().catch(() => media);
+  if (run !== mediaRun) return;
+  media = now;
+  renderMedia();
+}
+
+async function controlMedia(action: MediaAction) {
+  if (action === 'toggle' && media) {
+    media.playing = !media.playing;   // tout de suite, sans attendre Spotify
+    renderMedia();
+  }
+  mediaRun++;   // une lecture partie avant le clic montrerait l'ancien état
+  mediaHold = performance.now() + 450;
+  try {
+    await host.mediaControl(action);
+  } catch (e) {
+    report('Lecture', e);
+  }
+  setTimeout(refreshMedia, 500);   // nouveau morceau : Spotify met un instant à l'annoncer
 }
 
 /* Applications lançables (feuilles de l'arbre, jeux Steam compris) */
@@ -504,6 +542,7 @@ function showSettings() {
   renderSettings();
   startStats();
   refreshAudio();
+  refreshMedia();
 }
 
 /* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
@@ -557,10 +596,9 @@ function bindEvents() {
     renderVolume();
     sendVolume(level);
   });
-  $('play').addEventListener('click', () => {
-    quick.playing = !quick.playing;
-    renderMedia();
-  });
+  $('play').addEventListener('click', () => controlMedia('toggle'));
+  $('previous').addEventListener('click', () => controlMedia('previous'));
+  $('next').addEventListener('click', () => controlMedia('next'));
   $('notif-clear').addEventListener('click', () => {
     quick.cleared = true;
     renderNotifs();
@@ -683,6 +721,7 @@ function playEntrance() {
   renderSettings();
   startStats();
   refreshAudio();
+  refreshMedia();
   fitStage();
   stage.hidden = false;
 }

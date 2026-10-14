@@ -1,6 +1,8 @@
 mod audio;
+mod com;
 mod config;
 mod launcher;
+mod media;
 mod power;
 mod shell;
 mod steam;
@@ -53,7 +55,9 @@ pub fn run() {
             system::stats,
             audio::audio,
             audio::set_volume,
-            audio::set_mic_muted
+            audio::set_mic_muted,
+            media::media,
+            media::media_control
         ])
         .on_window_event(|window, event| match event {
             // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)

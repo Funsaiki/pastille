@@ -33,8 +33,19 @@ export interface AudioState {
   mic_muted: boolean | null;  // null sans micro
 }
 
+export interface NowPlaying {
+  title: string;
+  artist: string;
+  playing: boolean;
+}
+
+export type MediaAction = 'toggle' | 'next' | 'previous';
+
 export type Tool = 'settings' | 'explorer' | 'taskmgr';
 export type PowerAction = 'lock' | 'sleep' | 'shutdown' | 'restart' | 'signout';
+
+/* Aperçu navigateur : le morceau de la maquette */
+const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
@@ -78,6 +89,19 @@ export const host = {
   async setMicMuted(muted: boolean) {
     if (PREVIEW) console.info('[aperçu] micro coupé :', muted);
     else await invoke('set_mic_muted', { muted });
+  },
+  /* Spotify seulement ; null quand il n'est pas ouvert */
+  async media(): Promise<NowPlaying | null> {
+    if (PREVIEW) return { ...previewMedia };
+    return invoke<NowPlaying | null>('media');
+  },
+  async mediaControl(action: MediaAction) {
+    if (PREVIEW) {
+      console.info('[aperçu] lecture :', action);
+      if (action === 'toggle') previewMedia.playing = !previewMedia.playing;
+    } else {
+      await invoke('media_control', { action });
+    }
   },
   hide() {
     if (PREVIEW) console.info('[aperçu] masquer le lanceur');
