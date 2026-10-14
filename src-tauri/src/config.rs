@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-use crate::{steam, tray, usage};
+use crate::{epic, steam, tray, usage};
 
 const EXAMPLE: &str = include_str!("../../apps.example.json");
 
@@ -83,11 +83,11 @@ fn default_shortcut() -> String {
 }
 
 pub struct ConfigState {
-    /// Config affichée : apps.json + jeux Steam détectés, avec les identifiants
+    /// Config affichée : apps.json + jeux Steam et Epic détectés, avec les identifiants
     pub config: Config,
     /// apps.json tel que Funsaiki l'a écrit
     base: Config,
-    games: Vec<steam::Game>,
+    games: Detected,
     games_scanned: Instant,
     scanning: bool,
     /// Affichés dans le lanceur (config invalide, raccourci indisponible…)
@@ -100,9 +100,20 @@ pub struct ConfigState {
 
 pub type SharedConfig = Mutex<ConfigState>;
 
+/// Jeux détectés, ajoutés aux groupes `auto: "steam"` et `auto: "epic"`
+#[derive(Default, PartialEq)]
+struct Detected {
+    steam: Vec<steam::Game>,
+    epic: Vec<epic::Game>,
+}
+
+fn detect() -> Detected {
+    Detected { steam: steam::installed_games(), epic: epic::installed_games() }
+}
+
 /* ── Lecture et validation ── */
 
-/// Délai avant de chercher à nouveau les jeux Steam à l'ouverture du lanceur
+/// Délai avant de chercher à nouveau les jeux Steam et Epic à l'ouverture du lanceur
 const GAMES_MAX_AGE: Duration = Duration::from_secs(120);
 
 fn parse(text: &str) -> Result<Config, String> {
@@ -146,8 +157,11 @@ fn describe(e: &serde_json::Error) -> String {
 /// Chaque bouton lance quelque chose (`target`) ou ouvre un groupe (`children` ou `auto`).
 fn validate(items: &mut [AppItem]) -> Result<(), String> {
     for it in items {
-        if it.children.is_none() && it.auto.is_some() {
-            it.children = Some(Vec::new());
+        if let Some(auto) = &it.auto {
+            if !matches!(auto.as_str(), "steam" | "epic") {
+                return Err(format!("« {} » : auto « {auto} » inconnu (steam ou epic).", it.label));
+            }
+            it.children.get_or_insert_with(Vec::new);
         }
         match (&mut it.children, &it.target) {
             (Some(children), _) => validate(children)?,
@@ -164,25 +178,35 @@ fn is_hex_color(s: &str) -> bool {
     })
 }
 
-/// Complète les groupes `auto: "steam"` avec les jeux détectés (sauf ceux déjà présents à la main),
+/// Complète les groupes `auto` avec les jeux détectés (sauf ceux déjà présents à la main),
 /// puis attribue les identifiants.
-fn merge(base: &Config, games: &[steam::Game]) -> Config {
-    fn fill(items: &mut [AppItem], games: &[steam::Game]) {
+fn merge(base: &Config, games: &Detected) -> Config {
+    fn add(children: &mut Vec<AppItem>, label: &str, target: String, source: &str) {
+        if !children.iter().any(|c| c.target.as_deref() == Some(target.as_str())) {
+            children.push(AppItem {
+                label: label.into(),
+                icon: Some("jeux".into()),
+                target: Some(target),
+                source: Some(source.into()),
+                ..Default::default()
+            });
+        }
+    }
+    fn fill(items: &mut [AppItem], games: &Detected) {
         for it in items {
             let Some(children) = &mut it.children else { continue };
-            if it.auto.as_deref() == Some("steam") {
-                for g in games {
-                    let target = format!("steam://rungameid/{}", g.appid);
-                    if !children.iter().any(|c| c.target.as_deref() == Some(target.as_str())) {
-                        children.push(AppItem {
-                            label: g.name.clone(),
-                            icon: Some("jeux".into()),
-                            target: Some(target),
-                            source: Some("STEAM".into()),
-                            ..Default::default()
-                        });
+            match it.auto.as_deref() {
+                Some("steam") => {
+                    for g in &games.steam {
+                        add(children, &g.name, format!("steam://rungameid/{}", g.appid), "STEAM");
                     }
                 }
+                Some("epic") => {
+                    for g in &games.epic {
+                        add(children, &g.name, g.target.clone(), "EPIC");
+                    }
+                }
+                _ => {}
             }
             fill(children, games);
         }
@@ -291,7 +315,7 @@ pub fn tooltip(s: &ConfigState) -> String {
 /* ── Cycle de vie ── */
 
 /// Au démarrage : lit apps.json (ou retombe sur l'exemple) et enregistre le raccourci. Les
-/// jeux Steam sont cherchés en arrière-plan : les bibliothèques peuvent être sur des disques
+/// jeux Steam et Epic sont cherchés en arrière-plan : les bibliothèques peuvent être sur des disques
 /// en veille, le démarrage ne les attend pas.
 pub fn init(app: &AppHandle) {
     let mut problems = Vec::new();
@@ -300,9 +324,9 @@ pub fn init(app: &AppHandle) {
         parse(EXAMPLE).expect("apps.example.json embarqué invalide")
     });
     let mut state = ConfigState {
-        config: merge(&base, &[]),
+        config: merge(&base, &Detected::default()),
         base,
-        games: Vec::new(),
+        games: Detected::default(),
         games_scanned: Instant::now(),
         scanning: true,
         problems,
@@ -345,7 +369,7 @@ pub fn reload_if_changed(app: &AppHandle) {
     }
 }
 
-/// À l'ouverture du lanceur : cherche les jeux Steam installés ou désinstallés depuis, en arrière-plan
+/// À l'ouverture du lanceur : cherche les jeux Steam et Epic installés ou désinstallés depuis, en arrière-plan
 /// (les bibliothèques peuvent être sur des disques en veille). Le front n'est prévenu qu'en cas de changement.
 pub fn refresh_games_if_stale(app: &AppHandle) {
     {
@@ -359,11 +383,11 @@ pub fn refresh_games_if_stale(app: &AppHandle) {
     scan_games(app);
 }
 
-/// Cherche les jeux Steam sur un autre fil ; le front n'est prévenu qu'en cas de changement
+/// Cherche les jeux Steam et Epic sur un autre fil ; le front n'est prévenu qu'en cas de changement
 fn scan_games(app: &AppHandle) {
     let app = app.clone();
     thread::spawn(move || {
-        let games = steam::installed_games();
+        let games = detect();
         let state = app.state::<SharedConfig>();
         let mut s = state.lock().unwrap();
         s.scanning = false;
@@ -425,7 +449,8 @@ mod tests {
             { "label": "Jeux", "auto": "steam", "children": [
                 { "label": "Hollow Knight", "target": "steam://rungameid/367520" } ] },
             { "label": "Code", "target": "code.exe" } ] }"#).unwrap();
-        let config = merge(&base, &[game(367520, "Hollow Knight"), game(1687950, "Persona 5 Royal")]);
+        let steam = vec![game(367520, "Hollow Knight"), game(1687950, "Persona 5 Royal")];
+        let config = merge(&base, &Detected { steam, epic: Vec::new() });
         let jeux = config.apps[0].children.as_ref().unwrap();
         assert_eq!(jeux.len(), 2, "Hollow Knight ajouté à la main n'est pas doublé");
         assert_eq!(jeux[1].label, "Persona 5 Royal");
@@ -435,12 +460,22 @@ mod tests {
         assert!(base.apps[0].children.as_ref().unwrap().len() == 1, "la config de base reste intacte");
     }
 
+    #[test]
+    fn epic_games_complete_auto_groups() {
+        let base = parse(r#"{ "apps": [ { "label": "Epic", "auto": "epic", "children": [] } ] }"#).unwrap();
+        let epic = vec![epic::Game { name: "F1 Manager 2024".into(), target: "com.epicgames.launcher://apps/a%3Ab%3Ac".into() }];
+        let config = merge(&base, &Detected { steam: Vec::new(), epic });
+        let game = &config.apps[0].children.as_ref().unwrap()[0];
+        assert_eq!((game.label.as_str(), game.source.as_deref(), game.id.as_str()), ("F1 Manager 2024", Some("EPIC"), "a0.0"));
+        assert!(parse(r#"{ "apps": [ { "label": "X", "auto": "gog" } ] }"#).is_err(), "auto inconnu");
+    }
+
     /// Diagnostic sur l'apps.json de Funsaiki : cargo test real_config -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_config() {
         let path = PathBuf::from(std::env::var("APPDATA").unwrap()).join("dev.lanceur.pastel").join("apps.json");
-        let config = merge(&parse(&fs::read_to_string(path).unwrap()).unwrap(), &[]);
+        let config = merge(&parse(&fs::read_to_string(path).unwrap()).unwrap(), &detect());
         fn show(items: &[AppItem], depth: usize) {
             for it in items {
                 eprintln!("{}{} {} {:?}", "  ".repeat(depth), it.id, it.label, it.source);

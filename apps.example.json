@@ -17,7 +17,14 @@
             { "label": "Steam", "icon": "bibliotheque", "source": "LANCEUR", "target": "steam://open/main" }
           ]
         },
-        { "label": "Epic Games", "icon": "bouclier", "source": "LANCEUR", "target": "com.epicgames.launcher://" }
+        {
+          "label": "Epic Games",
+          "icon": "bouclier",
+          "auto": "epic",
+          "children": [
+            { "label": "Epic Games", "icon": "bouclier", "source": "LANCEUR", "target": "com.epicgames.launcher://" }
+          ]
+        }
       ]
     },
     { "label": "Messages", "icon": "messages", "target": "discord://" },

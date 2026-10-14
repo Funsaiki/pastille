@@ -94,7 +94,7 @@ fn manifests() -> Vec<String> {
 }
 
 /// Nom sans accents ni majuscules, pour trier comme on lit (« Été » avec les E)
-fn normalize(s: &str) -> String {
+pub fn normalize(s: &str) -> String {
     s.nfd().filter(|c| !is_combining_mark(*c)).flat_map(char::to_lowercase).collect()
 }
 
@@ -150,7 +150,7 @@ fn parse_activity(text: &str, now: u64) -> Option<(u32, Activity)> {
 }
 
 /// « Street Fighter™ 6 », « F1® 23 » : les symboles de marque alourdissent les tuiles
-fn clean_name(name: &str) -> String {
+pub fn clean_name(name: &str) -> String {
     name.replace(['™', '®', '©'], "").split_whitespace().collect::<Vec<_>>().join(" ")
 }
 

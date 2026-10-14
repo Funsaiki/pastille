@@ -1,6 +1,7 @@
 mod audio;
 mod com;
 mod config;
+mod epic;
 mod feed;
 mod launcher;
 mod media;

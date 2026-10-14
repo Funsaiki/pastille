@@ -12,7 +12,7 @@ export interface AppItem {
   target?: string;        // aperçu seulement : Rust ne l'envoie pas
   args?: string[];
   source?: string;        // petit libellé (ex. STEAM), pas affiché dans cette maquette
-  auto?: string;          // 'steam' : groupe complété par les jeux Steam détectés
+  auto?: string;          // 'steam' ou 'epic' : groupe complété par les jeux détectés
   children?: AppItem[];   // présent = bouton-groupe
   keywords?: string;      // mots cherchés en plus du libellé, en début de mot
   uses?: number;          // lancements (usage.json, envoyé par Rust)
