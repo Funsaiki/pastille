@@ -154,6 +154,11 @@ export const host = {
     if (PREVIEW) return { ...previewMedia };
     return invoke<NowPlaying | null>('media');
   },
+  /* Pochette du morceau en cours (image intégrable data:…), null sans pochette */
+  async mediaCover(): Promise<string | null> {
+    if (PREVIEW) return null;
+    return invoke<string | null>('media_cover');
+  },
   async mediaControl(action: MediaAction) {
     if (PREVIEW) {
       console.info('[aperçu] lecture :', action);

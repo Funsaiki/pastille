@@ -3,7 +3,9 @@
 
 use std::sync::Mutex;
 
+use base64::Engine;
 use serde::Serialize;
+use windows::Storage::Streams::{Buffer, DataReader, InputStreamOptions};
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession as Session,
     GlobalSystemMediaTransportControlsSessionManager as SessionManager,
@@ -43,6 +45,37 @@ pub async fn media_control(action: String) -> Result<(), String> {
     })
     .await?;
     if sent { Ok(()) } else { Err("Spotify n'est pas ouvert.".into()) }
+}
+
+/// Pochette du morceau en cours, en image intégrable (data:…) ; None sans pochette. Le front
+/// ne la demande qu'au changement de morceau.
+#[tauri::command]
+pub async fn media_cover() -> Option<String> {
+    com_task(cover).await.ok().flatten()
+}
+
+/// Au-delà, ce n'est plus une pochette (Spotify en donne de 300 × 300, quelques dizaines de Ko)
+const MAX_COVER: u64 = 2 * 1024 * 1024;
+
+fn cover() -> windows::core::Result<Option<String>> {
+    let Some(session) = spotify()? else { return Ok(None) };
+    let props = session.TryGetMediaPropertiesAsync()?.join()?;
+    let Ok(thumbnail) = props.Thumbnail() else { return Ok(None) };   // pas de pochette
+    let stream = thumbnail.OpenReadAsync()?.join()?;
+    let size = stream.Size()?;
+    if size == 0 || size > MAX_COVER {
+        return Ok(None);
+    }
+    let read = stream.ReadAsync(&Buffer::Create(size as u32)?, size as u32, InputStreamOptions::None)?.join()?;
+    let mut bytes = vec![0u8; read.Length()? as usize];
+    DataReader::FromBuffer(&read)?.ReadBytes(&mut bytes)?;
+    let mime = stream
+        .ContentType()
+        .map(|t| t.to_string())
+        .ok()
+        .filter(|t| t.starts_with("image/"))
+        .unwrap_or_else(|| "image/jpeg".into());
+    Ok(Some(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))))
 }
 
 fn now_playing() -> windows::core::Result<Option<NowPlaying>> {
@@ -115,6 +148,8 @@ mod tests {
                     Some(n) => eprintln!("Spotify : « {} » de {} (lecture : {})", n.title, n.artist, n.playing),
                     None => eprintln!("Spotify n'est pas ouvert"),
                 }
+                let cover = cover().unwrap();
+                eprintln!("pochette : {:?}", cover.as_deref().map(|c| (&c[..c.find(',').unwrap_or(0)], c.len())));
                 eprintln!("durée : {:?}", start.elapsed());
             }
         });

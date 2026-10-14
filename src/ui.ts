@@ -421,6 +421,34 @@ async function refreshMedia() {
   if (run !== mediaRun) return;
   media = now;
   renderMedia();
+  refreshCover();
+}
+
+/* Pochette : demandée au changement de morceau. Spotify annonce le titre un peu avant la
+   pochette : tant qu'il redonne celle du morceau précédent, on redemande au relevé suivant
+   (3 essais ; deux morceaux du même album ont la même). */
+let cover = { key: '', url: null as string | null, previous: null as string | null, tries: 0, loading: false };
+
+async function refreshCover() {
+  const key = media?.title ? `${media.title}\n${media.artist}` : '';
+  if (key !== cover.key) {
+    cover = { key, url: null, previous: cover.url ?? cover.previous, tries: 0, loading: false };
+    renderCover();
+  }
+  if (!key || cover.url || cover.loading || cover.tries >= 3) return;
+  cover.tries++;
+  cover.loading = true;
+  const url = await host.mediaCover().catch(() => null);
+  if (key !== cover.key) return;   // autre morceau entre-temps
+  cover.loading = false;
+  if (!url || (url === cover.previous && cover.tries < 3)) return;
+  cover.url = url;
+  renderCover();
+}
+
+function renderCover() {
+  $('media-art').classList.toggle('has-cover', !!cover.url);
+  $('media-art').style.backgroundImage = cover.url ? `url("${cover.url}")` : '';
 }
 
 async function controlMedia(action: MediaAction) {

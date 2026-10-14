@@ -299,6 +299,9 @@ button, input { font-family: 'Nunito', sans-serif; }
   width: 46px; height: 46px; flex: none; border-radius: 16px; border: 2.5px solid var(--ink);
   background: linear-gradient(135deg, var(--fill), #f6e2ec); display: flex; align-items: center; justify-content: center; box-sizing: border-box;
 }
+/* Pochette de Spotify (demandée par Funsaiki) : remplace l'égaliseur quand Windows la donne */
+.media-art.has-cover { background-size: cover; background-position: center; }
+.media-art.has-cover .tp-eq { display: none; }
 .tp-eq { display: flex; align-items: flex-end; gap: 3px; height: 18px; }
 .tp-eq i { display: block; width: 3px; height: 100%; border-radius: 2px; background: var(--ink); transform-origin: bottom; transform: scaleY(.3); }
 .tp-eq.on i { animation: tp-eq .8s ease-in-out infinite alternate; }

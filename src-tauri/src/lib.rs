@@ -71,6 +71,7 @@ pub fn run() {
             audio::set_mic_muted,
             media::media,
             media::media_control,
+            media::media_cover,
             mixer::mixer,
             mixer::set_app_volume,
             feed::feed,
