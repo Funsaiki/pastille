@@ -24,8 +24,7 @@ export const ICONS: Record<string, string> = {
   calcul: 'M5 4h14v16H5zM9 10h6M9 14h6',
   /* Jeux et lanceurs de Funsaiki (demande du 15/10/2026) : traits proches de leur icône d'origine.
      Logos pour Steam, Epic, League of Legends et Valorant ; visage du personnage de l'icône pour
-     les gachas (casque de ZZZ, nœud de Wuthering Waves). Endfield, Star Rail et NTE : logos
-     choisis par Funsaiki. */
+     ZZZ (casque). Endfield, Star Rail, NTE et Wuthering Waves : logos choisis par Funsaiki. */
   steam: 'M12 3a9 9 0 100 18 9 9 0 000-18zM15 7a3 3 0 100 6 3 3 0 000-6zM9 13.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6zM10.6 14l2.4-1.8M7.3 14.4l-3.9-1.5',
   epic: 'M5 3h14v13.5L12 21l-7-4.5zM10 7.5h4.5M10 7.5v6.5h4.5M10 10.7h3.5',
   lol: 'M6 3.5h4v13h7.5L15.5 20H6zM12 3a9 9 0 010 18',
@@ -33,7 +32,8 @@ export const ICONS: Record<string, string> = {
   // Star Rail (choix de Funsaiki) : croissant de lune du logo, traversé par le train
   starrail: 'M14.6 5.3A8.5 8.5 0 1 0 19 15.9 7.4 7.4 0 1 1 14.6 5.3zM9.5 14.6l10.4-8.2 1.9 2.4-10.4 8.2z',
   zzz: VISAGE + 'M4.2 13.3a7.8 7.8 0 0115.6 0M4.2 12.8v3.6M19.8 12.8v3.6M9.4 14.2h.01M13.4 14.6q1.1-1.1 2.2 0M12 16.6a.8.8 0 100 1.6.8.8 0 000-1.6z',
-  wuwa: VISAGE + 'M5.4 14v6M18.6 14v6M16.5 5.5l3-2v4zM16.5 5.5l-3-2v4zM9.4 14.2h.01M14.6 14.2h.01M11 17.3h2',
+  // Wuthering Waves (choix de Funsaiki) : marque Tacet, oscillogramme aux pointes creusées
+  wuwa: 'M2 12h20|M12 3.5Q12.7 10.47 15.2 12Q12.7 13.62 12 21Q11.3 13.62 8.8 12Q11.3 10.47 12 3.5zM7 7Q7.57 11.1 9.6 12Q7.57 12.63 7 15.5Q6.43 12.63 4.4 12Q6.43 11.1 7 7zM17 6.5Q17.57 11.01 19.6 12Q17.57 12.72 17 16Q16.43 12.72 14.4 12Q16.43 11.01 17 6.5zM3.3 9.4Q3.7 11.53 5.1 12Q3.7 12.47 3.3 14.6Q2.9 12.47 1.5 12Q2.9 11.53 3.3 9.4zM20.7 9.4Q21.1 11.53 22.5 12Q21.1 12.47 20.7 14.6Q20.3 12.47 18.9 12Q20.3 11.53 20.7 9.4z',
   // NTE (choix de Funsaiki) : disque plein troué vers le haut, deux courbes autour comme un yin-yang
   nte: 'M3.5 15.5C2.8 9 8 3.6 15 3.8M20.5 9.5c.7 6.5-4.5 11.9-11.5 11.7|M12 7.9a4.6 4.6 0 100 9.2 4.6 4.6 0 000-9.2zM12 8.6a2.6 2.6 0 100 5.2 2.6 2.6 0 000-5.2z',
   // Endfield (choix de Funsaiki) : logo d'Endfield Industries, triangle pointe en bas et vis au milieu
