@@ -581,7 +581,7 @@ function currentList(): AppItem[] {
 
 /* Pages : une rangée de 8 au-dessus des dossiers, deux rangées dans un groupe */
 const COLUMNS = 8;
-const pageSize = () => (showFolders() ? COLUMNS : 2 * COLUMNS);
+const pageSize = () => (showFolders() || showRecents() ? COLUMNS : 2 * COLUMNS);
 const pageCount = () => Math.max(1, Math.ceil(currentList().length / pageSize()));
 
 function renderHead(count: number) {
@@ -626,7 +626,39 @@ function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
   grid.classList.remove('tp-in-r', 'tp-in-l');
   if (transition) restartAnimation(grid, transition);
   $('folders').hidden = !showFolders();
+  renderRecents();
   renderHead(list.length);
+}
+
+/* Récents (demandé par Funsaiki) : les dernières applications lancées, à la racine sans
+   recherche, au-dessus des dossiers */
+const MAX_RECENTS = 4;
+
+function recentItems(): AppItem[] {
+  return flattenApps(CONFIG.apps)
+    .filter((it) => it.last)
+    .sort((a, b) => b.last! - a.last!)
+    .slice(0, MAX_RECENTS);
+}
+
+function showRecents() {
+  return !state.stack.length && !state.query && recentItems().length > 0;
+}
+
+function renderRecents() {
+  const show = showRecents();
+  $('recents').hidden = !show;
+  if (!show) return;
+  $('recent-row').replaceChildren(...recentItems().map((it, i) => {
+    const b = el('button', 'tp-press folder');
+    b.title = it.label;
+    const dot = el('span', 'recent-dot');
+    dot.style.background = palette()[i % 4];
+    dot.append(icon(ICONS[it.icon ?? ''] ?? ICONS.fichiers, 13, 2.4));
+    b.append(dot, el('span', '', it.label));
+    b.addEventListener('click', () => launch(it));
+    return b;
+  }));
 }
 
 function renderFolders() {

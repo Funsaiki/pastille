@@ -414,6 +414,14 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   font-weight: 800; font-size: 13px; cursor: pointer; min-width: 0;
 }
 .folder svg { flex: none; }
+/* Récents (demandé par Funsaiki, pas dans la maquette) : mêmes pilules que les dossiers, juste
+   au-dessus, avec l'icône de l'application dans une pastille de la palette */
+.recents { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.recents:not([hidden]) + .folders { margin-top: 0; }
+.recent-dot {
+  width: 24px; height: 24px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+}
 .folder span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ══ Menu d'alimentation (demandé par Funsaiki, pas dans la maquette) : l'écran s'assombrit,

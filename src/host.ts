@@ -57,12 +57,20 @@ export type FeedEvent =
 export type Tool = 'settings' | 'taskmgr' | 'steam-downloads' | 'windows-update' | 'storage';
 export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
+/* Aperçu navigateur : l'exemple, avec quelques lancements pour la recherche et les récents */
+function previewConfig(): Config {
+  const config: Config = structuredClone(EXAMPLE);
+  const now = Math.floor(Date.now() / 1000);
+  config.apps.slice(0, 3).forEach((app, i) => Object.assign(app, { uses: 3 - i, last: now - i * 600 }));
+  return config;
+}
+
 /* Aperçu navigateur : le morceau de la maquette */
 const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
-    if (PREVIEW) return { config: EXAMPLE, problems: [] };
+    if (PREVIEW) return { config: previewConfig(), problems: [] };
     return invoke<ConfigPayload>('get_config');
   },
   /* Rust retrouve la cible à partir de l'id : le front n'envoie jamais de chemin.
