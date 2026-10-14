@@ -53,12 +53,11 @@ const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M
 
 const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
 
-/* Boutons du haut. L'Explorateur remplace la capture d'écran de la maquette (Funsaiki n'en voulait pas). */
+/* Boutons à droite du nom. Funsaiki a retiré la rangée de la maquette (capture d'écran,
+   explorateur, verrouiller) ; il garde ces deux-là. Couleur du rond au survol. */
 const ACTIONS = [
-  { label: 'Paramètres', d: ICONS.parametres, run: () => runAction('Lancement', () => host.openTool('settings')) },
-  { label: 'Explorateur de fichiers', d: ICONS.fichiers, run: () => runAction('Lancement', () => host.openTool('explorer')) },
-  { label: 'Verrouiller', d: 'M6 11h12v10H6zM8 11V7a4 4 0 018 0v4', run: () => runAction('Verrouillage', () => host.power('lock')) },
-  { label: 'Alimentation', d: POWER, run: () => openPowerMenu() },
+  { label: 'Paramètres', d: ICONS.parametres, hover: 'var(--fill)', run: () => runAction('Lancement', () => host.openTool('settings')) },
+  { label: 'Alimentation', d: POWER, hover: '#f6c6da', run: () => openPowerMenu() },
 ];
 
 /* Menu d'alimentation, dans l'ordre de celui de Windows */
@@ -152,10 +151,11 @@ function stopStats() {
 
 function renderActions() {
   $('actions').replaceChildren(...ACTIONS.map((a) => {
-    const b = el('button', 'tp-press action');
+    const b = el('button', 'user-action');
     b.setAttribute('aria-label', a.label);
     b.title = a.label;
-    b.append(icon(a.d, 20, 2.2));
+    b.style.setProperty('--hover', a.hover);
+    b.append(icon(a.d, 22, 2.4));
     b.addEventListener('click', a.run);
     return b;
   }));

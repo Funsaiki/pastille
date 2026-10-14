@@ -47,8 +47,8 @@ export interface AppVolume {
   volume: number;   // 0 à 100, relatif au volume principal
 }
 
-export type Tool = 'settings' | 'explorer' | 'taskmgr';
-export type PowerAction = 'lock' | 'sleep' | 'shutdown' | 'restart' | 'signout';
+export type Tool = 'settings' | 'taskmgr';
+export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
 /* Aperçu navigateur : le morceau de la maquette */
 const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };

@@ -163,11 +163,16 @@ button, input { font-family: 'Nunito', sans-serif; }
 .user-name { font-weight: 900; font-size: 19px; }
 .user-os { font-weight: 700; font-size: 13px; color: var(--soft); }
 
-.actions { display: flex; justify-content: space-between; }
-.action {
-  width: 60px; height: 46px; border-radius: 23px; border: 2.5px solid var(--ink); background: #ffffff; color: var(--ink);
-  box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;
+/* Paramètres et Alimentation à droite du nom (demande de Funsaiki, à la place de la rangée de
+   boutons de la maquette) : sans fond ni bordure, un rond de couleur au survol */
+.user-actions { margin-left: auto; display: flex; gap: 4px; }
+.user-action {
+  width: 44px; height: 44px; padding: 0; border-radius: 50%; border: none; background: transparent; color: var(--ink);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, transform .12s;
 }
+.user-action:hover { background: var(--hover); }
+.user-action:active { transform: translateY(2px); }
+.user-action:focus-visible { outline: 3px solid var(--ink); outline-offset: 1px; }
 
 /* Bascules et bouton Applications */
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }

@@ -1,10 +1,9 @@
-//! Verrouiller, mettre en veille, se déconnecter, redémarrer, arrêter.
+//! Mettre en veille, se déconnecter, redémarrer, arrêter.
 //! RÈGLE 1 de CLAUDE.md : dans un build de développement, rien n'est exécuté, une ligne de
 //! journal seulement. Le code qui agit n'est compilé que dans le build de production.
 
 #[derive(Debug, PartialEq)]
 enum Plan {
-    Lock,
     Sleep,
     /// shutdown.exe (dans System32) avec ces arguments
     Shutdown(&'static [&'static str]),
@@ -17,7 +16,6 @@ pub async fn power(action: String) -> Result<(), String> {
 
 fn plan(action: &str) -> Result<Plan, String> {
     Ok(match action {
-        "lock" => Plan::Lock,
         "sleep" => Plan::Sleep,
         "signout" => Plan::Shutdown(&["/l"]),
         "restart" => Plan::Shutdown(&["/r", "/t", "0"]),
@@ -37,12 +35,9 @@ fn run(plan: Plan) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     use std::path::PathBuf;
     use windows::Win32::System::Power::{IsPwrSuspendAllowed, SetSuspendState};
-    use windows::Win32::System::Shutdown::LockWorkStation;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     match plan {
-        Plan::Lock => unsafe { LockWorkStation() }
-            .map_err(|e| format!("Le verrouillage a échoué : {}", e.message().trim_end())),
         Plan::Sleep => {
             if !unsafe { IsPwrSuspendAllowed() } {
                 return Err("La mise en veille n'est pas disponible sur ce PC.".into());
@@ -76,7 +71,7 @@ mod tests {
 
     #[test]
     fn actions_map_to_system_commands() {
-        assert_eq!(plan("lock"), Ok(Plan::Lock));
+        assert!(plan("lock").is_err(), "retiré le 14/10/2026");
         assert_eq!(plan("sleep"), Ok(Plan::Sleep));
         assert_eq!(plan("signout"), Ok(Plan::Shutdown(&["/l"])));
         assert_eq!(plan("restart"), Ok(Plan::Shutdown(&["/r", "/t", "0"])));
