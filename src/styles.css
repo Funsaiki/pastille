@@ -26,14 +26,20 @@ button, input { font-family: 'Nunito', sans-serif; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ── Animations ── */
-@keyframes tp-rise { from { opacity: 0; transform: translateY(160px); } to { opacity: 1; transform: none; } }
+/* Entrée (retouchée par Funsaiki) : sans fondu, le téléphone sort de sous le bord de l'écran
+   (740 px : tout en dessous de la scène, qui le coupe), monte 10 px trop haut et retombe vite */
+@keyframes tp-rise {
+  from { transform: translateY(740px); animation-timing-function: cubic-bezier(.25, .8, .35, 1); }
+  82% { transform: translateY(-10px); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
+  to { transform: none; }
+}
 @keyframes tp-pop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
 @keyframes tp-eq { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
 @keyframes tp-in-r { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
 @keyframes tp-in-l { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
 @keyframes tp-fade { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes tp-fade-rot { from { opacity: 0; transform: rotate(90deg) scale(.97); } to { opacity: 1; transform: rotate(90deg); } }
-.tp-rise { animation: tp-rise .8s cubic-bezier(.2, .9, .25, 1.05) both; }
+.tp-rise { animation: tp-rise .5s both; }
 .tp-pop { animation: tp-pop .45s var(--ease) both; }
 .tp-in-r { animation: tp-in-r .4s var(--ease) both; }
 .tp-in-l { animation: tp-in-l .4s var(--ease) both; }
