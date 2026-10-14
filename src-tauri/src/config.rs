@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn steam_games_complete_auto_groups() {
-        let game = |appid, name: &str| steam::Game { appid, name: name.into() };
+        let game = |appid, name: &str| steam::Game { appid, name: name.into(), last_played: 0 };
         let base = parse(r#"{ "apps": [
             { "label": "Jeux", "auto": "steam", "children": [
                 { "label": "Hollow Knight", "target": "steam://rungameid/367520" } ] },

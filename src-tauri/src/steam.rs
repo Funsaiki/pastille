@@ -4,6 +4,7 @@
 //! chaque bibliothèque.
 
 use std::{
+    cmp::Reverse,
     collections::HashSet,
     fs,
     path::{Path, PathBuf},
@@ -38,14 +39,21 @@ const RECENT_SECS: u64 = 24 * 3600;
 pub struct Game {
     pub appid: u32,
     pub name: String,
+    /// Dernière partie (secondes depuis 1970), 0 si jamais lancé
+    pub last_played: u64,
 }
 
-/// Jeux installés, triés par nom. Vide si Steam est introuvable.
+/// Jeux installés, le dernier joué en tête (demande de Funsaiki), puis par nom. Vide si Steam
+/// est introuvable.
 pub fn installed_games() -> Vec<Game> {
     let mut games: Vec<Game> = manifests().iter().filter_map(|text| parse_manifest(text)).collect();
-    games.sort_by_key(|g| normalize(&g.name));
-    games.dedup_by_key(|g| g.appid); // un jeu présent dans deux bibliothèques
+    sort_games(&mut games);
     games
+}
+
+fn sort_games(games: &mut Vec<Game>) {
+    games.sort_by_key(|g| (Reverse(g.last_played), normalize(&g.name)));
+    games.dedup_by_key(|g| g.appid); // un jeu présent dans deux bibliothèques (mêmes clés : voisins)
 }
 
 /// Téléchargement d'un jeu : mise à jour en cours, en pause, ou terminée depuis moins de 24 h
@@ -123,7 +131,8 @@ fn parse_common(text: &str) -> Option<(u32, u32, String)> {
 
 fn parse_manifest(text: &str) -> Option<Game> {
     let (appid, flags, name) = parse_common(text)?;
-    (flags & FULLY_INSTALLED != 0).then_some(Game { appid, name })
+    let last_played = values(text, "LastPlayed").next().and_then(|v| v.parse().ok()).unwrap_or(0);
+    (flags & FULLY_INSTALLED != 0).then_some(Game { appid, name, last_played })
 }
 
 fn parse_activity(text: &str, now: u64) -> Option<(u32, Activity)> {
@@ -163,7 +172,7 @@ mod tests {
     #[test]
     fn manifest_is_parsed() {
         // StateFlags 6 = installé (4) + mise à jour en attente (2) : gardé ; 2 seul : pas installé
-        assert_eq!(parse_manifest(MANIFEST), Some(Game { appid: 2050650, name: "Street Fighter 6".into() }));
+        assert_eq!(parse_manifest(MANIFEST), Some(Game { appid: 2050650, name: "Street Fighter 6".into(), last_played: 0 }));
         assert!(parse_manifest(&MANIFEST.replace("\"StateFlags\"\t\t\"6\"", "\"StateFlags\"\t\t\"2\"")).is_none());
         assert!(parse_manifest(&MANIFEST.replace("2050650", "228980")).is_none());
     }
@@ -189,6 +198,15 @@ mod tests {
         assert!(parse_activity(&done(2 * 86400), now).is_none());
         // Mise à jour en attente, pas commencée (6) : rien à signaler
         assert!(parse_activity(&with("6", ""), now).is_none());
+    }
+
+    #[test]
+    fn last_played_first_then_by_name() {
+        let game = |appid, name: &str, last_played| Game { appid, name: name.into(), last_played };
+        let mut games = vec![game(1, "Hades", 0), game(2, "Apex", 0), game(3, "Zelda", 50), game(4, "Celeste", 90), game(3, "Zelda", 50)];
+        sort_games(&mut games);
+        let names: Vec<_> = games.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(names, ["Celeste", "Zelda", "Apex", "Hades"]);
     }
 
     #[test]
