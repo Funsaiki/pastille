@@ -15,12 +15,12 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-use crate::{steam, tray};
+use crate::{steam, tray, usage};
 
 const EXAMPLE: &str = include_str!("../../apps.example.json");
 
 /// Bouton du lanceur. `target` et `args` restent côté Rust : le front ne renvoie que l'`id`.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppItem {
     #[serde(default, skip_deserializing)]
@@ -41,6 +41,15 @@ pub struct AppItem {
     /// Mots cherchés en plus du libellé (ex. le titre complet d'un jeu au nom raccourci)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keywords: Option<String>,
+    /// Lancements (usage.json) et date du dernier, envoyés au front ; jamais lus dans apps.json
+    #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
+    pub uses: u32,
+    #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
+    pub last: u64,
+}
+
+fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
+    *value == T::default()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -166,15 +175,11 @@ fn merge(base: &Config, games: &[steam::Game]) -> Config {
                     let target = format!("steam://rungameid/{}", g.appid);
                     if !children.iter().any(|c| c.target.as_deref() == Some(target.as_str())) {
                         children.push(AppItem {
-                            id: String::new(),
                             label: g.name.clone(),
                             icon: Some("jeux".into()),
                             target: Some(target),
-                            args: Vec::new(),
                             source: Some("STEAM".into()),
-                            auto: None,
-                            children: None,
-                            keywords: None,
+                            ..Default::default()
                         });
                     }
                 }
@@ -379,9 +384,24 @@ pub struct ConfigPayload {
 }
 
 #[tauri::command]
-pub fn get_config(state: tauri::State<'_, SharedConfig>) -> ConfigPayload {
+pub fn get_config(app: AppHandle, state: tauri::State<'_, SharedConfig>) -> ConfigPayload {
     let s = state.lock().unwrap();
-    ConfigPayload { config: s.config.clone(), problems: s.problems.clone() }
+    let mut config = s.config.clone();
+    annotate(&app, &mut config.apps);
+    ConfigPayload { config, problems: s.problems.clone() }
+}
+
+/// Lancements de chaque bouton (usage.json), pour classer la recherche et la rangée Récents
+fn annotate(app: &AppHandle, items: &mut [AppItem]) {
+    for it in items {
+        if let Some(entry) = it.target.as_ref().and_then(|t| usage::get(app, &usage::key(t, &it.args))) {
+            it.uses = entry.count;
+            it.last = entry.last;
+        }
+        if let Some(children) = &mut it.children {
+            annotate(app, children);
+        }
+    }
 }
 
 #[cfg(test)]

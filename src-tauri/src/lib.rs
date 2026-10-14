@@ -10,6 +10,7 @@ mod shell;
 mod steam;
 mod system;
 mod tray;
+mod usage;
 
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -47,6 +48,7 @@ pub fn run() {
             // Lit apps.json et enregistre le raccourci ; s'il est déjà pris, l'app démarre
             // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
             com::keep_mta();
+            app.manage(usage::load(app.handle()));
             config::init(app.handle());
             app.manage(system::Meter::default());
             let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());

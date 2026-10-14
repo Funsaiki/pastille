@@ -15,6 +15,8 @@ export interface AppItem {
   auto?: string;          // 'steam' : groupe complété par les jeux Steam détectés
   children?: AppItem[];   // présent = bouton-groupe
   keywords?: string;      // mots cherchés en plus du libellé, en début de mot
+  uses?: number;          // lancements (usage.json, envoyé par Rust)
+  last?: number;          // date du dernier lancement, en secondes depuis 1970
 }
 
 export interface Favorite {

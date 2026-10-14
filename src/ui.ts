@@ -568,12 +568,13 @@ function showFolders() {
 }
 
 /* Recherche dans toutes les applications, groupes compris : libellé n'importe où,
-   mots-clés en début de mot (comme le premier lanceur) ; 16 au plus, comme la maquette */
+   mots-clés en début de mot (comme le premier lanceur) ; les plus lancées d'abord (à égalité,
+   l'ordre de apps.json) ; 16 au plus, comme la maquette */
 function currentList(): AppItem[] {
   if (state.query) {
     const q = norm(state.query);
     const match = (it: AppItem) => norm(it.label).includes(q) || norm(' ' + (it.keywords ?? '')).includes(' ' + q);
-    return flattenApps(CONFIG.apps).filter(match).slice(0, 16);
+    return flattenApps(CONFIG.apps).filter(match).sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0)).slice(0, 16);
   }
   return state.stack[state.stack.length - 1]?.children ?? CONFIG.apps;
 }
@@ -719,7 +720,13 @@ function enterSettings(afterTurn: boolean) {
 
 /* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
 async function launch(item: AppItem | Favorite) {
-  await runAction('Lancement', () => host.launch(item));
+  await runAction('Lancement', async () => {
+    await host.launch(item);
+    // Rust a compté le lancement (usage.json) ; la copie du front suit sans recharger la config
+    const it = item as AppItem;
+    it.uses = (it.uses ?? 0) + 1;
+    it.last = Math.floor(Date.now() / 1000);
+  });
 }
 
 async function runAction(title: string, action: () => Promise<void>) {

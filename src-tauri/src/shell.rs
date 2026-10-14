@@ -24,8 +24,11 @@ use crate::config;
 pub async fn launch(app: AppHandle, id: String) -> Result<(), String> {
     let (target, args) = config::target_of(&app, &id)
         .ok_or_else(|| format!("Élément {id} introuvable, la config a peut-être changé."))?;
+    let key = crate::usage::key(&target, &args);
     // Hors du fil principal : l'invite UAC, par exemple, attend la réponse de l'utilisateur
-    crate::blocking(move || open(&target, &args)).await?
+    crate::blocking(move || open(&target, &args)).await??;
+    crate::usage::record(&app, key);
+    Ok(())
 }
 
 /// Boutons du haut de la vue réglages : le front envoie un nom, pas une cible.
