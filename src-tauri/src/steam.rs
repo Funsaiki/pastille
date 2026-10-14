@@ -12,8 +12,7 @@ use std::{
 
 use serde::Serialize;
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
-use windows::core::w;
-use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ};
+use windows_registry::CURRENT_USER;
 
 /// Outils Steam qui ne sont pas des jeux
 const TOOLS: &[u32] = &[
@@ -92,25 +91,12 @@ fn normalize(s: &str) -> String {
 }
 
 fn steam_dir() -> Option<PathBuf> {
-    let mut buf = [0u16; 1024];
-    let mut size = (buf.len() * 2) as u32;
-    let status = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            w!("Software\\Valve\\Steam"),
-            w!("SteamPath"),
-            RRF_RT_REG_SZ,
-            None,
-            Some(buf.as_mut_ptr().cast()),
-            Some(&mut size),
-        )
-    };
-    let from_registry = status
-        .is_ok()
-        .then(|| PathBuf::from(String::from_utf16_lossy(&buf[..(size as usize / 2).saturating_sub(1)])));
-    from_registry
-        .or_else(|| Some(PathBuf::from("C:\\Program Files (x86)\\Steam")))
-        .filter(|dir| dir.is_dir())
+    let dir = CURRENT_USER
+        .open(r"Software\Valve\Steam")
+        .and_then(|key| key.get_string("SteamPath"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(r"C:\Program Files (x86)\Steam"));
+    dir.is_dir().then_some(dir)
 }
 
 /// Dossier Steam + bibliothèques déclarées dans libraryfolders.vdf.
@@ -125,23 +111,24 @@ fn library_dirs(steam: &Path) -> Vec<PathBuf> {
     dirs
 }
 
-fn parse_manifest(text: &str) -> Option<Game> {
+/// Champs communs d'un manifeste : identifiant, état, nom. None pour les outils Steam.
+fn parse_common(text: &str) -> Option<(u32, u32, String)> {
     let appid: u32 = values(text, "appid").next()?.parse().ok()?;
-    let flags: u32 = values(text, "StateFlags").next()?.parse().ok()?;
-    if flags & FULLY_INSTALLED == 0 || TOOLS.contains(&appid) {
-        return None;
-    }
-    Some(Game { appid, name: clean_name(&values(text, "name").next()?) })
-}
-
-fn parse_activity(text: &str, now: u64) -> Option<(u32, Activity)> {
-    let appid: u32 = values(text, "appid").next()?.parse().ok()?;
-    let flags: u32 = values(text, "StateFlags").next()?.parse().ok()?;
     if TOOLS.contains(&appid) {
         return None;
     }
+    let flags: u32 = values(text, "StateFlags").next()?.parse().ok()?;
+    Some((appid, flags, clean_name(&values(text, "name").next()?)))
+}
+
+fn parse_manifest(text: &str) -> Option<Game> {
+    let (appid, flags, name) = parse_common(text)?;
+    (flags & FULLY_INSTALLED != 0).then_some(Game { appid, name })
+}
+
+fn parse_activity(text: &str, now: u64) -> Option<(u32, Activity)> {
+    let (appid, flags, game) = parse_common(text)?;
     let number = |key| values(text, key).next().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
-    let game = clean_name(&values(text, "name").next()?);
     if flags & (UPDATING | PAUSED) != 0 {
         let (done, total) = (number("BytesDownloaded"), number("BytesToDownload"));
         let progress = (total > 0).then(|| (done.saturating_mul(100) / total).min(100) as u8);

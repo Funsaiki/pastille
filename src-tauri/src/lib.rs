@@ -14,6 +14,11 @@ mod tray;
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::ShortcutState;
 
+/// Hors du fil principal : appels qui peuvent attendre (disque, COM, invite UAC…)
+pub(crate) async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[allow(unused_mut)]
@@ -41,6 +46,7 @@ pub fn run() {
         .setup(|app| {
             // Lit apps.json et enregistre le raccourci ; s'il est déjà pris, l'app démarre
             // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
+            com::keep_mta();
             config::init(app.handle());
             app.manage(system::Meter::default());
             let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());

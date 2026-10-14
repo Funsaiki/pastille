@@ -18,7 +18,7 @@ use windows::Win32::System::Threading::{
 };
 
 use crate::audio::default_device;
-use crate::com::{blocking, with_com};
+use crate::com::com_task;
 
 #[derive(Serialize)]
 pub struct AppVolume {
@@ -34,37 +34,32 @@ const SYSTEM: &str = "system";
 /// Applications qui jouent du son d'abord, puis par nom ; sons système à la fin
 #[tauri::command]
 pub async fn mixer() -> Vec<AppVolume> {
-    blocking(|| with_com(list).unwrap_or_default()).await.unwrap_or_default()
+    com_task(list).await.unwrap_or_default()
 }
 
 /// Comme dans Windows : bouger le curseur rétablit le son de l'application s'il était coupé
 #[tauri::command]
 pub async fn set_app_volume(key: String, level: u8) -> Result<(), String> {
-    blocking(move || {
-        with_com(|| -> windows::core::Result<()> {
-            for (_, volume) in sessions()?.into_iter().filter(|(k, _)| *k == key) {
-                unsafe {
-                    volume.SetMasterVolume(f32::from(level.min(100)) / 100.0, std::ptr::null())?;
-                    if level > 0 {
-                        volume.SetMute(false, std::ptr::null())?;
-                    }
+    com_task(move || {
+        for session in sessions()?.into_iter().filter(|s| s.key == key) {
+            unsafe {
+                session.volume.SetMasterVolume(f32::from(level.min(100)) / 100.0, std::ptr::null())?;
+                if level > 0 {
+                    session.volume.SetMute(false, std::ptr::null())?;
                 }
             }
-            Ok(())
-        })
-        .map_err(|e| e.message().trim_end().to_string())
+        }
+        Ok(())
     })
-    .await?
+    .await
 }
 
 fn list() -> windows::core::Result<Vec<AppVolume>> {
     // Programme -> (volume de sa première session, l'une de ses sessions joue du son)
     let mut apps: HashMap<String, (u8, bool)> = HashMap::new();
-    for (key, volume) in sessions()? {
-        let control: IAudioSessionControl2 = volume.cast()?;
-        let playing = unsafe { control.GetState()? } == AudioSessionStateActive;
-        let level = (unsafe { volume.GetMasterVolume()? } * 100.0).round() as u8;
-        apps.entry(key).or_insert((level, false)).1 |= playing;
+    for session in sessions()? {
+        let level = (unsafe { session.volume.GetMasterVolume()? } * 100.0).round() as u8;
+        apps.entry(session.key).or_insert((level, false)).1 |= session.playing;
     }
     let mut apps: Vec<(AppVolume, bool)> = apps
         .into_iter()
@@ -74,14 +69,23 @@ fn list() -> windows::core::Result<Vec<AppVolume>> {
     Ok(apps.into_iter().map(|(app, _)| app).collect())
 }
 
-/// Sessions de la sortie par défaut, sauf celles des applications fermées : (programme, volume)
-fn sessions() -> windows::core::Result<Vec<(String, ISimpleAudioVolume)>> {
+struct Session {
+    /// Programme, ou « system »
+    key: String,
+    volume: ISimpleAudioVolume,
+    /// Joue du son en ce moment
+    playing: bool,
+}
+
+/// Sessions de la sortie par défaut, sauf celles des applications fermées
+fn sessions() -> windows::core::Result<Vec<Session>> {
     let manager: IAudioSessionManager2 = default_device(eRender)?;
     let list = unsafe { manager.GetSessionEnumerator()? };
     let mut out = Vec::new();
     for i in 0..unsafe { list.GetCount()? } {
         let control: IAudioSessionControl2 = unsafe { list.GetSession(i)? }.cast()?;
-        if unsafe { control.GetState()? } == AudioSessionStateExpired {
+        let state = unsafe { control.GetState()? };
+        if state == AudioSessionStateExpired {
             continue;
         }
         let key = if unsafe { control.IsSystemSoundsSession() } == S_OK {
@@ -92,7 +96,7 @@ fn sessions() -> windows::core::Result<Vec<(String, ISimpleAudioVolume)>> {
                 None => continue,
             }
         };
-        out.push((key, control.cast()?));
+        out.push(Session { key, volume: control.cast()?, playing: state == AudioSessionStateActive });
     }
     Ok(out)
 }
@@ -171,7 +175,7 @@ mod tests {
     #[test]
     #[ignore]
     fn real_mixer() {
-        with_com(|| {
+        crate::com::with_com(|| {
             let start = std::time::Instant::now();
             for app in list().unwrap() {
                 eprintln!("{:>3} %  {}  ({})", app.volume, app.name, app.key);

@@ -2,7 +2,6 @@
    Lanceur pastel — valeurs reprises de maquette/Telephone.dc.html,
    qui fait foi. Police Nunito embarquée (fonctionne hors connexion).
    ══════════════════════════════════════════════════════════ */
-@import '@fontsource/nunito/600.css';
 @import '@fontsource/nunito/700.css';
 @import '@fontsource/nunito/800.css';
 @import '@fontsource/nunito/900.css';
@@ -86,8 +85,7 @@ button, input { font-family: 'Nunito', sans-serif; }
   transition: transform .9s cubic-bezier(.3, 1.45, .5, 1);
 }
 .landscape .strap { transform: translateZ(3px) rotate(90deg); }
-.strap-swing { width: 100%; height: 100%; transform-origin: 31px 10px; animation: strap-swing 1.8s .2s both; }
-.strap-swing { position: relative; }
+.strap-swing { position: relative; width: 100%; height: 100%; transform-origin: 31px 10px; animation: strap-swing 1.8s .2s both; }
 .strap-swing svg { display: block; }
 /* Breloque : Miku (assets/SvgMiku3.svg), le haut du crâne au bout du cordon, avec l'ombre
    d'encre de 3 px des autres éléments */
@@ -228,7 +226,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 .card { border-radius: 24px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 3px 0 var(--ink); }
 
 /* Volume */
-.sliders { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; }
+.sliders { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; }
 /* 12 px au lieu des 6 de la maquette : de l'air entre le bouton du mélangeur et le curseur (demande de Funsaiki) */
 .slider { display: flex; flex-direction: column; gap: 12px; }
 .slider-head { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 14px; }
@@ -246,7 +244,6 @@ button, input { font-family: 'Nunito', sans-serif; }
 
 /* ── Mélangeur (demandé par Funsaiki, pas dans la maquette) : petit bouton dans la carte du
    volume, panneau ouvert sous la carte, par-dessus la lecture et les notifications ── */
-.sliders { position: relative; }
 .mixer-toggle {
   width: 32px; height: 26px; flex: none; margin: -4px 0; padding: 0; box-sizing: border-box; border-radius: 13px;
   border: 2px solid var(--ink); background: #ffffff; color: var(--ink); box-shadow: 0 2px 0 var(--ink);

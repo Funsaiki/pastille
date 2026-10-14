@@ -10,6 +10,7 @@ use std::{
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use windows::core::{w, PCWSTR, PWSTR};
+use windows_registry::LOCAL_MACHINE;
 use windows::Win32::NetworkManagement::IpHelper::{FreeMibTable, GetIfTable2, MIB_IF_ROW2, MIB_IF_TABLE2};
 use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
 use windows::Win32::Security::Authentication::Identity::{GetUserNameExW, NameDisplay};
@@ -17,12 +18,11 @@ use windows::Win32::System::Performance::{
     PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
     PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
 };
-use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
 use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 
 /* ── Profil ── */
 
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 pub struct Profile {
     /// Prénom : premier mot du nom du compte (« Funsaiki » → « Funsaiki »)
     name: String,
@@ -30,8 +30,13 @@ pub struct Profile {
     system: String,
 }
 
+/// Hors du fil principal : le nom du compte peut demander une recherche dans l'annuaire
 #[tauri::command]
-pub fn profile() -> Profile {
+pub async fn profile() -> Profile {
+    crate::blocking(read_profile).await.unwrap_or_default()
+}
+
+fn read_profile() -> Profile {
     let full = display_name().or_else(|| std::env::var("USERNAME").ok()).unwrap_or_default();
     Profile { name: full.split_whitespace().next().unwrap_or_default().to_string(), system: windows_name() }
 }
@@ -40,31 +45,22 @@ pub fn profile() -> Profile {
 fn display_name() -> Option<String> {
     let mut buf = [0u16; 256];
     let mut len = buf.len() as u32;
-    let ok = unsafe { GetUserNameExW(NameDisplay, Some(PWSTR(buf.as_mut_ptr())), &mut len) };
-    let name = String::from_utf16_lossy(&buf[..len as usize]);
-    (ok && !name.trim().is_empty()).then_some(name)
+    // En cas d'échec (nom trop long…), `len` peut valoir la taille demandée : ne pas s'en servir
+    if !unsafe { GetUserNameExW(NameDisplay, Some(PWSTR(buf.as_mut_ptr())), &mut len) } {
+        return None;
+    }
+    let name = String::from_utf16_lossy(&buf[..(len as usize).min(buf.len())]);
+    (!name.trim().is_empty()).then_some(name)
 }
 
 /// Windows 11 garde « Windows 10 » dans ProductName : on se fie au numéro de build.
 fn windows_name() -> String {
-    let mut buf = [0u16; 32];
-    let mut size = (buf.len() * 2) as u32;
-    let status = unsafe {
-        RegGetValueW(
-            HKEY_LOCAL_MACHINE,
-            w!("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"),
-            w!("CurrentBuild"),
-            RRF_RT_REG_SZ,
-            None,
-            Some(buf.as_mut_ptr().cast()),
-            Some(&mut size),
-        )
-    };
-    let build: u32 = if status.is_ok() {
-        String::from_utf16_lossy(&buf[..(size as usize / 2).saturating_sub(1)]).parse().unwrap_or(0)
-    } else {
-        0
-    };
+    let build: u32 = LOCAL_MACHINE
+        .open(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
+        .and_then(|key| key.get_string("CurrentBuild"))
+        .ok()
+        .and_then(|build| build.parse().ok())
+        .unwrap_or(0);
     if build >= 22000 { "Windows 11" } else { "Windows 10" }.into()
 }
 
@@ -101,9 +97,7 @@ const FIRST_WINDOW: Duration = Duration::from_millis(250);
 /// attend 250 ms.
 #[tauri::command]
 pub async fn stats(app: AppHandle) -> Stats {
-    tauri::async_runtime::spawn_blocking(move || measure(&app.state::<Meter>()))
-        .await
-        .unwrap_or_default()
+    crate::blocking(move || measure(&app.state::<Meter>())).await.unwrap_or_default()
 }
 
 fn measure(meter: &Meter) -> Stats {
@@ -113,7 +107,15 @@ fn measure(meter: &Meter) -> Stats {
         state.cpu = Cpu::open();
     }
     let before = match state.last {
-        Some(sample) if sample.0.elapsed() < STALE => sample,
+        Some(sample) if sample.0.elapsed() < STALE => {
+            // Vue quittée puis rouverte aussitôt : mesurer sur presque rien multiplierait les
+            // octets et rendrait le processeur illisible
+            let elapsed = sample.0.elapsed();
+            if elapsed < FIRST_WINDOW {
+                thread::sleep(FIRST_WINDOW - elapsed);
+            }
+            sample
+        }
         _ => {
             let sample = totals();
             if let Some(cpu) = &state.cpu {
@@ -195,10 +197,12 @@ fn memory_load() -> Option<u8> {
 /// leur trafic passe déjà par une carte physique, il serait compté deux fois.
 fn totals() -> (Instant, u64, u64) {
     let (mut down, mut up) = (0, 0);
-    for row in interfaces().iter().filter(|r| counted(r)) {
-        down += row.InOctets;
-        up += row.OutOctets;
-    }
+    for_each_interface(|row| {
+        if counted(row) {
+            down += row.InOctets;
+            up += row.OutOctets;
+        }
+    });
     (Instant::now(), down, up)
 }
 
@@ -209,14 +213,16 @@ fn counted(row: &MIB_IF_ROW2) -> bool {
     flags & HARDWARE != 0 && flags & FILTER == 0 && row.OperStatus == IfOperStatusUp
 }
 
-fn interfaces() -> Vec<MIB_IF_ROW2> {
+/// Lignes de la table des interfaces, lues sur place (sans copie) avant de la libérer
+fn for_each_interface(mut f: impl FnMut(&MIB_IF_ROW2)) {
     let mut table: *mut MIB_IF_TABLE2 = std::ptr::null_mut();
     if unsafe { GetIfTable2(&mut table) }.is_err() || table.is_null() {
-        return Vec::new();
+        return;
     }
-    let rows = unsafe { std::slice::from_raw_parts((*table).Table.as_ptr(), (*table).NumEntries as usize).to_vec() };
-    unsafe { FreeMibTable(table as *const _) };
-    rows
+    unsafe {
+        std::slice::from_raw_parts((*table).Table.as_ptr(), (*table).NumEntries as usize).iter().for_each(&mut f);
+        FreeMibTable(table as *const _);
+    }
 }
 
 #[cfg(test)]
@@ -225,7 +231,7 @@ mod tests {
 
     #[test]
     fn profile_has_a_name_and_a_system() {
-        let p = profile();
+        let p = read_profile();
         assert!(!p.name.is_empty() && !p.name.contains(' '), "{}", p.name);
         assert!(p.system.starts_with("Windows "), "{}", p.system);
     }
@@ -239,27 +245,34 @@ mod tests {
         assert!(stats.down >= 0.0 && stats.up >= 0.0);
         assert!(stats.cpu.is_some_and(|c| c <= 100), "processeur : {:?}", stats.cpu);
         assert!(stats.ram.is_some_and(|r| r > 0 && r <= 100), "mémoire : {:?}", stats.ram);
+        // Relevé suivant une seconde plus tard, comme le front : pas de nouvelle attente
+        thread::sleep(Duration::from_secs(1));
         let start = Instant::now();
         assert!(measure(&meter).cpu.is_some());
         assert!(start.elapsed() < FIRST_WINDOW, "relevé récent : pas de nouvelle attente");
+        // Relevé collé au précédent : il attend la fin de la fenêtre de mesure
+        let start = Instant::now();
+        measure(&meter);
+        assert!(start.elapsed() >= FIRST_WINDOW - Duration::from_millis(20));
     }
 
     /// Diagnostic : cargo test real_network -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_network() {
-        for row in interfaces() {
+        for_each_interface(|row| {
             let alias = String::from_utf16_lossy(&row.Alias).trim_end_matches('\0').to_string();
-            if row.InOctets > 0 || counted(&row) {
-                eprintln!("{} {:>14} {:>14}  {alias}", if counted(&row) { "✓" } else { " " }, row.InOctets, row.OutOctets);
+            if row.InOctets > 0 || counted(row) {
+                eprintln!("{} {:>14} {:>14}  {alias}", if counted(row) { "✓" } else { " " }, row.InOctets, row.OutOctets);
             }
-        }
+        });
         let meter = Meter::default();
         measure(&meter);
         thread::sleep(Duration::from_secs(1));
         let stats = measure(&meter);
         eprintln!("débit : ↓ {:.0} o/s, ↑ {:.0} o/s", stats.down, stats.up);
         eprintln!("processeur : {:?} %, mémoire : {:?} %", stats.cpu, stats.ram);
-        eprintln!("profil : {} / {}", profile().name, profile().system);
+        let p = read_profile();
+        eprintln!("profil : {} / {}", p.name, p.system);
     }
 }

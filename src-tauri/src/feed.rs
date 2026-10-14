@@ -11,10 +11,10 @@ use std::{
 };
 
 use serde::Serialize;
-use windows::core::{w, HSTRING};
+use windows::core::HSTRING;
+use windows_registry::LOCAL_MACHINE;
 use windows::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives};
 use windows::Win32::System::Com::CoTaskMemFree;
-use windows::Win32::System::Registry::{RegCloseKey, RegOpenKeyExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ};
 use windows::Win32::UI::Shell::{FOLDERID_Downloads, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
 
 use crate::steam;
@@ -45,7 +45,7 @@ const FILE_ATTRIBUTE_SYSTEM: u32 = 4;
 /// Alertes d'abord, puis Steam, puis les téléchargements du plus récent au plus ancien
 #[tauri::command]
 pub async fn feed() -> Vec<Event> {
-    tauri::async_runtime::spawn_blocking(|| {
+    crate::blocking(|| {
         let mut events = Vec::new();
         if reboot_required() {
             events.push(Event::Reboot);
@@ -70,9 +70,7 @@ pub async fn open_download(name: String) -> Result<(), String> {
         return Err(format!("{name} n'est plus dans Téléchargements."));
     }
     let path = path.to_string_lossy().into_owned();
-    tauri::async_runtime::spawn_blocking(move || crate::shell::open_file(&path))
-        .await
-        .map_err(|e| e.to_string())?
+    crate::blocking(move || crate::shell::open_file(&path)).await?
 }
 
 /// Dossier Téléchargements de Windows, même déplacé par l'utilisateur
@@ -114,16 +112,9 @@ fn unfinished(name: &str) -> bool {
     [".crdownload", ".part", ".partial", ".download", ".opdownload", ".tmp"].iter().any(|ext| name.ends_with(ext))
 }
 
+/// La clé n'existe que tant que Windows Update attend un redémarrage
 fn reboot_required() -> bool {
-    let mut key = HKEY::default();
-    let path = w!("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired");
-    let found = unsafe { RegOpenKeyExW(HKEY_LOCAL_MACHINE, path, None, KEY_READ, &mut key) }.is_ok();
-    if found {
-        unsafe {
-            let _ = RegCloseKey(key);
-        }
-    }
-    found
+    LOCAL_MACHINE.open(r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired").is_ok()
 }
 
 fn low_disks() -> Vec<Event> {

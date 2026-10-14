@@ -1,6 +1,8 @@
 //! Lecture en cours de Spotify, par les contrôles multimédias de Windows (ceux qui
 //! s'affichent avec les touches de volume). Spotify seulement, à la demande de Funsaiki.
 
+use std::sync::Mutex;
+
 use serde::Serialize;
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession as Session,
@@ -8,7 +10,7 @@ use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
 };
 
-use crate::com::{blocking, with_com};
+use crate::com::com_task;
 
 #[derive(Serialize)]
 pub struct NowPlaying {
@@ -20,13 +22,27 @@ pub struct NowPlaying {
 /// None quand Spotify n'est pas ouvert
 #[tauri::command]
 pub async fn media() -> Option<NowPlaying> {
-    blocking(|| with_com(now_playing).ok().flatten()).await.ok().flatten()
+    com_task(now_playing).await.ok().flatten()
 }
 
 /// `toggle` (lecture/pause), `next`, `previous`
 #[tauri::command]
 pub async fn media_control(action: String) -> Result<(), String> {
-    blocking(move || with_com(|| control(&action))).await?
+    if !matches!(action.as_str(), "toggle" | "next" | "previous") {
+        return Err(format!("Commande inconnue : {action}."));
+    }
+    let sent = com_task(move || {
+        let Some(session) = spotify()? else { return Ok(false) };
+        let request = match action.as_str() {
+            "toggle" => session.TryTogglePlayPauseAsync()?,
+            "next" => session.TrySkipNextAsync()?,
+            _ => session.TrySkipPreviousAsync()?,
+        };
+        request.join()?;
+        Ok(true)
+    })
+    .await?;
+    if sent { Ok(()) } else { Err("Spotify n'est pas ouvert.".into()) }
 }
 
 fn now_playing() -> windows::core::Result<Option<NowPlaying>> {
@@ -39,22 +55,30 @@ fn now_playing() -> windows::core::Result<Option<NowPlaying>> {
     }))
 }
 
-fn control(action: &str) -> Result<(), String> {
-    let message = |e: windows::core::Error| e.message().trim_end().to_string();
-    let session = spotify().map_err(message)?.ok_or("Spotify n'est pas ouvert.")?;
-    let request = match action {
-        "toggle" => session.TryTogglePlayPauseAsync(),
-        "next" => session.TrySkipNextAsync(),
-        "previous" => session.TrySkipPreviousAsync(),
-        _ => return Err(format!("Commande inconnue : {action}.")),
-    };
-    request.and_then(|r| r.join()).map(|_| ()).map_err(message)
+/// Gestionnaire des lecteurs, gardé d'un relevé à l'autre : le demander coûte ~5 ms, le relevé
+/// a lieu toutes les secondes. L'appartement multithread reste en vie (com::keep_mta).
+static MANAGER: Mutex<Option<SessionManager>> = Mutex::new(None);
+
+fn manager() -> windows::core::Result<SessionManager> {
+    let mut slot = MANAGER.lock().unwrap();
+    if let Some(manager) = slot.as_ref() {
+        return Ok(manager.clone());
+    }
+    let manager = SessionManager::RequestAsync()?.join()?;
+    *slot = Some(manager.clone());
+    Ok(manager)
 }
 
 /// Session de Spotify parmi celles des lecteurs ouverts : appli classique (« Spotify.exe »)
 /// ou celle du Microsoft Store (« SpotifyAB.SpotifyMusic_…!Spotify », celle de Funsaiki)
 fn spotify() -> windows::core::Result<Option<Session>> {
-    let sessions = SessionManager::RequestAsync()?.join()?.GetSessions()?;
+    let sessions = match manager().and_then(|m| m.GetSessions()) {
+        Ok(sessions) => sessions,
+        Err(e) => {
+            *MANAGER.lock().unwrap() = None;   // service redémarré… : redemandé au prochain relevé
+            return Err(e);
+        }
+    };
     Ok(sessions.into_iter().find(|s| is_spotify(&s.SourceAppUserModelId().unwrap_or_default().to_string())))
 }
 
@@ -66,6 +90,7 @@ fn is_spotify(app_id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::com::with_com;
 
     #[test]
     fn spotify_ids() {
@@ -79,16 +104,19 @@ mod tests {
     #[test]
     #[ignore]
     fn real_media() {
+        crate::com::keep_mta();
         with_com(|| {
-            let start = std::time::Instant::now();
-            for s in SessionManager::RequestAsync().unwrap().join().unwrap().GetSessions().unwrap() {
+            for s in manager().unwrap().GetSessions().unwrap() {
                 eprintln!("session : {}", s.SourceAppUserModelId().unwrap());
             }
-            match now_playing().unwrap() {
-                Some(n) => eprintln!("Spotify : « {} » de {} (lecture : {})", n.title, n.artist, n.playing),
-                None => eprintln!("Spotify n'est pas ouvert"),
+            for _ in 0..2 {
+                let start = std::time::Instant::now();
+                match now_playing().unwrap() {
+                    Some(n) => eprintln!("Spotify : « {} » de {} (lecture : {})", n.title, n.artist, n.playing),
+                    None => eprintln!("Spotify n'est pas ouvert"),
+                }
+                eprintln!("durée : {:?}", start.elapsed());
             }
-            eprintln!("durée : {:?}", start.elapsed());
         });
     }
 }

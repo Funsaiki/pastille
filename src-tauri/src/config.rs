@@ -285,29 +285,33 @@ pub fn tooltip(s: &ConfigState) -> String {
 
 /* ── Cycle de vie ── */
 
-/// Au démarrage : lit apps.json (ou retombe sur l'exemple) et enregistre le raccourci.
+/// Au démarrage : lit apps.json (ou retombe sur l'exemple) et enregistre le raccourci. Les
+/// jeux Steam sont cherchés en arrière-plan : les bibliothèques peuvent être sur des disques
+/// en veille, le démarrage ne les attend pas.
 pub fn init(app: &AppHandle) {
     let mut problems = Vec::new();
     let base = load(app).unwrap_or_else(|msg| {
         problems.push(format!("{msg} Config par défaut utilisée."));
         parse(EXAMPLE).expect("apps.example.json embarqué invalide")
     });
-    let games = steam::installed_games();
     let mut state = ConfigState {
-        config: merge(&base, &games),
+        config: merge(&base, &[]),
         base,
-        games,
+        games: Vec::new(),
         games_scanned: Instant::now(),
-        scanning: false,
+        scanning: true,
         problems,
         registered: None,
         modified: modified(app),
     };
     apply_shortcut(app, &mut state);
     app.manage(Mutex::new(state));
+    scan_games(app);
 }
 
 /// « Recharger la config » (ou fichier modifié) : en cas d'erreur, la config précédente reste en place.
+/// À appeler depuis le fil principal : apply_shortcut y attend l'enregistrement du raccourci
+/// en gardant le verrou de la config (depuis un autre fil, get_config attendrait ce verrou).
 pub fn reload(app: &AppHandle) {
     let state = app.state::<SharedConfig>();
     let mut s = state.lock().unwrap();
@@ -347,6 +351,11 @@ pub fn refresh_games_if_stale(app: &AppHandle) {
         }
         s.scanning = true;
     }
+    scan_games(app);
+}
+
+/// Cherche les jeux Steam sur un autre fil ; le front n'est prévenu qu'en cas de changement
+fn scan_games(app: &AppHandle) {
     let app = app.clone();
     thread::spawn(move || {
         let games = steam::installed_games();

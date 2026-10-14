@@ -26,7 +26,7 @@ function restartAnimation(node: HTMLElement, className: string) {
   node.classList.add(className);
 }
 
-const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 /* Fonds des icônes d'apps et des dossiers, dans l'ordre de la liste */
 const palette = () => [CONFIG.accent, '#f6c6da', '#c9d8ff', '#ffe08a'];
@@ -142,6 +142,7 @@ async function pollStats(run: number) {
 
 function startStats() {
   stopStats();
+  statsTicks = 0;
   pollStats(statsRun);
 }
 
@@ -212,16 +213,15 @@ function movePowerFocus(dir: 1 | -1) {
   buttons[next].focus();
 }
 
-/* Mise à jour sur place (toutes les secondes pour Performances) : recréer les tuiles
-   rejouerait leur animation d'entrée */
-let tileUpdates: (() => void)[] = [];
+/* Tuiles construites une fois (init) puis mises à jour sur place, toutes les secondes pour
+   Performances ; leur animation d'entrée repart quand la vue réglages réapparaît */
+const tileUpdates: (() => void)[] = [];
 
 function updateTiles() {
   tileUpdates.forEach((update) => update());
 }
 
 function renderTiles() {
-  tileUpdates = [];
   const tiles = TILES.map((t, i) => {
     const b = el('button', 'tp-press tp-pop qtile');
     b.style.animationDelay = (0.45 + i * 0.06).toFixed(2) + 's';
@@ -237,23 +237,28 @@ function renderTiles() {
       if (t.pressed) b.setAttribute('aria-pressed', String(t.pressed()));
       label.textContent = t.label();
       sub.textContent = t.sub();
-      if (t.d() !== d) {
-        d = t.d();
+      const next = t.d();
+      if (next !== d) {
+        d = next;
         dot.replaceChildren(icon(d, 18, 2.2));
       }
     });
     b.addEventListener('click', t.click);
     return b;
   });
-  $('tiles').querySelectorAll('.qtile:not(.qtile-apps)').forEach((n) => n.remove());
   $('open-apps').before(...tiles);
   updateTiles();
 }
 
 /* ── Son : sortie et micro par défaut des réglages Son de Windows, relus à chaque
    affichage de la vue réglages ── */
+let audioRun = 0;   // change à chaque action sur le son : une lecture plus ancienne est ignorée
+
 async function refreshAudio() {
-  sound = await host.audio().catch(() => sound);
+  const run = ++audioRun;
+  const now = await host.audio().catch(() => null);
+  if (run !== audioRun || !now) return;
+  sound = now;
   renderVolume();
   updateTiles();
 }
@@ -338,15 +343,23 @@ function renderMixer(apps: AppVolume[]) {
   }));
 }
 
-const mixerOpen = () => $('mixer').classList.contains('open');
+/* Ouvert dès le clic (le panneau s'affiche quand la liste arrive) : un second clic, Échap ou
+   un clic à côté referment même pendant la lecture de la liste */
+const mixerOpen = () => $('mixer-toggle').getAttribute('aria-expanded') === 'true';
+
+let mixerRun = 0;   // change à chaque fermeture : une liste arrivée après est ignorée
 
 async function openMixer() {
-  renderMixer(await host.mixer().catch(() => []));
-  $('mixer').classList.add('open');
+  const run = ++mixerRun;
   $('mixer-toggle').setAttribute('aria-expanded', 'true');
+  const apps = await host.mixer().catch(() => []);
+  if (run !== mixerRun) return;   // fermé (ou rouvert) entre-temps
+  renderMixer(apps);
+  $('mixer').classList.add('open');
 }
 
 function closeMixer() {
+  mixerRun++;
   $('mixer').classList.remove('open');
   $('mixer-toggle').setAttribute('aria-expanded', 'false');
 }
@@ -355,6 +368,7 @@ async function toggleMic() {
   if (sound.mic_muted === null) return;
   const muted = !sound.mic_muted;
   sound.mic_muted = muted;
+  audioRun++;
   updateTiles();
   try {
     await host.setMicMuted(muted);
@@ -512,10 +526,11 @@ let notifsShown = '';   // ce qui est affiché : on ne refait la liste que si ç
 function renderNotifs() {
   const all = allNotifs();
   const items = all.filter((n) => !dismissed.has(n.id));
-  const shown = JSON.stringify(items.map(({ id, when }) => [id, when]));
+  const visible = items.slice(0, MAX_NOTIFS);
+  const shown = JSON.stringify(visible.map(({ id, title, when, body }) => [id, title, when, body]));
   if (shown !== notifsShown) {
     notifsShown = shown;
-    $('notif-list').replaceChildren(...items.slice(0, MAX_NOTIFS).map(notifRow));
+    $('notif-list').replaceChildren(...visible.map(notifRow));
   }
   $('notif-count').textContent = String(items.length);
   $('notif-list').hidden = $('notif-clear').hidden = !items.length;
@@ -541,11 +556,10 @@ async function refreshFeed() {
 }
 
 function renderSettings() {
-  renderTiles();
+  updateTiles();
   renderVolume();
   renderMedia();
   renderNotifs();
-  renderAppCount();
 }
 
 /* ══ Vue applications ══ */
@@ -685,11 +699,17 @@ function showApps(query = '') {
 }
 
 function showSettings() {
+  enterSettings(true);
+}
+
+/* Vue réglages affichée (à l'ouverture, ou au retour des applications : elle apparaît alors
+   après la rotation, tp-fade-late) ; ses animations repartent */
+function enterSettings(afterTurn: boolean) {
   state.view = 'settings';
   $('stage').classList.remove('landscape');
   $('apps').hidden = true;
-  $('settings').classList.add('tp-fade-late');
-  $('settings').hidden = false;   // affichée : ses animations repartent
+  $('settings').classList.toggle('tp-fade-late', afterTurn);
+  $('settings').hidden = false;
   renderSettings();
   startStats();
   refreshAudio();
@@ -732,6 +752,15 @@ function tickClock() {
   $('date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
 }
 
+/* Seulement quand le lanceur est affiché, mise à jour à chaque minute pile */
+let clockTimer = 0;
+
+function startClock() {
+  clearTimeout(clockTimer);
+  tickClock();
+  clockTimer = setTimeout(startClock, 60_000 - (Date.now() % 60_000) + 20);
+}
+
 /* ── Événements ── */
 function bindEvents() {
   $('open-apps').addEventListener('click', () => showApps());
@@ -745,6 +774,7 @@ function bindEvents() {
     const level = Number(($('volume') as HTMLInputElement).value);
     sound.volume = level;
     if (level > 0) sound.muted = false;   // Windows rétablit le son (audio.rs)
+    audioRun++;
     renderVolume();
     sendVolume(level);
   });
@@ -770,11 +800,13 @@ function bindEvents() {
     renderApps();
   });
   $q().addEventListener('keydown', (e) => {
+    if (leaving) return;   // en train de se fermer
     if (e.key === 'Enter') {
       const first = $('grid').querySelector<HTMLElement>('.app');
       first?.click();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();   // le document déplacerait encore le focus d'une rangée
       focusApp(0);
     }
   });
@@ -795,6 +827,7 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', (e) => {
+    if (leaving) return;   // pendant la descente, plus de recherche ni de rotation
     if (powerOpen()) {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -881,21 +914,14 @@ function playEntrance() {
   $('phone').classList.remove('leaving');
   closePowerMenu(false);
   closeMixer();
-  state.view = 'settings';
+  $('strap-swing').style.removeProperty('animation');   // balancement de l'ouverture, pas celui du survol
   state.stack = [];
   state.page = 0;
   state.query = '';
   $q().value = '';
   actionError = null;
-  stage.classList.remove('landscape');
-  $('apps').hidden = true;
-  $('settings').classList.remove('tp-fade-late');
-  $('settings').hidden = false;
-  renderSettings();
-  startStats();
-  refreshAudio();
-  refreshMedia();
-  refreshFeed();
+  enterSettings(false);
+  startClock();
   fitStage();
   stage.hidden = false;
 }
@@ -919,6 +945,7 @@ function afterNextPaint(fn: () => void) {
 function hideLauncher() {
   if (leaving || $('stage').hidden) return;   // déjà en train de se fermer
   stopStats();
+  clearTimeout(clockTimer);
   $('phone').classList.add('leaving');
   const n = shownCount;
   leaving = setTimeout(() => {
@@ -944,9 +971,28 @@ async function loadConfig() {
   renderFolders();
   renderNotifs();
   renderAppCount();
-  state.stack = [];   // les groupes ouverts appartiennent à l'ancienne config
-  state.page = 0;
-  if (state.view === 'apps') renderApps();
+  const stack = reopenStack();
+  if (stack.length !== state.stack.length) state.page = 0;
+  state.stack = stack;
+  if (state.view === 'apps') {
+    const focused = Array.from($('grid').querySelectorAll('.app')).indexOf(document.activeElement as HTMLElement);
+    renderApps();   // garde la page si elle existe encore
+    if (focused !== -1) focusApp(focused);
+  }
+}
+
+/* Groupes ouverts retrouvés dans la nouvelle config (même id, même libellé), sinon la racine.
+   Les ids sont des chemins d'index (« a3.1 ») : un groupe déplacé n'est pas retrouvé. */
+function reopenStack(): AppItem[] {
+  const stack: AppItem[] = [];
+  let items = CONFIG.apps;
+  for (const group of state.stack) {
+    const same = items.find((it) => it.children && it.id === group.id && it.label === group.label);
+    if (!same) return [];
+    stack.push(same);
+    items = same.children!;
+  }
+  return stack;
 }
 
 export async function init() {
@@ -954,6 +1000,7 @@ export async function init() {
 
   renderActions();
   renderPowerChoices();
+  renderTiles();
   bindEvents();
   host.profile().then(renderProfile).catch(console.error);
   addEventListener('resize', fitStage);   // Rust agrandit la fenêtre à l'écran à chaque ouverture
@@ -961,13 +1008,10 @@ export async function init() {
   host.onConfigChanged(() => {
     configLoading = loadConfig().catch(console.error);
   });
-  tickClock();
-  setInterval(tickClock, 1000);
 
   host.onShown(async () => {
     shownCount++;
     await configLoading;   // si apps.json a changé, Rust a envoyé la nouvelle config juste avant
-    tickClock();           // les minuteries ont pu être ralenties pendant que la fenêtre était masquée
     playEntrance();
   });
   host.onHideRequest(hideLauncher);

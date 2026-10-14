@@ -24,10 +24,8 @@ use crate::config;
 pub async fn launch(app: AppHandle, id: String) -> Result<(), String> {
     let (target, args) = config::target_of(&app, &id)
         .ok_or_else(|| format!("Élément {id} introuvable, la config a peut-être changé."))?;
-    // Hors du thread principal : l'invite UAC, par exemple, attend la réponse de l'utilisateur
-    tauri::async_runtime::spawn_blocking(move || open(&target, &args))
-        .await
-        .map_err(|e| e.to_string())?
+    // Hors du fil principal : l'invite UAC, par exemple, attend la réponse de l'utilisateur
+    crate::blocking(move || open(&target, &args)).await?
 }
 
 /// Boutons du haut de la vue réglages : le front envoie un nom, pas une cible.
@@ -42,9 +40,7 @@ pub async fn open_tool(tool: String) -> Result<(), String> {
         "storage" => "ms-settings:storagesense",
         _ => return Err(format!("Outil inconnu : {tool}.")),
     };
-    tauri::async_runtime::spawn_blocking(move || open(target, &[]))
-        .await
-        .map_err(|e| e.to_string())?
+    crate::blocking(move || open(target, &[])).await?
 }
 
 /// Ouvre `target` avec `args`, après développement des variables d'environnement (%USERPROFILE%…).
@@ -70,8 +66,9 @@ pub fn open(target: &str, args: &[String]) -> Result<(), String> {
         .map_err(|e| format!("{target} : {}", e.message().trim_end()))
 }
 
-/// Ouvre un fichier comme un double-clic dans l'Explorateur, sans développer les variables
-/// d'environnement ni exécuter les scripts (fichiers téléchargés)
+/// Ouvre un fichier comme un double-clic dans l'Explorateur (fichiers téléchargés) : sans
+/// développer les variables d'environnement, et un .ps1 s'ouvre comme dans l'Explorateur au
+/// lieu d'être exécuté par PowerShell (les .exe, .bat… se lancent, comme d'un double-clic)
 pub fn open_file(path: &str) -> Result<(), String> {
     eprintln!("[lanceur] ouvrir {path}");
     shell_execute(path, "", working_dir(path).as_deref()).map_err(|e| format!("{path} : {}", e.message().trim_end()))
