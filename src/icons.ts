@@ -1,8 +1,5 @@
 /* Icônes des applications : mêmes tracés que le premier lanceur (clés de `icon` dans apps.json),
    viewBox 24×24, stroke = currentColor ; l'épaisseur est choisie à l'affichage */
-/* Tête et frange des visages de jeux (plus bas) */
-const VISAGE = 'M12 6.5a6.8 6.8 0 100 13.6 6.8 6.8 0 000-13.6zM5.4 12c2.6 0 5-1.6 6.6-4.3 1.6 2.7 4 4.3 6.6 4.3';
-
 export const ICONS: Record<string, string> = {
   code: 'M8 6l-6 6 6 6M16 6l6 6-6 6',
   navigateur: 'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2c3 3 3 17 0 20M12 2c-3 3-3 17 0 20',
@@ -22,16 +19,16 @@ export const ICONS: Record<string, string> = {
   trophee: 'M8 4h8v5a4 4 0 01-8 0zM8 6H5v1a3 3 0 003 3M16 6h3v1a3 3 0 01-3 3M12 13v4M8 20h8M10 17h4',
   document: 'M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6',
   calcul: 'M5 4h14v16H5zM9 10h6M9 14h6',
-  /* Jeux et lanceurs de Funsaiki (demande du 15/10/2026) : traits proches de leur icône d'origine.
-     Logos pour Steam, Epic, League of Legends et Valorant ; visage du personnage de l'icône pour
-     ZZZ (casque). Endfield, Star Rail, NTE et Wuthering Waves : logos choisis par Funsaiki. */
+  /* Jeux et lanceurs de Funsaiki (demande du 15/10/2026) : logos de Steam, Epic, League of Legends
+     et Valorant en traits ; pour les gachas, logos choisis par Funsaiki un par un. */
   steam: 'M12 3a9 9 0 100 18 9 9 0 000-18zM15 7a3 3 0 100 6 3 3 0 000-6zM9 13.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6zM10.6 14l2.4-1.8M7.3 14.4l-3.9-1.5',
   epic: 'M5 3h14v13.5L12 21l-7-4.5zM10 7.5h4.5M10 7.5v6.5h4.5M10 10.7h3.5',
   lol: 'M6 3.5h4v13h7.5L15.5 20H6zM12 3a9 9 0 010 18',
   valorant: 'M3 6v3.5L10 18h5.5zM21 6l-6.5 8H21z',
   // Star Rail (choix de Funsaiki) : croissant de lune du logo, traversé par le train
   starrail: 'M14.6 5.3A8.5 8.5 0 1 0 19 15.9 7.4 7.4 0 1 1 14.6 5.3zM9.5 14.6l10.4-8.2 1.9 2.4-10.4 8.2z',
-  zzz: VISAGE + 'M4.2 13.3a7.8 7.8 0 0115.6 0M4.2 12.8v3.6M19.8 12.8v3.6M9.4 14.2h.01M13.4 14.6q1.1-1.1 2.2 0M12 16.6a.8.8 0 100 1.6.8.8 0 000-1.6z',
+  // ZZZ (choix de Funsaiki) : Z imbriqués du logo, silhouette pleine avec ses deux trous
+  zzz: '|M3 2.8L18.1 2.7 18.1 4.9 17 8.7h2.8l.3 3.9-2.2 4.5 3.8-.9v3.5L6.1 21.5l-.5-3.4 3.1-4.9-4.1.1-.3-3.3 3.1-4.5H3.3zM11.6 5.4h2.3l-3 4.6H8.6zM13.9 12.6h2.3l-2.8 5.1-3.4.1z',
   // Wuthering Waves (choix de Funsaiki) : marque Tacet, oscillogramme aux pointes creusées
   wuwa: 'M2 12h20|M12 3.5Q12.7 10.47 15.2 12Q12.7 13.62 12 21Q11.3 13.62 8.8 12Q11.3 10.47 12 3.5zM7 7Q7.57 11.1 9.6 12Q7.57 12.63 7 15.5Q6.43 12.63 4.4 12Q6.43 11.1 7 7zM17 6.5Q17.57 11.01 19.6 12Q17.57 12.72 17 16Q16.43 12.72 14.4 12Q16.43 11.01 17 6.5zM3.3 9.4Q3.7 11.53 5.1 12Q3.7 12.47 3.3 14.6Q2.9 12.47 1.5 12Q2.9 11.53 3.3 9.4zM20.7 9.4Q21.1 11.53 22.5 12Q21.1 12.47 20.7 14.6Q20.3 12.47 18.9 12Q20.3 11.53 20.7 9.4z',
   // NTE (choix de Funsaiki) : disque plein troué vers le haut, deux courbes autour comme un yin-yang
