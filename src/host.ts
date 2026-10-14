@@ -20,12 +20,20 @@ export interface Profile {
   system: string;   // « Windows 11 »
 }
 
-export interface NetRate {
+export interface Stats {
   down: number;     // octets par seconde, cartes physiques
   up: number;
+  cpu: number | null;   // %, comme le Gestionnaire des tâches
+  ram: number | null;
 }
 
-export type Tool = 'settings' | 'explorer';
+export interface AudioState {
+  volume: number | null;      // 0 à 100 ; null sans sortie audio
+  muted: boolean;
+  mic_muted: boolean | null;  // null sans micro
+}
+
+export type Tool = 'settings' | 'explorer' | 'taskmgr';
 export type PowerAction = 'lock' | 'sleep' | 'shutdown' | 'restart' | 'signout';
 
 export const host = {
@@ -52,10 +60,24 @@ export const host = {
     if (PREVIEW) return { name: 'Funsaiki', system: 'Windows 11' };
     return invoke<Profile>('profile');
   },
-  /* Débit depuis l'appel précédent ; le premier d'une ouverture mesure sur 250 ms */
-  async network(): Promise<NetRate> {
-    if (PREVIEW) return { down: 1.2 * 1024 ** 2 * (0.8 + Math.random() * 0.4), up: 84 * 1024 * (0.8 + Math.random() * 0.4) };
-    return invoke<NetRate>('network');
+  /* Débit et processeur depuis l'appel précédent ; le premier d'une ouverture mesure sur 250 ms */
+  async stats(): Promise<Stats> {
+    const jitter = () => 0.8 + Math.random() * 0.4;
+    if (PREVIEW) return { down: 1.2 * 1024 ** 2 * jitter(), up: 84 * 1024 * jitter(), cpu: Math.round(14 * jitter()), ram: 41 };
+    return invoke<Stats>('stats');
+  },
+  /* Sortie et micro par défaut des réglages Son de Windows */
+  async audio(): Promise<AudioState> {
+    if (PREVIEW) return { volume: 62, muted: false, mic_muted: true };
+    return invoke<AudioState>('audio');
+  },
+  async setVolume(level: number) {
+    if (PREVIEW) console.info('[aperçu] volume :', level);
+    else await invoke('set_volume', { level });
+  },
+  async setMicMuted(muted: boolean) {
+    if (PREVIEW) console.info('[aperçu] micro coupé :', muted);
+    else await invoke('set_mic_muted', { muted });
   },
   hide() {
     if (PREVIEW) console.info('[aperçu] masquer le lanceur');

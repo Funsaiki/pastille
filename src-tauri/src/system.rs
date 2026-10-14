@@ -1,5 +1,5 @@
-//! Haut de la vue réglages : profil (prénom du compte Windows, version de Windows)
-//! et débit réseau des cartes physiques.
+//! Vue réglages : profil (prénom du compte Windows, version de Windows), débit réseau
+//! des cartes physiques, charge du processeur et de la mémoire.
 
 use std::{
     sync::Mutex,
@@ -9,11 +9,16 @@ use std::{
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
-use windows::core::{w, PWSTR};
+use windows::core::{w, PCWSTR, PWSTR};
 use windows::Win32::NetworkManagement::IpHelper::{FreeMibTable, GetIfTable2, MIB_IF_ROW2, MIB_IF_TABLE2};
 use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
 use windows::Win32::Security::Authentication::Identity::{GetUserNameExW, NameDisplay};
+use windows::Win32::System::Performance::{
+    PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
+    PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
+};
 use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
+use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 
 /* ── Profil ── */
 
@@ -63,17 +68,27 @@ fn windows_name() -> String {
     if build >= 22000 { "Windows 11" } else { "Windows 10" }.into()
 }
 
-/* ── Débit réseau ── */
+/* ── Relevés : débit réseau, processeur, mémoire ── */
 
-/// Dernier relevé : (instant, octets reçus, octets envoyés) depuis le démarrage de Windows
 #[derive(Default)]
-pub struct NetMeter(Mutex<Option<(Instant, u64, u64)>>);
+pub struct Meter(Mutex<MeterState>);
+
+#[derive(Default)]
+struct MeterState {
+    /// Dernier relevé du réseau : (instant, octets reçus, octets envoyés) depuis le démarrage de Windows
+    last: Option<(Instant, u64, u64)>,
+    /// Compteur du processeur, ouvert au premier relevé
+    cpu: Option<Cpu>,
+}
 
 #[derive(Serialize, Default)]
-pub struct NetRate {
+pub struct Stats {
     /// Octets par seconde
     down: f64,
     up: f64,
+    /// Pourcentages, comme le Gestionnaire des tâches ; None s'ils sont illisibles
+    cpu: Option<u8>,
+    ram: Option<u8>,
 }
 
 /// Au-delà, le relevé précédent date d'une ouverture passée : on en refait un
@@ -81,32 +96,98 @@ const STALE: Duration = Duration::from_secs(3);
 /// Durée de la première mesure à l'ouverture
 const FIRST_WINDOW: Duration = Duration::from_millis(250);
 
-/// Débit depuis l'appel précédent (le front interroge toutes les secondes quand le lanceur
-/// est visible). Hors du fil principal : la première mesure attend 250 ms.
+/// Débit et charge du processeur depuis l'appel précédent (le front interroge toutes les
+/// secondes quand la vue réglages est affichée). Hors du fil principal : la première mesure
+/// attend 250 ms.
 #[tauri::command]
-pub async fn network(app: AppHandle) -> NetRate {
-    tauri::async_runtime::spawn_blocking(move || measure(&app.state::<NetMeter>()))
+pub async fn stats(app: AppHandle) -> Stats {
+    tauri::async_runtime::spawn_blocking(move || measure(&app.state::<Meter>()))
         .await
         .unwrap_or_default()
 }
 
-fn measure(meter: &NetMeter) -> NetRate {
-    let mut last = meter.0.lock().unwrap();
-    let before = match *last {
+fn measure(meter: &Meter) -> Stats {
+    let mut guard = meter.0.lock().unwrap();
+    let state = &mut *guard;
+    if state.cpu.is_none() {
+        state.cpu = Cpu::open();
+    }
+    let before = match state.last {
         Some(sample) if sample.0.elapsed() < STALE => sample,
         _ => {
             let sample = totals();
+            if let Some(cpu) = &state.cpu {
+                cpu.collect();
+            }
             thread::sleep(FIRST_WINDOW);
             sample
         }
     };
     let now = totals();
-    *last = Some(now);
+    state.last = Some(now);
     let seconds = now.0.duration_since(before.0).as_secs_f64().max(0.001);
-    NetRate {
+    Stats {
         down: now.1.saturating_sub(before.1) as f64 / seconds,
         up: now.2.saturating_sub(before.2) as f64 / seconds,
+        cpu: state.cpu.as_ref().and_then(Cpu::read),
+        ram: memory_load(),
     }
+}
+
+/// Compteur « % Processor Utility », celui du Gestionnaire des tâches (plafonné à 100 comme lui)
+struct Cpu {
+    query: PDH_HQUERY,
+    counter: PDH_HCOUNTER,
+}
+
+// Poignées PDH utilisées sous le verrou de Meter, par un seul fil à la fois
+unsafe impl Send for Cpu {}
+
+impl Cpu {
+    fn open() -> Option<Cpu> {
+        let mut query = PDH_HQUERY::default();
+        if unsafe { PdhOpenQueryW(PCWSTR::null(), 0, &mut query) } != 0 {
+            return None;
+        }
+        let mut counter = PDH_HCOUNTER::default();
+        let path = w!("\\Processor Information(_Total)\\% Processor Utility");
+        if unsafe { PdhAddEnglishCounterW(query, path, 0, &mut counter) } != 0 {
+            unsafe { PdhCloseQuery(query) };
+            return None;
+        }
+        Some(Cpu { query, counter })
+    }
+
+    fn collect(&self) {
+        unsafe { PdhCollectQueryData(self.query) };
+    }
+
+    /// Charge moyenne depuis la collecte précédente
+    fn read(&self) -> Option<u8> {
+        let mut value = PDH_FMT_COUNTERVALUE::default();
+        unsafe {
+            if PdhCollectQueryData(self.query) != 0
+                || PdhGetFormattedCounterValue(self.counter, PDH_FMT_DOUBLE, None, &mut value) != 0
+            {
+                return None;
+            }
+            Some(value.Anonymous.doubleValue.clamp(0.0, 100.0).round() as u8)
+        }
+    }
+}
+
+impl Drop for Cpu {
+    fn drop(&mut self) {
+        unsafe { PdhCloseQuery(self.query) };
+    }
+}
+
+/// Mémoire physique utilisée, en %
+fn memory_load() -> Option<u8> {
+    let mut status = MEMORYSTATUSEX { dwLength: size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
+    unsafe { GlobalMemoryStatusEx(&mut status) }.ok()?;
+    let used = 1.0 - status.ullAvailPhys as f64 / status.ullTotalPhys.max(1) as f64;
+    Some((used * 100.0).round() as u8)
 }
 
 /// Octets reçus et envoyés par les cartes physiques connectées. Les cartes virtuelles
@@ -151,13 +232,15 @@ mod tests {
 
     #[test]
     fn first_measure_waits_then_reuses_the_last_sample() {
-        let meter = NetMeter::default();
+        let meter = Meter::default();
         let start = Instant::now();
-        let rate = measure(&meter);
+        let stats = measure(&meter);
         assert!(start.elapsed() >= FIRST_WINDOW);
-        assert!(rate.down >= 0.0 && rate.up >= 0.0);
+        assert!(stats.down >= 0.0 && stats.up >= 0.0);
+        assert!(stats.cpu.is_some_and(|c| c <= 100), "processeur : {:?}", stats.cpu);
+        assert!(stats.ram.is_some_and(|r| r > 0 && r <= 100), "mémoire : {:?}", stats.ram);
         let start = Instant::now();
-        measure(&meter);
+        assert!(measure(&meter).cpu.is_some());
         assert!(start.elapsed() < FIRST_WINDOW, "relevé récent : pas de nouvelle attente");
     }
 
@@ -171,11 +254,12 @@ mod tests {
                 eprintln!("{} {:>14} {:>14}  {alias}", if counted(&row) { "✓" } else { " " }, row.InOctets, row.OutOctets);
             }
         }
-        let meter = NetMeter::default();
+        let meter = Meter::default();
         measure(&meter);
         thread::sleep(Duration::from_secs(1));
-        let rate = measure(&meter);
-        eprintln!("débit : ↓ {:.0} o/s, ↑ {:.0} o/s", rate.down, rate.up);
+        let stats = measure(&meter);
+        eprintln!("débit : ↓ {:.0} o/s, ↑ {:.0} o/s", stats.down, stats.up);
+        eprintln!("processeur : {:?} %, mémoire : {:?} %", stats.cpu, stats.ram);
         eprintln!("profil : {} / {}", profile().name, profile().system);
     }
 }

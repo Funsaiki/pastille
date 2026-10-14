@@ -36,6 +36,7 @@ pub async fn open_tool(tool: String) -> Result<(), String> {
     let target = match tool.as_str() {
         "settings" => "ms-settings:",
         "explorer" => "explorer.exe",
+        "taskmgr" => "taskmgr.exe",
         _ => return Err(format!("Outil inconnu : {tool}.")),
     };
     tauri::async_runtime::spawn_blocking(move || open(target, &[]))

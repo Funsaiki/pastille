@@ -1,3 +1,4 @@
+mod audio;
 mod config;
 mod launcher;
 mod power;
@@ -37,7 +38,7 @@ pub fn run() {
             // Lit apps.json et enregistre le raccourci ; s'il est déjà pris, l'app démarre
             // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
             config::init(app.handle());
-            app.manage(system::NetMeter::default());
+            app.manage(system::Meter::default());
             let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());
             tray::create(app.handle(), &tooltip)?;
             launcher::disable_key_menu(app.handle());
@@ -49,7 +50,10 @@ pub fn run() {
             shell::open_tool,
             power::power,
             system::profile,
-            system::network
+            system::stats,
+            audio::audio,
+            audio::set_volume,
+            audio::set_mic_muted
         ])
         .on_window_event(|window, event| match event {
             // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)

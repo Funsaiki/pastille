@@ -2,12 +2,12 @@
    Interface : vue réglages (téléphone debout, incliné) et vue applications
    (téléphone couché). Les applications, groupes, dossiers et lancements
    fonctionnent comme dans le premier lanceur. Dans la vue réglages, l'heure,
-   le débit réseau, le profil et les boutons du haut sont réels ; le reste garde
-   pour l'instant les données de la maquette.
+   le débit réseau, le profil, les boutons du haut, le volume, le micro et les
+   performances sont réels ; le reste garde pour l'instant les données de la maquette.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type NetRate, type PowerAction, type Profile } from './host';
+import { PREVIEW, host, type AudioState, type PowerAction, type Profile, type Stats } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -38,14 +38,16 @@ const state = {
   query: '',
 };
 
-/* Réglages rapides : état local, comme dans la maquette (pas encore reliés au système) */
-const quick = { bt: true, mic: false, out: true, vol: 62, playing: true, cleared: false };
+/* Réglages rapides : Bluetooth, lecture et notifications gardent l'état local de la maquette
+   (étapes suivantes) ; le son et les relevés viennent de Windows */
+const quick = { bt: true, playing: true, cleared: false };
+let sound: AudioState = { volume: null, muted: false, mic_muted: null };
+let stats: Stats | null = null;
 
 /* ══ Vue réglages ══ */
 const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
 const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
 const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
-const HEADSET = 'M4 15v-3a8 8 0 0116 0v3M4 15h3v5H4zM17 15h3v5h-3z';
 
 const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
 
@@ -65,11 +67,45 @@ const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string
   { action: 'signout', label: 'Se déconnecter', d: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9', bg: '#ffe08a' },
 ];
 
-type ToggleKey = 'bt' | 'mic' | 'out';
-const TOGGLES: { key: ToggleKey; label: string; on: string; off: string; d: () => string }[] = [
-  { key: 'bt', label: 'Bluetooth', on: '[Manette]', off: 'Désactivé', d: () => 'M7 7l10 10-5 5V2l5 5L7 17' },
-  { key: 'mic', label: 'Micro', on: 'Actif', off: 'Coupé', d: () => (quick.mic ? MIC : MIC + 'M3 3l18 18') },
-  { key: 'out', label: 'Sortie audio', on: 'Casque', off: 'Enceintes', d: () => (quick.out ? HEADSET : SPEAKER) },
+/* Tuiles devant le bouton Applications. Performances remplace la sortie audio de la maquette
+   (Funsaiki ne change jamais de sortie) : le libellé « Performances » ne tiendrait pas, la tuile
+   affiche donc ses deux mesures. */
+interface Tile {
+  label: () => string;
+  sub: () => string;
+  d: () => string;
+  pressed?: () => boolean;   // bascule : fond accent quand elle est active
+  title?: string;
+  click: () => void;
+}
+
+const pct = (v: number | null | undefined) => (v == null ? '–' : `${v} %`);
+
+const TILES: Tile[] = [
+  {
+    label: () => 'Bluetooth',
+    sub: () => (quick.bt ? '[Manette]' : 'Désactivé'),
+    d: () => 'M7 7l10 10-5 5V2l5 5L7 17',
+    pressed: () => quick.bt,
+    click: () => {
+      quick.bt = !quick.bt;
+      updateTiles();
+    },
+  },
+  {
+    label: () => 'Micro',
+    sub: () => (sound.mic_muted === null ? 'Aucun micro' : sound.mic_muted ? 'Coupé' : 'Actif'),
+    d: () => (sound.mic_muted === false ? MIC : MIC + 'M3 3l18 18'),
+    pressed: () => sound.mic_muted === false,
+    click: () => toggleMic(),
+  },
+  {
+    label: () => 'CPU ' + pct(stats?.cpu),
+    sub: () => 'RAM ' + pct(stats?.ram),
+    d: () => 'M3 12h4l3-7 4 14 3-7h4',
+    title: 'Performances : ouvrir le Gestionnaire des tâches',
+    click: () => runAction('Lancement', () => host.openTool('taskmgr')),
+  },
 ];
 
 /* ── Profil : prénom du compte Windows et son initiale ── */
@@ -79,8 +115,8 @@ function renderProfile(p: Profile) {
   $('user-os').textContent = p.system;
 }
 
-/* ── Débit réseau : toutes les secondes, seulement quand la vue réglages est affichée.
-   Ko et Mo de 1024, comme le premier lanceur. ── */
+/* ── Débit réseau et performances : toutes les secondes, seulement quand la vue réglages
+   est affichée. Ko et Mo de 1024, comme le premier lanceur. ── */
 const KO = 1024;
 const MO = 1024 ** 2;
 const fmt0 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
@@ -91,29 +127,33 @@ function rateText(perSecond: number) {
   return (perSecond < 10 * MO ? fmt1 : fmt0).format(perSecond / MO) + ' Mo/s';
 }
 
-function renderNetwork(rate: NetRate) {
-  $('net-down').textContent = '↓ ' + rateText(rate.down);
-  $('net-up').textContent = '↑ ' + rateText(rate.up);
+function renderNetwork(s: Stats) {
+  $('net-down').textContent = '↓ ' + rateText(s.down);
+  $('net-up').textContent = '↑ ' + rateText(s.up);
 }
 
-let netRun = 0;     // change à chaque arrêt : une réponse en retard est ignorée
-let netTimer = 0;
+let statsRun = 0;     // change à chaque arrêt : une réponse en retard est ignorée
+let statsTimer = 0;
 
-async function pollNetwork(run: number) {
-  const rate = await host.network().catch(() => null);
-  if (run !== netRun) return;
-  if (rate) renderNetwork(rate);
-  netTimer = setTimeout(() => pollNetwork(run), 1000);
+async function pollStats(run: number) {
+  const s = await host.stats().catch(() => null);
+  if (run !== statsRun) return;
+  if (s) {
+    stats = s;
+    renderNetwork(s);
+    updateTiles();
+  }
+  statsTimer = setTimeout(() => pollStats(run), 1000);
 }
 
-function startNetwork() {
-  stopNetwork();
-  pollNetwork(netRun);
+function startStats() {
+  stopStats();
+  pollStats(statsRun);
 }
 
-function stopNetwork() {
-  netRun++;
-  clearTimeout(netTimer);
+function stopStats() {
+  statsRun++;
+  clearTimeout(statsTimer);
 }
 
 function renderActions() {
@@ -176,38 +216,91 @@ function movePowerFocus(dir: 1 | -1) {
   buttons[next].focus();
 }
 
-function renderToggles() {
-  const tiles = TOGGLES.map((t, i) => {
+/* Mise à jour sur place (toutes les secondes pour Performances) : recréer les tuiles
+   rejouerait leur animation d'entrée */
+let tileUpdates: (() => void)[] = [];
+
+function updateTiles() {
+  tileUpdates.forEach((update) => update());
+}
+
+function renderTiles() {
+  tileUpdates = [];
+  const tiles = TILES.map((t, i) => {
     const b = el('button', 'tp-press tp-pop qtile');
     b.style.animationDelay = (0.45 + i * 0.06).toFixed(2) + 's';
+    if (t.title) b.title = t.title;
     const dot = el('span', 'qtile-dot');
-    const text = el('span', 'qtile-text');
+    const label = el('span', 'qtile-label');
     const sub = el('span', 'qtile-sub');
-    text.append(el('span', 'qtile-label', t.label), sub);
+    const text = el('span', 'qtile-text');
+    text.append(label, sub);
     b.append(dot, text);
-    // Mise à jour sur place : recréer la tuile rejouerait son animation d'entrée
-    const update = () => {
-      b.setAttribute('aria-pressed', String(quick[t.key]));
-      sub.textContent = quick[t.key] ? t.on : t.off;
-      dot.replaceChildren(icon(t.d(), 18, 2.2));
-    };
-    b.addEventListener('click', () => {
-      quick[t.key] = !quick[t.key];
-      update();
+    let d = '';
+    tileUpdates.push(() => {
+      if (t.pressed) b.setAttribute('aria-pressed', String(t.pressed()));
+      label.textContent = t.label();
+      sub.textContent = t.sub();
+      if (t.d() !== d) {
+        d = t.d();
+        dot.replaceChildren(icon(d, 18, 2.2));
+      }
     });
-    update();
+    b.addEventListener('click', t.click);
     return b;
   });
   $('tiles').querySelectorAll('.qtile:not(.qtile-apps)').forEach((n) => n.remove());
   $('open-apps').before(...tiles);
+  updateTiles();
+}
+
+/* ── Son : sortie et micro par défaut des réglages Son de Windows, relus à chaque
+   affichage de la vue réglages ── */
+async function refreshAudio() {
+  sound = await host.audio().catch(() => sound);
+  renderVolume();
+  updateTiles();
 }
 
 function renderVolume() {
   const input = $('volume') as HTMLInputElement;
-  input.value = String(quick.vol);
-  input.style.setProperty('--pct', quick.vol + '%');
-  $('volume-text').textContent = quick.vol + ' %';
-  $('volume-icon').setAttribute('d', quick.vol === 0 ? SPEAKER_OFF : SPEAKER);
+  const level = sound.volume ?? 0;
+  input.disabled = sound.volume === null;
+  input.value = String(level);
+  input.style.setProperty('--pct', level + '%');
+  $('volume-text').textContent = sound.volume === null ? 'Aucune sortie' : level + ' %';
+  $('volume-icon').setAttribute('d', level === 0 || sound.muted ? SPEAKER_OFF : SPEAKER);
+}
+
+/* Un envoi à la fois, le dernier niveau demandé gagne : les commandes de Tauri peuvent
+   s'exécuter dans le désordre pendant qu'on fait glisser le curseur */
+let volumeWanted: number | null = null;
+let volumeSending = false;
+
+async function sendVolume(level: number) {
+  volumeWanted = level;
+  if (volumeSending) return;
+  volumeSending = true;
+  while (volumeWanted !== null) {
+    const next = volumeWanted;
+    volumeWanted = null;
+    await host.setVolume(next).catch((e) => report('Volume', e));
+  }
+  volumeSending = false;
+}
+
+async function toggleMic() {
+  if (sound.mic_muted === null) return;
+  const muted = !sound.mic_muted;
+  sound.mic_muted = muted;
+  updateTiles();
+  try {
+    await host.setMicMuted(muted);
+  } catch (e) {
+    sound.mic_muted = !muted;
+    updateTiles();
+    report('Micro', e);
+  }
 }
 
 function renderMedia() {
@@ -269,7 +362,7 @@ function renderNotifs() {
 }
 
 function renderSettings() {
-  renderToggles();
+  renderTiles();
   renderVolume();
   renderMedia();
   renderNotifs();
@@ -405,7 +498,7 @@ function showApps(query = '') {
   $q().value = query;
   $('stage').classList.add('landscape');
   $('settings').hidden = true;
-  stopNetwork();
+  stopStats();
   $('apps').hidden = false;   // affichée : tp-land repart
   renderApps();
   $q().focus({ preventScroll: true });
@@ -418,7 +511,8 @@ function showSettings() {
   $('settings').classList.add('tp-fade-late');
   $('settings').hidden = false;   // affichée : ses animations repartent
   renderSettings();
-  startNetwork();
+  startStats();
+  refreshAudio();
 }
 
 /* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
@@ -432,10 +526,15 @@ async function runAction(title: string, action: () => Promise<void>) {
     actionError = null;
     hideLauncher();
   } catch (e) {
-    actionError = { title, text: String(e) };
-    renderNotifs();
-    if (state.view === 'apps') renderHead(currentList().length);
+    report(title, e);
   }
+}
+
+/* Échec signalé dans les notifications (et dans l'en-tête de la vue applications) */
+function report(title: string, e: unknown) {
+  actionError = { title, text: String(e) };
+  renderNotifs();
+  if (state.view === 'apps') renderHead(currentList().length);
 }
 
 /* ── Heure et date ── */
@@ -461,8 +560,11 @@ function bindEvents() {
   });
 
   $('volume').addEventListener('input', () => {
-    quick.vol = Number(($('volume') as HTMLInputElement).value);
+    const level = Number(($('volume') as HTMLInputElement).value);
+    sound.volume = level;
+    if (level > 0) sound.muted = false;   // Windows rétablit le son (audio.rs)
     renderVolume();
+    sendVolume(level);
   });
   $('play').addEventListener('click', () => {
     quick.playing = !quick.playing;
@@ -588,7 +690,8 @@ function playEntrance() {
   $('settings').classList.remove('tp-fade-late');
   $('settings').hidden = false;
   renderSettings();
-  startNetwork();
+  startStats();
+  refreshAudio();
   fitStage();
   stage.hidden = false;
 }
@@ -611,7 +714,7 @@ function afterNextPaint(fn: () => void) {
 
 function hideLauncher() {
   if (leaving || $('stage').hidden) return;   // déjà en train de se fermer
-  stopNetwork();
+  stopStats();
   $('phone').classList.add('leaving');
   const n = shownCount;
   leaving = setTimeout(() => {
