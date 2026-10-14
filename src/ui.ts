@@ -3,12 +3,12 @@
    (téléphone couché). Les applications, groupes, dossiers et lancements
    fonctionnent comme dans le premier lanceur. Dans la vue réglages, l'heure,
    le débit réseau, le profil, les boutons du haut, le volume, le micro, les
-   performances et la lecture en cours (Spotify) sont réels ; les notifications
-   gardent pour l'instant les exemples de la maquette.
+   performances, la lecture en cours (Spotify) et les notifications (alertes du PC,
+   Steam, téléchargements) sont réels.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type AppVolume, type AudioState, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
+import { PREVIEW, host, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -39,9 +39,7 @@ const state = {
   query: '',
 };
 
-/* Réglages rapides : les notifications gardent l'état local de la maquette (étape suivante) ;
-   le son, les relevés et la lecture en cours viennent de Windows */
-const quick = { cleared: false };
+/* Le son, les relevés et la lecture en cours viennent de Windows */
 let sound: AudioState = { volume: null, muted: false, mic_muted: null };
 let stats: Stats | null = null;
 let media: NowPlaying | null = null;
@@ -52,6 +50,7 @@ const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
 const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
 
 const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
+const RESTART = 'M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5';
 
 /* Boutons à droite du nom. Funsaiki a retiré la rangée de la maquette (capture d'écran,
    explorateur, verrouiller) ; il garde ces deux-là. Couleur du rond au survol. */
@@ -64,7 +63,7 @@ const ACTIONS = [
 const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string }[] = [
   { action: 'sleep', label: 'Mettre en veille', d: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z', bg: 'var(--fill)' },
   { action: 'shutdown', label: 'Arrêter', d: POWER, bg: '#f6c6da' },
-  { action: 'restart', label: 'Redémarrer', d: 'M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5', bg: '#c9d8ff' },
+  { action: 'restart', label: 'Redémarrer', d: RESTART, bg: '#c9d8ff' },
   { action: 'signout', label: 'Se déconnecter', d: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9', bg: '#ffe08a' },
 ];
 
@@ -126,6 +125,7 @@ function renderNetwork(s: Stats) {
 
 let statsRun = 0;     // change à chaque arrêt : une réponse en retard est ignorée
 let statsTimer = 0;
+let statsTicks = 0;
 
 async function pollStats(run: number) {
   const s = await host.stats().catch(() => null);
@@ -136,6 +136,7 @@ async function pollStats(run: number) {
     updateTiles();
   }
   refreshMedia();   // morceau suivant, pause depuis Spotify…
+  if (++statsTicks % 5 === 0) refreshFeed();
   statsTimer = setTimeout(() => pollStats(run), 1000);
 }
 
@@ -414,47 +415,129 @@ function renderAppCount() {
   $('app-count').textContent = `${flattenApps(CONFIG.apps).length} raccourcis`;
 }
 
-/* ── Notifications : problèmes du lanceur (config, lancement), puis exemples de la maquette ── */
-interface Notif { title: string; when: string; body: string; d: string; bg: string }
+/* ── Notifications (choix de Funsaiki) : problèmes du lanceur, alertes du PC (redémarrage,
+   disque presque plein), activité de Steam, téléchargements des dernières 24 h. Relues à
+   l'affichage de la vue réglages puis toutes les 5 s. « Tout effacer » masque celles qui
+   sont là ; une notification qui disparaît puis revient (disque de nouveau plein…) se remontre. ── */
+interface Notif {
+  id: string;
+  title: string;
+  when: string;
+  body: string;
+  d: string;
+  bg: string;
+  open?: () => Promise<void>;   // clic : ouvre le fichier, Steam, Windows Update…
+}
 
 let configProblems: string[] = [];
 let actionError: { title: string; text: string } | null = null;   // dernière action ratée
+let feed: FeedEvent[] = [];
 
 const ALERT = 'M12 7v6M12 17h.01';
+const DOWNLOAD = 'M12 4v11M7 10l5 5 5-5M5 20h14';
+const DISK = 'M3 14h18v6H3zM5 14l2.5-9h9L19 14M7 17h.01';
+const GO = 1024 ** 3;
+const MAX_NOTIFS = 3;   // les suivantes tomberaient sous le bord de l'écran (la pastille compte tout)
 
-function notifications(): Notif[] {
-  if (quick.cleared) return [];
-  const problems: Notif[] = configProblems.map((p) => ({ title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
-  if (actionError) problems.unshift({ title: actionError.title, when: 'à l’instant', body: actionError.text, d: ALERT, bg: '#ffe08a' });
-  return [
-    ...problems,
-    { title: 'Messages', when: '2 min', body: '[Aperçu du message]', d: ICONS.messages, bg: CONFIG.accent },
-    { title: 'Téléchargements', when: '15 min', body: '[Fichier] terminé', d: 'M12 4v11M7 10l5 5 5-5M5 20h14', bg: '#f6e2ec' },
-  ];
+function ago(seconds: number) {
+  if (seconds < 60) return 'à l’instant';
+  if (seconds < 3600) return Math.floor(seconds / 60) + ' min';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + ' h';
+  return Math.floor(seconds / 86400) + ' j';
 }
 
+function feedNotif(e: FeedEvent): Notif {
+  switch (e.kind) {
+    case 'reboot':
+      return { id: 'reboot', title: 'Windows Update', when: '', body: 'Redémarrez pour terminer une mise à jour', d: RESTART, bg: '#ffe08a', open: () => host.openTool('windows-update') };
+    case 'disk':
+      return { id: 'disk:' + e.drive, title: 'Disque ' + e.drive, when: '', body: `Presque plein · ${fmt1.format(e.free / GO)} Go libres`, d: DISK, bg: '#f6c6da', open: () => host.openTool('storage') };
+    case 'steam': {
+      const when = e.age != null ? ago(e.age) : e.paused ? 'en pause' : e.progress != null ? e.progress + ' %' : 'en cours';
+      const body = `${e.game} · ${e.age != null ? 'mis à jour' : 'mise à jour'}`;
+      return { id: `steam:${e.game}:${e.age != null ? 'fin' : 'cours'}`, title: 'Steam', when, body, d: ICONS.jeux, bg: '#c9d8ff', open: () => host.openTool('steam-downloads') };
+    }
+    case 'download':
+      return { id: 'download:' + e.name, title: 'Téléchargements', when: ago(e.age), body: e.name, d: DOWNLOAD, bg: '#f6e2ec', open: () => host.openDownload(e.name) };
+  }
+}
+
+function allNotifs(): Notif[] {
+  const problems: Notif[] = configProblems.map((p) => ({ id: 'config:' + p, title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
+  if (actionError) problems.unshift({ id: 'action:' + actionError.text, title: actionError.title, when: 'à l’instant', body: actionError.text, d: ALERT, bg: '#ffe08a' });
+  return [...problems, ...feed.map(feedNotif)];
+}
+
+/* Notifications effacées : gardées d'une ouverture à l'autre (stockage de la fenêtre) */
+const DISMISSED_KEY = 'notifs-effacees';
+let dismissed = new Set<string>(loadDismissed());
+
+function loadDismissed(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveDismissed() {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed]));
+  } catch {
+    /* sans stockage, elles reviendront au prochain démarrage */
+  }
+}
+
+function notifRow(n: Notif) {
+  const row = el(n.open ? 'button' : 'div', 'notif');
+  if (n.open) row.addEventListener('click', () => runAction('Lancement', n.open!));
+  const badge = el('span', 'notif-icon');
+  badge.setAttribute('aria-hidden', 'true');
+  badge.style.background = n.bg;
+  const svg = icon(n.d, 15, 2.2);
+  svg.setAttribute('stroke', '#0f3b42');
+  badge.append(svg);
+  const title = el('span', 'notif-title', n.title + ' ');
+  if (n.when) title.append(el('span', 'notif-when', '· ' + n.when));
+  const body = el('span', 'notif-body', n.body);
+  body.title = n.body;   // texte complet au survol s'il est coupé
+  const text = el('span', 'notif-text');
+  text.append(title, body);
+  row.append(badge, text);
+  return row;
+}
+
+let notifsShown = '';   // ce qui est affiché : on ne refait la liste que si ça change
+
 function renderNotifs() {
-  const items = notifications();
+  const all = allNotifs();
+  const items = all.filter((n) => !dismissed.has(n.id));
+  const shown = JSON.stringify(items.map(({ id, when }) => [id, when]));
+  if (shown !== notifsShown) {
+    notifsShown = shown;
+    $('notif-list').replaceChildren(...items.slice(0, MAX_NOTIFS).map(notifRow));
+  }
   $('notif-count').textContent = String(items.length);
-  $('notif-list').replaceChildren(...items.map((n) => {
-    const row = el('div', 'notif');
-    const badge = el('span', 'notif-icon');
-    badge.setAttribute('aria-hidden', 'true');
-    badge.style.background = n.bg;
-    const svg = icon(n.d, 15, 2.2);
-    svg.setAttribute('stroke', '#0f3b42');
-    badge.append(svg);
-    const title = el('span', 'notif-title', n.title + ' ');
-    title.append(el('span', 'notif-when', '· ' + n.when));
-    const body = el('span', 'notif-body', n.body);
-    body.title = n.body;   // texte complet au survol s'il est coupé
-    const text = el('span', 'notif-text');
-    text.append(title, body);
-    row.append(badge, text);
-    return row;
-  }));
   $('notif-list').hidden = $('notif-clear').hidden = !items.length;
   $('notif-empty').hidden = items.length > 0;
+  $('notif-restore').hidden = items.length === all.length;   // rien d'effacé
+}
+
+let feedRun = 0;
+
+async function refreshFeed() {
+  const run = ++feedRun;
+  const events = await host.feed().catch(() => null);
+  if (run !== feedRun || !events) return;
+  feed = events;
+  // Oublie les notifications effacées qui ont disparu : si elles reviennent, on les remontre
+  const ids = new Set(allNotifs().map((n) => n.id));
+  const kept = [...dismissed].filter((id) => ids.has(id));
+  if (kept.length !== dismissed.size) {
+    dismissed = new Set(kept);
+    saveDismissed();
+  }
+  renderNotifs();
 }
 
 function renderSettings() {
@@ -611,6 +694,7 @@ function showSettings() {
   startStats();
   refreshAudio();
   refreshMedia();
+  refreshFeed();
 }
 
 /* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
@@ -669,11 +753,13 @@ function bindEvents() {
   $('previous').addEventListener('click', () => controlMedia('previous'));
   $('next').addEventListener('click', () => controlMedia('next'));
   $('notif-clear').addEventListener('click', () => {
-    quick.cleared = true;
+    allNotifs().forEach((n) => dismissed.add(n.id));
+    saveDismissed();
     renderNotifs();
   });
   $('notif-restore').addEventListener('click', () => {
-    quick.cleared = false;
+    dismissed.clear();
+    saveDismissed();
     renderNotifs();
   });
 
@@ -800,6 +886,7 @@ function playEntrance() {
   startStats();
   refreshAudio();
   refreshMedia();
+  refreshFeed();
   fitStage();
   stage.hidden = false;
 }

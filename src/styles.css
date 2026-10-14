@@ -310,6 +310,14 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .notifs-list { display: flex; flex-direction: column; gap: 8px; }
 .notif { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; border: 2px solid var(--ink); background: #ffffff; }
+/* Notification cliquable : ouvre le fichier, Steam, Windows Update… (pas dans la maquette) */
+button.notif {
+  width: 100%; font-family: inherit; color: inherit; text-align: left; cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+}
+button.notif:hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--ink); }
+button.notif:active { transform: translateY(1px); box-shadow: none; }
+button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .notif-icon {
   width: 32px; height: 32px; flex: none; border-radius: 50%; border: 2px solid var(--ink);
   display: flex; align-items: center; justify-content: center;

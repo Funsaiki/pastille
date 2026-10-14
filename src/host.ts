@@ -47,7 +47,14 @@ export interface AppVolume {
   volume: number;   // 0 à 100, relatif au volume principal
 }
 
-export type Tool = 'settings' | 'taskmgr';
+/* Notifications lues par Rust (feed.rs) ; `age` en secondes */
+export type FeedEvent =
+  | { kind: 'download'; name: string; age: number }
+  | { kind: 'steam'; game: string; progress: number | null; paused: boolean; age: number | null }
+  | { kind: 'reboot' }
+  | { kind: 'disk'; drive: string; free: number };
+
+export type Tool = 'settings' | 'taskmgr' | 'steam-downloads' | 'windows-update' | 'storage';
 export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
 /* Aperçu navigateur : le morceau de la maquette */
@@ -111,6 +118,22 @@ export const host = {
   async setAppVolume(key: string, level: number) {
     if (PREVIEW) console.info('[aperçu] volume de', key, ':', level);
     else await invoke('set_app_volume', { key, level });
+  },
+  /* Alertes, activité de Steam, téléchargements des dernières 24 h */
+  async feed(): Promise<FeedEvent[]> {
+    if (PREVIEW) {
+      return [
+        { kind: 'steam', game: 'Street Fighter 6', progress: 62, paused: false, age: null },
+        { kind: 'download', name: 'Fichier-de-la-maquette.zip', age: 300 },
+        { kind: 'steam', game: 'Aniimo', progress: null, paused: false, age: 22300 },
+      ];
+    }
+    return invoke<FeedEvent[]>('feed');
+  },
+  /* Le nom du fichier seulement : Rust le cherche dans Téléchargements */
+  async openDownload(name: string) {
+    if (PREVIEW) console.info('[aperçu] ouvrir le téléchargement :', name);
+    else await invoke('open_download', { name });
   },
   /* Spotify seulement ; null quand il n'est pas ouvert */
   async media(): Promise<NowPlaying | null> {

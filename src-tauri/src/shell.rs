@@ -36,6 +36,10 @@ pub async fn open_tool(tool: String) -> Result<(), String> {
     let target = match tool.as_str() {
         "settings" => "ms-settings:",
         "taskmgr" => "taskmgr.exe",
+        // Notifications
+        "steam-downloads" => "steam://open/downloads",
+        "windows-update" => "ms-settings:windowsupdate",
+        "storage" => "ms-settings:storagesense",
         _ => return Err(format!("Outil inconnu : {tool}.")),
     };
     tauri::async_runtime::spawn_blocking(move || open(target, &[]))
@@ -64,6 +68,13 @@ pub fn open(target: &str, args: &[String]) -> Result<(), String> {
     eprintln!("[lanceur] ouvrir {file} {params}");
     shell_execute(&file, &params, dir.as_deref())
         .map_err(|e| format!("{target} : {}", e.message().trim_end()))
+}
+
+/// Ouvre un fichier comme un double-clic dans l'Explorateur, sans développer les variables
+/// d'environnement ni exécuter les scripts (fichiers téléchargés)
+pub fn open_file(path: &str) -> Result<(), String> {
+    eprintln!("[lanceur] ouvrir {path}");
+    shell_execute(path, "", working_dir(path).as_deref()).map_err(|e| format!("{path} : {}", e.message().trim_end()))
 }
 
 /// « steam://… », « spotify: », « ms-settings: »… Un préfixe d'une seule lettre est un lecteur (C:).

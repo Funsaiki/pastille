@@ -1,6 +1,7 @@
 mod audio;
 mod com;
 mod config;
+mod feed;
 mod launcher;
 mod media;
 mod mixer;
@@ -60,7 +61,9 @@ pub fn run() {
             media::media,
             media::media_control,
             mixer::mixer,
-            mixer::set_app_volume
+            mixer::set_app_volume,
+            feed::feed,
+            feed::open_download
         ])
         .on_window_event(|window, event| match event {
             // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)

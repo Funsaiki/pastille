@@ -1,12 +1,16 @@
-//! Jeux Steam installés, pour les groupes marqués `auto: "steam"`.
-//! Dossier Steam lu dans le registre (lecture seule), bibliothèques dans
-//! steamapps/libraryfolders.vdf, jeux dans les appmanifest_*.acf de chaque bibliothèque.
+//! Jeux Steam installés, pour les groupes marqués `auto: "steam"`, et téléchargements de
+//! Steam pour les notifications. Dossier Steam lu dans le registre (lecture seule),
+//! bibliothèques dans steamapps/libraryfolders.vdf, jeux dans les appmanifest_*.acf de
+//! chaque bibliothèque.
 
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
+use serde::Serialize;
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 use windows::core::w;
 use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ};
@@ -24,6 +28,12 @@ const TOOLS: &[u32] = &[
 ];
 /// Bit de StateFlags : entièrement installé (les autres bits signalent une mise à jour, etc.)
 const FULLY_INSTALLED: u32 = 4;
+/// Bits de StateFlags d'une mise à jour en cours : en marche, démarrée, téléchargement,
+/// préparation, installation des fichiers
+const UPDATING: u32 = 256 | 1024 | 1_048_576 | 2_097_152 | 4_194_304;
+const PAUSED: u32 = 512;
+/// Une mise à jour terminée reste signalée 24 h
+const RECENT_SECS: u64 = 24 * 3600;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Game {
@@ -33,8 +43,38 @@ pub struct Game {
 
 /// Jeux installés, triés par nom. Vide si Steam est introuvable.
 pub fn installed_games() -> Vec<Game> {
+    let mut games: Vec<Game> = manifests().iter().filter_map(|text| parse_manifest(text)).collect();
+    games.sort_by_key(|g| normalize(&g.name));
+    games.dedup_by_key(|g| g.appid); // un jeu présent dans deux bibliothèques
+    games
+}
+
+/// Téléchargement d'un jeu : mise à jour en cours, en pause, ou terminée depuis moins de 24 h
+#[derive(Debug, PartialEq, Serialize)]
+pub struct Activity {
+    pub game: String,
+    /// Part déjà téléchargée d'une mise à jour en cours, en %, si Steam la donne
+    pub progress: Option<u8>,
+    pub paused: bool,
+    /// Secondes depuis la fin de la mise à jour ; None tant qu'elle n'est pas finie
+    pub age: Option<u64>,
+}
+
+pub fn activity() -> Vec<Activity> {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let mut seen = HashSet::new();
+    manifests()
+        .iter()
+        .filter_map(|text| parse_activity(text, now))
+        .filter(|(appid, _)| seen.insert(*appid))
+        .map(|(_, activity)| activity)
+        .collect()
+}
+
+/// Contenu des appmanifest_*.acf de toutes les bibliothèques
+fn manifests() -> Vec<String> {
     let Some(steam) = steam_dir() else { return Vec::new() };
-    let mut games: Vec<Game> = library_dirs(&steam)
+    library_dirs(&steam)
         .iter()
         .filter_map(|lib| fs::read_dir(lib.join("steamapps")).ok())
         .flat_map(|dir| dir.flatten())
@@ -43,11 +83,7 @@ pub fn installed_games() -> Vec<Game> {
             name.starts_with("appmanifest_") && name.ends_with(".acf")
         })
         .filter_map(|e| fs::read_to_string(e.path()).ok())
-        .filter_map(|text| parse_manifest(&text))
-        .collect();
-    games.sort_by_key(|g| normalize(&g.name));
-    games.dedup_by_key(|g| g.appid); // un jeu présent dans deux bibliothèques
-    games
+        .collect()
 }
 
 /// Nom sans accents ni majuscules, pour trier comme on lit (« Été » avec les E)
@@ -95,9 +131,31 @@ fn parse_manifest(text: &str) -> Option<Game> {
     if flags & FULLY_INSTALLED == 0 || TOOLS.contains(&appid) {
         return None;
     }
-    // « Street Fighter™ 6 », « F1® 23 » : les symboles de marque alourdissent les tuiles
-    let name: String = values(text, "name").next()?.replace(['™', '®', '©'], "");
-    Some(Game { appid, name: name.split_whitespace().collect::<Vec<_>>().join(" ") })
+    Some(Game { appid, name: clean_name(&values(text, "name").next()?) })
+}
+
+fn parse_activity(text: &str, now: u64) -> Option<(u32, Activity)> {
+    let appid: u32 = values(text, "appid").next()?.parse().ok()?;
+    let flags: u32 = values(text, "StateFlags").next()?.parse().ok()?;
+    if TOOLS.contains(&appid) {
+        return None;
+    }
+    let number = |key| values(text, key).next().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+    let game = clean_name(&values(text, "name").next()?);
+    if flags & (UPDATING | PAUSED) != 0 {
+        let (done, total) = (number("BytesDownloaded"), number("BytesToDownload"));
+        let progress = (total > 0).then(|| (done.saturating_mul(100) / total).min(100) as u8);
+        return Some((appid, Activity { game, progress, paused: flags & PAUSED != 0, age: None }));
+    }
+    let updated = number("LastUpdated");
+    let age = now.checked_sub(updated)?;
+    (flags == FULLY_INSTALLED && updated > 0 && age < RECENT_SECS)
+        .then_some((appid, Activity { game, progress: None, paused: false, age: Some(age) }))
+}
+
+/// « Street Fighter™ 6 », « F1® 23 » : les symboles de marque alourdissent les tuiles
+fn clean_name(name: &str) -> String {
+    name.replace(['™', '®', '©'], "").split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Valeurs des lignes `"clé"  "valeur"` d'un fichier VDF/ACF (format texte de Valve).
@@ -124,6 +182,29 @@ mod tests {
     }
 
     #[test]
+    fn activity_is_parsed() {
+        let now = 1_800_000_000;
+        let with = |flags: &str, extra: &str| {
+            MANIFEST.replace("\"StateFlags\"\t\t\"6\"", &format!("\"StateFlags\"\t\t\"{flags}\"\n{extra}"))
+        };
+        // Mise à jour en cours (1026 = à mettre à jour + démarrée), à 25 %
+        let running = with("1026", "\"BytesDownloaded\"\t\t\"250\"\n\"BytesToDownload\"\t\t\"1000\"");
+        assert_eq!(
+            parse_activity(&running, now).map(|(_, a)| a),
+            Some(Activity { game: "Street Fighter 6".into(), progress: Some(25), paused: false, age: None })
+        );
+        // En pause, sans taille connue
+        let paused = parse_activity(&with("1542", ""), now).unwrap().1;
+        assert!(paused.paused && paused.progress.is_none());
+        // Terminée il y a une heure ; il y a deux jours, plus signalée
+        let done = |ago: u64| with("4", &format!("\"LastUpdated\"\t\t\"{}\"", now - ago));
+        assert_eq!(parse_activity(&done(3600), now).unwrap().1.age, Some(3600));
+        assert!(parse_activity(&done(2 * 86400), now).is_none());
+        // Mise à jour en attente, pas commencée (6) : rien à signaler
+        assert!(parse_activity(&with("6", ""), now).is_none());
+    }
+
+    #[test]
     fn names_sort_without_accents() {
         assert_eq!(normalize("Été Noël"), "ete noel");
     }
@@ -143,5 +224,6 @@ mod tests {
         for g in installed_games() {
             eprintln!("{:>8}  {}", g.appid, g.name);
         }
+        eprintln!("activité : {:?}", activity());
     }
 }
