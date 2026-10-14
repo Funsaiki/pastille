@@ -3,6 +3,7 @@ mod com;
 mod config;
 mod launcher;
 mod media;
+mod mixer;
 mod power;
 mod shell;
 mod steam;
@@ -57,7 +58,9 @@ pub fn run() {
             audio::set_volume,
             audio::set_mic_muted,
             media::media,
-            media::media_control
+            media::media_control,
+            mixer::mixer,
+            mixer::set_app_volume
         ])
         .on_window_event(|window, event| match event {
             // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)

@@ -8,7 +8,7 @@
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type AudioState, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
+import { PREVIEW, host, type AppVolume, type AudioState, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -180,6 +180,7 @@ function renderPowerChoices() {
 const powerOpen = () => $('power').classList.contains('open');
 
 function openPowerMenu() {
+  closeMixer();
   $('power-error').hidden = true;
   $('settings').inert = true;   // ni clic ni Tab derrière le menu
   $('power').classList.add('open');
@@ -267,20 +268,84 @@ function renderVolume() {
 }
 
 /* Un envoi à la fois, le dernier niveau demandé gagne : les commandes de Tauri peuvent
-   s'exécuter dans le désordre pendant qu'on fait glisser le curseur */
-let volumeWanted: number | null = null;
-let volumeSending = false;
+   s'exécuter dans le désordre pendant qu'on fait glisser un curseur */
+function latestOnly(send: (level: number) => Promise<void>) {
+  let wanted: number | null = null;
+  let sending = false;
+  return async (level: number) => {
+    wanted = level;
+    if (sending) return;
+    sending = true;
+    while (wanted !== null) {
+      const next = wanted;
+      wanted = null;
+      await send(next);
+    }
+    sending = false;
+  };
+}
 
-async function sendVolume(level: number) {
-  volumeWanted = level;
-  if (volumeSending) return;
-  volumeSending = true;
-  while (volumeWanted !== null) {
-    const next = volumeWanted;
-    volumeWanted = null;
-    await host.setVolume(next).catch((e) => report('Volume', e));
+const sendVolume = latestOnly((level) => host.setVolume(level).catch((e) => report('Volume', e)));
+
+/* ── Mélangeur (demandé par Funsaiki) : un curseur par application, relu à chaque ouverture.
+   Fermé par son bouton, Échap ou un clic à côté. ── */
+const appSenders = new Map<string, (level: number) => void>();
+
+function sendAppVolume(key: string, level: number) {
+  let send = appSenders.get(key);
+  if (!send) {
+    send = latestOnly((l) => host.setAppVolume(key, l).catch((e) => report('Mélangeur', e)));
+    appSenders.set(key, send);
   }
-  volumeSending = false;
+  send(level);
+}
+
+function renderMixer(apps: AppVolume[]) {
+  if (!apps.length) {
+    $('mixer').replaceChildren(el('div', 'mixer-empty', 'Aucune application ne joue de son'));
+    return;
+  }
+  $('mixer').replaceChildren(...apps.map((app, i) => {
+    const dot = el('span', 'mixer-dot', app.name.charAt(0).toUpperCase());
+    dot.setAttribute('aria-hidden', 'true');
+    dot.style.background = palette()[i % 4];
+    const name = el('span', 'mixer-name', app.name);
+    name.title = app.name;
+    const value = el('span', 'mixer-value');
+    const head = el('div', 'mixer-head');
+    head.append(dot, name, value);
+    const input = el('input', 'tp-range');
+    input.type = 'range';
+    input.min = '0';
+    input.max = '100';
+    input.setAttribute('aria-label', 'Volume de ' + app.name);
+    const show = (level: number) => {
+      input.value = String(level);
+      input.style.setProperty('--pct', level + '%');
+      value.textContent = level + ' %';
+    };
+    show(app.volume);
+    input.addEventListener('input', () => {
+      show(Number(input.value));
+      sendAppVolume(app.key, Number(input.value));
+    });
+    const row = el('div', 'mixer-row');
+    row.append(head, input);
+    return row;
+  }));
+}
+
+const mixerOpen = () => $('mixer').classList.contains('open');
+
+async function openMixer() {
+  renderMixer(await host.mixer().catch(() => []));
+  $('mixer').classList.add('open');
+  $('mixer-toggle').setAttribute('aria-expanded', 'true');
+}
+
+function closeMixer() {
+  $('mixer').classList.remove('open');
+  $('mixer-toggle').setAttribute('aria-expanded', 'false');
 }
 
 async function toggleMic() {
@@ -527,6 +592,7 @@ function showApps(query = '') {
   $q().value = query;
   $('stage').classList.add('landscape');
   $('settings').hidden = true;
+  closeMixer();
   stopStats();
   $('apps').hidden = false;   // affichée : tp-land repart
   renderApps();
@@ -596,6 +662,7 @@ function bindEvents() {
     renderVolume();
     sendVolume(level);
   });
+  $('mixer-toggle').addEventListener('click', () => (mixerOpen() ? closeMixer() : openMixer()));
   $('play').addEventListener('click', () => controlMedia('toggle'));
   $('previous').addEventListener('click', () => controlMedia('previous'));
   $('next').addEventListener('click', () => controlMedia('next'));
@@ -633,7 +700,9 @@ function bindEvents() {
 
   /* Clic à côté du téléphone : la fenêtre couvre tout l'écran, c'est le « clic ailleurs » */
   document.addEventListener('pointerdown', (e) => {
-    if (!(e.target as Element).closest('.phone-body')) hideLauncher();
+    const target = e.target as Element;
+    if (mixerOpen() && !target.closest('#mixer, #mixer-toggle')) closeMixer();
+    if (!target.closest('.phone-body')) hideLauncher();
   });
 
   document.addEventListener('keydown', (e) => {
@@ -646,6 +715,12 @@ function bindEvents() {
         movePowerFocus(e.key === 'ArrowDown' ? 1 : -1);
       }
       return;   // pas de recherche ni de fermeture derrière le menu
+    }
+    if (e.key === 'Escape' && mixerOpen()) {
+      e.preventDefault();
+      closeMixer();
+      $('mixer-toggle').focus({ preventScroll: true });
+      return;
     }
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -708,6 +783,7 @@ function playEntrance() {
   leaving = 0;
   $('phone').classList.remove('leaving');
   closePowerMenu(false);
+  closeMixer();
   state.view = 'settings';
   state.stack = [];
   state.page = 0;

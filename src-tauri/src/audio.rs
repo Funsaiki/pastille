@@ -2,6 +2,7 @@
 //! (IAudioEndpointVolume).
 
 use serde::Serialize;
+use windows::core::Interface;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::Media::Audio::{eCapture, eConsole, eRender, EDataFlow, IMMDeviceEnumerator, MMDeviceEnumerator};
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
@@ -64,8 +65,12 @@ pub async fn set_mic_muted(muted: bool) -> Result<(), String> {
     .await?
 }
 
-/// Appareil par défaut (sortie ou micro) des réglages Son
 fn endpoint(flow: EDataFlow) -> windows::core::Result<IAudioEndpointVolume> {
+    default_device(flow)
+}
+
+/// Interface `T` de l'appareil par défaut (sortie ou micro) des réglages Son
+pub fn default_device<T: Interface>(flow: EDataFlow) -> windows::core::Result<T> {
     unsafe {
         let devices: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
         devices.GetDefaultAudioEndpoint(flow, eConsole)?.Activate(CLSCTX_ALL, None)

@@ -41,6 +41,12 @@ export interface NowPlaying {
 
 export type MediaAction = 'toggle' | 'next' | 'previous';
 
+export interface AppVolume {
+  key: string;      // programme, ou « system » pour les sons système
+  name: string;
+  volume: number;   // 0 à 100, relatif au volume principal
+}
+
 export type Tool = 'settings' | 'explorer' | 'taskmgr';
 export type PowerAction = 'lock' | 'sleep' | 'shutdown' | 'restart' | 'signout';
 
@@ -89,6 +95,22 @@ export const host = {
   async setMicMuted(muted: boolean) {
     if (PREVIEW) console.info('[aperçu] micro coupé :', muted);
     else await invoke('set_mic_muted', { muted });
+  },
+  /* Applications qui utilisent la sortie par défaut, celles qui jouent du son d'abord */
+  async mixer(): Promise<AppVolume[]> {
+    if (PREVIEW) {
+      return [
+        { key: 'spotify', name: 'Spotify', volume: 80 },
+        { key: 'discord', name: 'Discord', volume: 100 },
+        { key: 'brave', name: 'Brave Browser', volume: 65 },
+        { key: 'system', name: 'Sons système', volume: 50 },
+      ];
+    }
+    return invoke<AppVolume[]>('mixer');
+  },
+  async setAppVolume(key: string, level: number) {
+    if (PREVIEW) console.info('[aperçu] volume de', key, ':', level);
+    else await invoke('set_app_volume', { key, level });
   },
   /* Spotify seulement ; null quand il n'est pas ouvert */
   async media(): Promise<NowPlaying | null> {
