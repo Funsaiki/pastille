@@ -61,6 +61,7 @@ pub fn run() {
             config::get_config,
             shell::launch,
             shell::open_tool,
+            shell::web_search,
             power::power,
             system::profile,
             system::stats,

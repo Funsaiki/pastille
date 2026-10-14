@@ -70,7 +70,7 @@ pub async fn open_download(name: String) -> Result<(), String> {
         return Err(format!("{name} n'est plus dans Téléchargements."));
     }
     let path = path.to_string_lossy().into_owned();
-    crate::blocking(move || crate::shell::open_file(&path)).await?
+    crate::blocking(move || crate::shell::open_as_is(&path)).await?
 }
 
 /// Dossier Téléchargements de Windows, même déplacé par l'utilisateur

@@ -174,7 +174,11 @@
         </div>
 
         <div class="grid" id="grid"></div>
-        <div class="no-result" id="no-result" hidden>Aucune app trouvée</div>
+        <!-- Rien trouvé : recherche sur le web proposée (demande de Funsaiki), Entrée la lance -->
+        <div class="no-result" id="no-result" hidden>
+          <span>Aucune app trouvée</span>
+          <button class="tp-press folder web-search" id="web-search"></button>
+        </div>
 
         <!-- Récents (demandé par Funsaiki, pas dans la maquette) : dernières applications lancées -->
         <div class="recents" id="recents" hidden>

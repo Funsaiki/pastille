@@ -623,6 +623,11 @@ function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
   });
   grid.hidden = !list.length;
   $('no-result').hidden = list.length > 0;
+  if (!list.length) {
+    const label = el('span', '', `Rechercher « ${state.query} » sur le web`);
+    $('web-search').replaceChildren(icon('M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4', 17, 2.4), label);
+    $('web-search').title = label.textContent!;
+  }
   grid.classList.remove('tp-in-r', 'tp-in-l');
   if (transition) restartAnimation(grid, transition);
   $('folders').hidden = !showFolders();
@@ -771,6 +776,11 @@ async function runAction(title: string, action: () => Promise<void>) {
   }
 }
 
+/* Rien ne correspond : la recherche part sur le web (navigateur par défaut) */
+function webSearch() {
+  runAction('Recherche web', () => host.webSearch(state.query));
+}
+
 /* Échec signalé dans les notifications (et dans l'en-tête de la vue applications) */
 function report(title: string, e: unknown) {
   actionError = { title, text: String(e) };
@@ -838,11 +848,13 @@ function bindEvents() {
     state.page = 0;
     renderApps();
   });
+  $('web-search').addEventListener('click', webSearch);
   $q().addEventListener('keydown', (e) => {
     if (leaving) return;   // en train de se fermer
     if (e.key === 'Enter') {
       const first = $('grid').querySelector<HTMLElement>('.app');
-      first?.click();
+      if (first) first.click();
+      else if (state.query) webSearch();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       e.stopPropagation();   // le document déplacerait encore le focus d'une rangée

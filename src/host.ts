@@ -143,6 +143,11 @@ export const host = {
     if (PREVIEW) console.info('[aperçu] ouvrir le téléchargement :', name);
     else await invoke('open_download', { name });
   },
+  /* Le texte seulement : Rust construit l'adresse de la recherche */
+  async webSearch(query: string) {
+    if (PREVIEW) console.info('[aperçu] recherche web :', query);
+    else await invoke('web_search', { query });
+  },
   /* Spotify seulement ; null quand il n'est pas ouvert */
   async media(): Promise<NowPlaying | null> {
     if (PREVIEW) return { ...previewMedia };

@@ -69,10 +69,34 @@ pub fn open(target: &str, args: &[String]) -> Result<(), String> {
         .map_err(|e| format!("{target} : {}", e.message().trim_end()))
 }
 
-/// Ouvre un fichier comme un double-clic dans l'Explorateur (fichiers téléchargés) : sans
-/// développer les variables d'environnement, et un .ps1 s'ouvre comme dans l'Explorateur au
-/// lieu d'être exécuté par PowerShell (les .exe, .bat… se lancent, comme d'un double-clic)
-pub fn open_file(path: &str) -> Result<(), String> {
+/// Recherche sur le web quand rien ne correspond dans le lanceur (demande de Funsaiki) : le front
+/// envoie le texte, Rust construit l'adresse ; ouverte dans le navigateur par défaut.
+#[tauri::command]
+pub async fn web_search(query: String) -> Result<(), String> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Err("Rien à chercher.".into());
+    }
+    let url = format!("https://www.google.com/search?q={}", encode_query(query));
+    crate::blocking(move || open_as_is(&url)).await?
+}
+
+/// Paramètre d'adresse : espaces en « + », tout sauf lettres, chiffres et - _ . ~ en %XX (UTF-8)
+fn encode_query(text: &str) -> String {
+    text.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            b' ' => "+".into(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// Ouvre un fichier ou une adresse tels quels, comme un double-clic dans l'Explorateur
+/// (fichiers téléchargés, recherche web) : sans développer les variables d'environnement
+/// (« %20 » reste « %20 »), et un .ps1 s'ouvre comme dans l'Explorateur au lieu d'être exécuté
+/// par PowerShell (les .exe, .bat… se lancent, comme d'un double-clic)
+pub fn open_as_is(path: &str) -> Result<(), String> {
     eprintln!("[lanceur] ouvrir {path}");
     shell_execute(path, "", working_dir(path).as_deref()).map_err(|e| format!("{path} : {}", e.message().trim_end()))
 }
@@ -171,6 +195,12 @@ mod tests {
         for path in ["C:/Program Files/x.exe", "c:\\x", "wt.exe", "%USERPROFILE%/Projets"] {
             assert!(!is_uri(path), "{path}");
         }
+    }
+
+    #[test]
+    fn search_text_is_encoded() {
+        assert_eq!(encode_query("street fighter 6"), "street+fighter+6");
+        assert_eq!(encode_query("été & co?"), "%C3%A9t%C3%A9+%26+co%3F");
     }
 
     #[test]
