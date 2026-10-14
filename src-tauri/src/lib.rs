@@ -57,10 +57,12 @@ pub fn run() {
             let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());
             tray::create(app.handle(), &tooltip)?;
             launcher::disable_key_menu(app.handle());
+            launcher::set_memory_low(app.handle(), true);   // la fenêtre démarre masquée
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             config::get_config,
+            launcher::hide_window,
             shell::launch,
             shell::open_tool,
             shell::web_search,

@@ -174,9 +174,10 @@ export const host = {
       await invoke('media_control', { action });
     }
   },
+  /* Rust masque la fenêtre et laisse WebView2 rendre de la mémoire */
   hide() {
     if (PREVIEW) console.info('[aperçu] masquer le lanceur');
-    else getCurrentWindow().hide();
+    else invoke('hide_window');
   },
   async isVisible(): Promise<boolean> {
     return PREVIEW || getCurrentWindow().isVisible();
