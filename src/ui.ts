@@ -468,7 +468,7 @@ function playEntrance() {
 /* ── Masquage : le téléphone redescend (.leaving), puis on vide la scène avant de masquer
    la fenêtre, sinon sa dernière image réapparaît un instant au prochain affichage, et ses
    animations en boucle tourneraient derrière la fenêtre masquée (voir « Image figée »). ── */
-const LEAVE_MS = 350;   // durée de .leaving dans styles.css
+const LEAVE_MS = 500;   // durée de .leaving dans styles.css
 let leaving = 0;        // minuterie de la fermeture en cours
 let shownCount = 0;
 
