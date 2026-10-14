@@ -300,38 +300,40 @@ function sendAppVolume(key: string, level: number) {
   send(level);
 }
 
+/* Une tranche par application, comme une console de mixage : pourcentage, curseur vertical
+   à la couleur de sa pastille, initiale, nom */
 function renderMixer(apps: AppVolume[]) {
   if (!apps.length) {
-    $('mixer').replaceChildren(el('div', 'mixer-empty', 'Aucune application ne joue de son'));
+    $('mixer-channels').replaceChildren(el('div', 'mixer-empty', 'Aucune application ne joue de son'));
     return;
   }
-  $('mixer').replaceChildren(...apps.map((app, i) => {
-    const dot = el('span', 'mixer-dot', app.name.charAt(0).toUpperCase());
-    dot.setAttribute('aria-hidden', 'true');
-    dot.style.background = palette()[i % 4];
-    const name = el('span', 'mixer-name', app.name);
-    name.title = app.name;
+  $('mixer-channels').replaceChildren(...apps.map((app, i) => {
+    const color = palette()[i % 4];
     const value = el('span', 'mixer-value');
-    const head = el('div', 'mixer-head');
-    head.append(dot, name, value);
-    const input = el('input', 'tp-range');
+    const input = el('input', 'fader');
     input.type = 'range';
     input.min = '0';
     input.max = '100';
+    input.style.setProperty('--c', color);
     input.setAttribute('aria-label', 'Volume de ' + app.name);
     const show = (level: number) => {
       input.value = String(level);
       input.style.setProperty('--pct', level + '%');
-      value.textContent = level + ' %';
+      value.textContent = String(level);
     };
     show(app.volume);
     input.addEventListener('input', () => {
       show(Number(input.value));
       sendAppVolume(app.key, Number(input.value));
     });
-    const row = el('div', 'mixer-row');
-    row.append(head, input);
-    return row;
+    const badge = el('span', 'mixer-badge', app.name.charAt(0).toUpperCase());
+    badge.setAttribute('aria-hidden', 'true');
+    badge.style.background = color;
+    const channel = el('div', 'mixer-channel tp-pop');
+    channel.style.animationDelay = (0.04 + i * 0.04).toFixed(2) + 's';
+    channel.title = app.name;
+    channel.append(value, input, badge, el('span', 'mixer-name', app.name));
+    return channel;
   }));
 }
 
