@@ -1,6 +1,6 @@
 [package]
 name = "lanceur-pastel"
-version = "0.1.0"
+version = "1.0.0"
 description = "Lanceur d'applications pour Windows 11, en forme de téléphone"
 authors = ["Funsaiki"]
 edition = "2024"
