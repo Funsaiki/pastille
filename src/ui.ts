@@ -38,9 +38,9 @@ const state = {
   query: '',
 };
 
-/* Réglages rapides : Bluetooth, lecture et notifications gardent l'état local de la maquette
+/* Réglages rapides : lecture et notifications gardent l'état local de la maquette
    (étapes suivantes) ; le son et les relevés viennent de Windows */
-const quick = { bt: true, playing: true, cleared: false };
+const quick = { playing: true, cleared: false };
 let sound: AudioState = { volume: null, muted: false, mic_muted: null };
 let stats: Stats | null = null;
 
@@ -69,7 +69,8 @@ const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string
 
 /* Tuiles devant le bouton Applications. Performances remplace la sortie audio de la maquette
    (Funsaiki ne change jamais de sortie) : le libellé « Performances » ne tiendrait pas, la tuile
-   affiche donc ses deux mesures. */
+   affiche donc ses deux mesures. Pas de Bluetooth : le PC de Funsaiki n'en a pas (essai du
+   14/10/2026, le bouton Applications prend alors toute la largeur). */
 interface Tile {
   label: () => string;
   sub: () => string;
@@ -82,16 +83,6 @@ interface Tile {
 const pct = (v: number | null | undefined) => (v == null ? '–' : `${v} %`);
 
 const TILES: Tile[] = [
-  {
-    label: () => 'Bluetooth',
-    sub: () => (quick.bt ? '[Manette]' : 'Désactivé'),
-    d: () => 'M7 7l10 10-5 5V2l5 5L7 17',
-    pressed: () => quick.bt,
-    click: () => {
-      quick.bt = !quick.bt;
-      updateTiles();
-    },
-  },
   {
     label: () => 'Micro',
     sub: () => (sound.mic_muted === null ? 'Aucun micro' : sound.mic_muted ? 'Coupé' : 'Actif'),

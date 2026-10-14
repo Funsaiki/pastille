@@ -185,7 +185,9 @@ button, input { font-family: 'Nunito', sans-serif; }
 .qtile-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .qtile-label { font-weight: 900; font-size: 15px; }
 .qtile-sub { font-weight: 700; font-size: 12px; color: rgba(15, 59, 66, .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qtile-apps { padding: 0 10px 0 8px; background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep); animation-delay: .63s; }
+/* Toute la largeur depuis le retrait de la tuile Bluetooth (essai de Funsaiki) ; il apparaît
+   juste après les deux tuiles (délais .45 et .51 dans ui.ts) */
+.qtile-apps { grid-column: 1 / -1; padding: 0 10px 0 8px; background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep); animation-delay: .57s; }
 .qtile-apps .qtile-dot { border-color: #ffffff; background: var(--fill); color: var(--ink); }
 .qtile-apps .qtile-text { flex: 1; }
 .qtile-apps .qtile-sub { color: rgba(255, 255, 255, .8); white-space: normal; overflow: visible; }
