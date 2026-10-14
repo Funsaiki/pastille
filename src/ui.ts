@@ -748,6 +748,7 @@ function bindEvents() {
     renderVolume();
     sendVolume(level);
   });
+  $('strap').addEventListener('pointerenter', swingStrap);
   $('mixer-toggle').addEventListener('click', () => (mixerOpen() ? closeMixer() : openMixer()));
   $('play').addEventListener('click', () => controlMedia('toggle'));
   $('previous').addEventListener('click', () => controlMedia('previous'));
@@ -790,7 +791,7 @@ function bindEvents() {
   document.addEventListener('pointerdown', (e) => {
     const target = e.target as Element;
     if (mixerOpen() && !target.closest('#mixer, #mixer-toggle')) closeMixer();
-    if (!target.closest('.phone-body')) hideLauncher();
+    if (!target.closest('.phone-body, .strap')) hideLauncher();
   });
 
   document.addEventListener('keydown', (e) => {
@@ -849,6 +850,14 @@ function bindEvents() {
     if (j < 0) $q().focus();
     else apps[j]?.focus();
   });
+}
+
+/* ── Strap : se balance de nouveau au survol (sans le délai de l'ouverture) ── */
+function swingStrap() {
+  const swing = $('strap-swing');
+  swing.style.animation = 'none';
+  void swing.offsetWidth;
+  swing.style.animation = 'strap-swing 1.6s both';
 }
 
 /* ── Scène de 1440 × 900 (la maquette) agrandie ou réduite à la taille de l'écran ── */

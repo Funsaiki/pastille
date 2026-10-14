@@ -75,6 +75,27 @@ button, input { font-family: 'Nunito', sans-serif; }
 .tp-link { transition: color .15s; }
 .tp-link:hover { color: var(--ink-deep) !important; text-decoration: underline; }
 
+/* ══ Strap (demandé par Funsaiki, pas dans la maquette) : pendu au bord gauche, un peu à
+   l'extérieur, accroché par le centre de son anneau (31 px, 10 px), dans le plan du téléphone
+   (le tourner vers nous le ferait passer derrière la coque). Quand le téléphone se couche, il
+   tourne d'un quart de tour avec un léger rebond pour rester pendu vers le bas. Il se balance
+   à l'ouverture et au survol. ══ */
+.strap {
+  position: absolute; left: -35px; top: 150px; width: 62px; height: 186px; transform-origin: 31px 10px;
+  transform: translateZ(3px) rotate(0deg);
+  transition: transform .9s cubic-bezier(.3, 1.45, .5, 1);
+}
+.landscape .strap { transform: translateZ(3px) rotate(90deg); }
+.strap-swing { width: 100%; height: 100%; transform-origin: 31px 10px; animation: strap-swing 1.8s .2s both; }
+.strap-swing svg { display: block; }
+@keyframes strap-swing {
+  0%, 100% { rotate: 0deg; animation-timing-function: ease-in-out; }
+  14% { rotate: 14deg; animation-timing-function: ease-in-out; }
+  34% { rotate: -9deg; animation-timing-function: ease-in-out; }
+  54% { rotate: 5deg; animation-timing-function: ease-in-out; }
+  74% { rotate: -2deg; animation-timing-function: ease-in-out; }
+}
+
 /* ── Scène : 1440 × 900, agrandie ou réduite à l'écran (zoom posé par ui.ts) ── */
 .scene { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; }
 .stage { flex: none; position: relative; width: 1440px; height: 900px; overflow: hidden; }
