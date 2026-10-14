@@ -446,6 +446,10 @@ function playEntrance() {
   const stage = $('stage');
   stage.hidden = true;
   void stage.offsetWidth;
+  // Rouvert pendant la fermeture : on l'abandonne
+  clearTimeout(leaving);
+  leaving = 0;
+  $('phone').classList.remove('leaving');
   state.view = 'settings';
   state.stack = [];
   state.page = 0;
@@ -461,9 +465,11 @@ function playEntrance() {
   stage.hidden = false;
 }
 
-/* ── Masquage : vider la scène avant de masquer la fenêtre, sinon sa dernière image
-   réapparaît un instant au prochain affichage, et ses animations en boucle tourneraient
-   derrière la fenêtre masquée (voir « Image figée » dans CLAUDE.md). ── */
+/* ── Masquage : le téléphone redescend (.leaving), puis on vide la scène avant de masquer
+   la fenêtre, sinon sa dernière image réapparaît un instant au prochain affichage, et ses
+   animations en boucle tourneraient derrière la fenêtre masquée (voir « Image figée »). ── */
+const LEAVE_MS = 350;   // durée de .leaving dans styles.css
+let leaving = 0;        // minuterie de la fermeture en cours
 let shownCount = 0;
 
 function afterNextPaint(fn: () => void) {
@@ -476,12 +482,18 @@ function afterNextPaint(fn: () => void) {
 }
 
 function hideLauncher() {
-  if (PREVIEW) { host.hide(); return; }
-  $('stage').hidden = true;
+  if (leaving || $('stage').hidden) return;   // déjà en train de se fermer
+  $('phone').classList.add('leaving');
   const n = shownCount;
-  afterNextPaint(() => {
-    if (n === shownCount) host.hide();   // sauf si on a rouvert entre-temps
-  });
+  leaving = setTimeout(() => {
+    leaving = 0;
+    // Aperçu navigateur : rien à masquer, on rejoue l'ouverture pour revoir les deux animations
+    if (PREVIEW) { host.hide(); playEntrance(); return; }
+    $('stage').hidden = true;
+    afterNextPaint(() => {
+      if (n === shownCount) host.hide();   // sauf si on a rouvert entre-temps
+    });
+  }, LEAVE_MS);
 }
 
 /* ── Configuration : au démarrage, puis quand Rust la recharge

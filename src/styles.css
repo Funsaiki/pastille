@@ -39,6 +39,10 @@ button, input { font-family: 'Nunito', sans-serif; }
 .tp-in-l { animation: tp-in-l .4s var(--ease) both; }
 .tp-fade-late { animation: tp-fade .35s .6s var(--ease) both; }
 .tp-land { animation: tp-fade-rot .35s .6s var(--ease) both; }
+/* Fermeture (demandée par Funsaiki, pas dans la maquette) : inverse de tp-rise, plus rapide.
+   Même durée que LEAVE_MS dans ui.ts. Plus de clic sur le téléphone pendant qu'il descend. */
+@keyframes tp-sink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(160px); } }
+.phone.leaving { animation: tp-sink .35s cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
 
 /* ── Survols et focus ── */
 .tp-press { transition: transform .12s, box-shadow .12s; }
