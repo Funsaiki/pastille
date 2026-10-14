@@ -57,7 +57,9 @@ button, input { font-family: 'Nunito', sans-serif; }
   18% { translate: 0 -10px; animation-timing-function: cubic-bezier(.65, 0, .75, .2); }
   to { translate: 0 740px; }
 }
-.phone.leaving { animation: tp-sink .5s both; pointer-events: none; }
+/* tp-turn à l'envers (nom distinct : un même nom garderait l'animation finie, qui sauterait à 5°) */
+@keyframes tp-unturn { from { rotate: 0deg; } to { rotate: 5deg; } }
+.phone.leaving { animation: tp-sink .5s both, tp-unturn .5s cubic-bezier(.6, 0, .7, .3) both; pointer-events: none; }
 
 /* ── Survols et focus ── */
 .tp-press { transition: transform .12s, box-shadow .12s; }
