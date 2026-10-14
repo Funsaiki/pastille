@@ -11,18 +11,18 @@
       "children": [
         {
           "label": "Steam",
-          "icon": "bibliotheque",
+          "icon": "steam",
           "auto": "steam",
           "children": [
-            { "label": "Steam", "icon": "bibliotheque", "source": "LANCEUR", "target": "steam://open/main" }
+            { "label": "Steam", "icon": "steam", "source": "LANCEUR", "target": "steam://open/main" }
           ]
         },
         {
           "label": "Epic Games",
-          "icon": "bouclier",
+          "icon": "epic",
           "auto": "epic",
           "children": [
-            { "label": "Epic Games", "icon": "bouclier", "source": "LANCEUR", "target": "com.epicgames.launcher://" }
+            { "label": "Epic Games", "icon": "epic", "source": "LANCEUR", "target": "com.epicgames.launcher://" }
           ]
         }
       ]
