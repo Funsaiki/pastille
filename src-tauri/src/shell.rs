@@ -20,13 +20,22 @@ use crate::config;
 
 /// Le front envoie l'id d'un élément (a… : application, f… : dossier) ; Rust retrouve sa cible
 /// dans la config chargée.
+/// `fresh` (Ctrl+clic) : nouvelle fenêtre même si l'application est déjà ouverte.
 #[tauri::command]
-pub async fn launch(app: AppHandle, id: String) -> Result<(), String> {
+pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), String> {
     let (target, args) = config::target_of(&app, &id)
         .ok_or_else(|| format!("Élément {id} introuvable, la config a peut-être changé."))?;
     let key = crate::usage::key(&target, &args);
     // Hors du fil principal : l'invite UAC, par exemple, attend la réponse de l'utilisateur
-    crate::blocking(move || open(&target, &args)).await??;
+    crate::blocking(move || {
+        // Déjà ouverte (Code, Brave…) : sa fenêtre revient au premier plan (switch.rs)
+        if !fresh && args.is_empty() && crate::switch::focus_existing(&expand_env(&target)) {
+            eprintln!("[lanceur] déjà ouvert, fenêtre ramenée : {target}");
+            return Ok(());
+        }
+        open(&target, &args)
+    })
+    .await??;
     crate::usage::record(&app, key);
     Ok(())
 }

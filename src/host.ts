@@ -75,9 +75,10 @@ export const host = {
   },
   /* Rust retrouve la cible à partir de l'id : le front n'envoie jamais de chemin.
      Rejette avec un message en français si le lancement échoue. */
-  async launch(item: AppItem | Favorite) {
-    if (PREVIEW) console.info('[aperçu] ouvrir :', item.target, ('args' in item && item.args) || []);
-    else await invoke('launch', { id: item.id });
+  /* `fresh` (Ctrl+clic) : nouvelle fenêtre même si l'application est déjà ouverte */
+  async launch(item: AppItem | Favorite, fresh = false) {
+    if (PREVIEW) console.info('[aperçu] ouvrir :', item.target, ('args' in item && item.args) || [], fresh ? '(nouvelle fenêtre)' : '');
+    else await invoke('launch', { id: item.id, fresh });
   },
   async openTool(tool: Tool) {
     if (PREVIEW) console.info('[aperçu] ouvrir :', tool);

@@ -625,7 +625,7 @@ function appButton(item: AppItem, index: number) {
     ic.append(count);
   }
   b.append(ic, el('span', 'app-label', item.label));
-  b.addEventListener('click', () => activate(item));
+  b.addEventListener('click', (e) => activate(item, e.ctrlKey));
   return b;
 }
 
@@ -679,7 +679,7 @@ function renderRecents() {
     dot.style.background = palette()[i % 4];
     dot.append(icon(ICONS[it.icon ?? ''] ?? ICONS.fichiers, 13, 2.4));
     b.append(dot, el('span', '', it.label));
-    b.addEventListener('click', () => launch(it));
+    b.addEventListener('click', (e) => launch(it, e.ctrlKey));
     return b;
   }));
 }
@@ -693,7 +693,8 @@ function renderFolders() {
   }));
 }
 
-function activate(item: AppItem) {
+/* Ctrl+clic (ou Ctrl+Entrée) : nouvelle fenêtre même si l'application est déjà ouverte */
+function activate(item: AppItem, fresh = false) {
   if (item.children) {
     state.stack.push(item);
     state.page = 0;
@@ -702,7 +703,7 @@ function activate(item: AppItem) {
     renderApps('tp-in-r');
     focusApp(0);
   } else {
-    launch(item);
+    launch(item, fresh);
   }
 }
 
@@ -774,9 +775,9 @@ function enterSettings(afterTurn: boolean) {
 }
 
 /* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
-async function launch(item: AppItem | Favorite) {
+async function launch(item: AppItem | Favorite, fresh = false) {
   await runAction('Lancement', async () => {
-    await host.launch(item);
+    await host.launch(item, fresh);
     // Rust a compté le lancement (usage.json) ; la copie du front suit sans recharger la config
     const it = item as AppItem;
     it.uses = (it.uses ?? 0) + 1;
@@ -870,7 +871,7 @@ function bindEvents() {
     if (leaving) return;   // en train de se fermer
     if (e.key === 'Enter') {
       const first = $('grid').querySelector<HTMLElement>('.app');
-      if (first) first.click();
+      if (first) first.dispatchEvent(new MouseEvent('click', { ctrlKey: e.ctrlKey }));
       else if (state.query) webSearch();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();

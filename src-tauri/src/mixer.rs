@@ -101,7 +101,8 @@ fn sessions() -> windows::core::Result<Vec<Session>> {
     Ok(out)
 }
 
-fn exe_path(pid: u32) -> Option<String> {
+/// Chemin du programme d'un processus (aussi pour switch.rs)
+pub fn exe_path(pid: u32) -> Option<String> {
     if pid == 0 {
         return None;
     }

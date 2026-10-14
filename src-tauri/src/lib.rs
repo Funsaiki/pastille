@@ -9,6 +9,7 @@ mod mixer;
 mod power;
 mod shell;
 mod steam;
+mod switch;
 mod system;
 mod tray;
 mod usage;
