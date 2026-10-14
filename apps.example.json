@@ -1,6 +1,6 @@
 {
   "accent": "#9fe0dc",
-  "shortcut": "Alt+Shift+Space",
+  "shortcut": "Alt+Space",
   "apps": [
     { "label": "Code", "icon": "code", "target": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe", "args": [] },
     { "label": "Navigateur", "icon": "navigateur", "target": "C:/Program Files/Google/Chrome/Application/chrome.exe" },

@@ -69,9 +69,8 @@ fn default_accent() -> String {
     "#9fe0dc".into()
 }
 
-/// Alt+Espace est déjà pris par le premier lanceur : les deux peuvent tourner ensemble
 fn default_shortcut() -> String {
-    "Alt+Shift+Space".into()
+    "Alt+Space".into()
 }
 
 pub struct ConfigState {
