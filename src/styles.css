@@ -70,7 +70,9 @@ button, input { font-family: 'Nunito', sans-serif; }
 .tp-app:active .tp-app-ic { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink) !important; }
 .tp-app:focus-visible { outline: none; }
 .tp-app:focus-visible .tp-app-ic { outline: 3px solid var(--ink); outline-offset: 3px; }
-.tp-search:focus-within { outline: 3px solid var(--ink); outline-offset: 3px; }
+/* Recherche active : fond teinté de l'accent au lieu du contour de la maquette (choix de Funsaiki) */
+.tp-search { transition: background .15s; }
+.tp-search:focus-within { background: color-mix(in srgb, var(--fill) 45%, #ffffff); }
 .tp-link { transition: color .15s; }
 .tp-link:hover { color: var(--ink-deep) !important; text-decoration: underline; }
 
