@@ -27,19 +27,23 @@ button, input { font-family: 'Nunito', sans-serif; }
 
 /* ── Animations ── */
 /* Entrée (retouchée par Funsaiki) : sans fondu, le téléphone sort de sous le bord de l'écran
-   (740 px : tout en dessous de la scène, qui le coupe), monte 10 px trop haut et retombe vite */
+   (740 px : tout en dessous de la scène, qui le coupe), monte 10 px trop haut et retombe vite,
+   en se redressant d'une légère rotation venue de la droite (tp-turn, à part pour sa courbe).
+   Propriétés translate et rotate plutôt que transform : la rotation se fait autour du centre
+   du téléphone, sans le déporter sur le côté. */
 @keyframes tp-rise {
-  from { transform: translateY(740px); animation-timing-function: cubic-bezier(.25, .8, .35, 1); }
-  82% { transform: translateY(-10px); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
-  to { transform: none; }
+  from { translate: 0 740px; animation-timing-function: cubic-bezier(.25, .8, .35, 1); }
+  82% { translate: 0 -10px; animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
+  to { translate: 0 0; }
 }
+@keyframes tp-turn { from { rotate: 5deg; } to { rotate: 0deg; } }
 @keyframes tp-pop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
 @keyframes tp-eq { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
 @keyframes tp-in-r { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
 @keyframes tp-in-l { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
 @keyframes tp-fade { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes tp-fade-rot { from { opacity: 0; transform: rotate(90deg) scale(.97); } to { opacity: 1; transform: rotate(90deg); } }
-.tp-rise { animation: tp-rise .5s both; }
+.tp-rise { animation: tp-rise .5s both, tp-turn .5s cubic-bezier(.3, .7, .4, 1) both; }
 .tp-pop { animation: tp-pop .45s var(--ease) both; }
 .tp-in-r { animation: tp-in-r .4s var(--ease) both; }
 .tp-in-l { animation: tp-in-l .4s var(--ease) both; }
@@ -49,9 +53,9 @@ button, input { font-family: 'Nunito', sans-serif; }
    le téléphone monte de 10 px puis plonge sous le bord de l'écran. Même durée que LEAVE_MS dans
    ui.ts. Plus de clic sur le téléphone pendant qu'il descend. */
 @keyframes tp-sink {
-  from { transform: none; animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
-  18% { transform: translateY(-10px); animation-timing-function: cubic-bezier(.65, 0, .75, .2); }
-  to { transform: translateY(740px); }
+  from { translate: 0 0; animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
+  18% { translate: 0 -10px; animation-timing-function: cubic-bezier(.65, 0, .75, .2); }
+  to { translate: 0 740px; }
 }
 .phone.leaving { animation: tp-sink .5s both; pointer-events: none; }
 
