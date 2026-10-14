@@ -27,6 +27,8 @@ pub struct AppVolume {
     name: String,
     /// 0 à 100, relatif au volume principal comme dans Windows
     volume: u8,
+    /// Icône du programme (demande de Funsaiki) ; None pour les sons système
+    icon: Option<crate::icon::Icon>,
 }
 
 const SYSTEM: &str = "system";
@@ -63,7 +65,10 @@ fn list() -> windows::core::Result<Vec<AppVolume>> {
     }
     let mut apps: Vec<(AppVolume, bool)> = apps
         .into_iter()
-        .map(|(key, (volume, playing))| (AppVolume { name: name_of(&key), key, volume }, playing))
+        .map(|(key, (volume, playing))| {
+            let icon = if key == SYSTEM { None } else { crate::icon::of(&key) };
+            (AppVolume { name: name_of(&key), key, volume, icon }, playing)
+        })
         .collect();
     apps.sort_by_key(|(app, playing)| (app.key == SYSTEM, !playing, app.name.to_lowercase()));
     Ok(apps.into_iter().map(|(app, _)| app).collect())
@@ -178,8 +183,13 @@ mod tests {
     fn real_mixer() {
         crate::com::with_com(|| {
             let start = std::time::Instant::now();
-            for app in list().unwrap() {
-                eprintln!("{:>3} %  {}  ({})", app.volume, app.name, app.key);
+            let apps = list().unwrap();
+            for app in &apps {
+                eprintln!("{:>3} %  {}  ({}) icône : {}", app.volume, app.name, app.key, app.icon.is_some());
+            }
+            // Pour voir les icônes : MIXER_JSON=chemin cargo test real_mixer -- --ignored
+            if let Ok(path) = std::env::var("MIXER_JSON") {
+                std::fs::write(path, serde_json::to_string(&apps).unwrap()).unwrap();
             }
             eprintln!("durée : {:?}", start.elapsed());
         });

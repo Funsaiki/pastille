@@ -8,7 +8,7 @@
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
+import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -350,9 +350,13 @@ function renderMixer(apps: AppVolume[]) {
       show(level);
       sendAppVolume(app.key, level);
     }, { passive: true });
-    const badge = el('span', 'mixer-badge', app.name.charAt(0).toUpperCase());
+    // Icône du programme sur fond blanc ; à défaut, haut-parleur (sons système) ou initiale
+    const badge = el('span', 'mixer-badge');
     badge.setAttribute('aria-hidden', 'true');
-    badge.style.background = color;
+    if (app.icon) badge.append(iconCanvas(app.icon));
+    else if (app.key === 'system') badge.append(icon(SPEAKER, 13, 2.4));
+    else badge.textContent = app.name.charAt(0).toUpperCase();
+    badge.style.background = app.icon ? '#ffffff' : color;
     const channel = el('div', 'mixer-channel tp-pop');
     channel.style.animationDelay = (0.04 + i * 0.04).toFixed(2) + 's';
     channel.title = app.name;
@@ -363,6 +367,16 @@ function renderMixer(apps: AppVolume[]) {
 
 /* Ouvert dès le clic (le panneau s'affiche quand la liste arrive) : un second clic, Échap ou
    un clic à côté referment même pendant la lecture de la liste */
+/* Icône d'un programme : pixels RGBA envoyés par Rust (icon.rs), dessinés tels quels */
+function iconCanvas(i: AppIcon) {
+  const canvas = el('canvas');
+  canvas.width = i.width;
+  canvas.height = i.height;
+  const pixels = Uint8ClampedArray.from(atob(i.rgba), (c) => c.charCodeAt(0));
+  canvas.getContext('2d')!.putImageData(new ImageData(pixels, i.width, i.height), 0, 0);
+  return canvas;
+}
+
 const mixerOpen = () => $('mixer-toggle').getAttribute('aria-expanded') === 'true';
 
 let mixerRun = 0;   // change à chaque fermeture : une liste arrivée après est ignorée

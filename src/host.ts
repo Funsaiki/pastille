@@ -41,10 +41,17 @@ export interface NowPlaying {
 
 export type MediaAction = 'toggle' | 'next' | 'previous';
 
+export interface AppIcon {
+  width: number;
+  height: number;
+  rgba: string;     // pixels RGBA en base64, ligne par ligne depuis le haut
+}
+
 export interface AppVolume {
   key: string;      // programme, ou « system » pour les sons système
   name: string;
   volume: number;   // 0 à 100, relatif au volume principal
+  icon: AppIcon | null;
 }
 
 /* Notifications lues par Rust (feed.rs) ; `age` en secondes */
@@ -116,10 +123,10 @@ export const host = {
   async mixer(): Promise<AppVolume[]> {
     if (PREVIEW) {
       return [
-        { key: 'spotify', name: 'Spotify', volume: 80 },
-        { key: 'discord', name: 'Discord', volume: 100 },
-        { key: 'brave', name: 'Brave Browser', volume: 65 },
-        { key: 'system', name: 'Sons système', volume: 50 },
+        { key: 'spotify', name: 'Spotify', volume: 80, icon: null },
+        { key: 'discord', name: 'Discord', volume: 100, icon: null },
+        { key: 'brave', name: 'Brave Browser', volume: 65, icon: null },
+        { key: 'system', name: 'Sons système', volume: 50, icon: null },
       ];
     }
     return invoke<AppVolume[]>('mixer');

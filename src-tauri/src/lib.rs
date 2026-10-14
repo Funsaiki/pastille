@@ -3,6 +3,7 @@ mod com;
 mod config;
 mod epic;
 mod feed;
+mod icon;
 mod launcher;
 mod media;
 mod mixer;
