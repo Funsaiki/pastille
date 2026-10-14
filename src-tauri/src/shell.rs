@@ -30,6 +30,19 @@ pub async fn launch(app: AppHandle, id: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Boutons du haut de la vue réglages : le front envoie un nom, pas une cible.
+#[tauri::command]
+pub async fn open_tool(tool: String) -> Result<(), String> {
+    let target = match tool.as_str() {
+        "settings" => "ms-settings:",
+        "explorer" => "explorer.exe",
+        _ => return Err(format!("Outil inconnu : {tool}.")),
+    };
+    tauri::async_runtime::spawn_blocking(move || open(target, &[]))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 /// Ouvre `target` avec `args`, après développement des variables d'environnement (%USERPROFILE%…).
 pub fn open(target: &str, args: &[String]) -> Result<(), String> {
     let target = expand_env(target);

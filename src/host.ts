@@ -25,6 +25,9 @@ export interface NetRate {
   up: number;
 }
 
+export type Tool = 'settings' | 'explorer';
+export type PowerAction = 'lock' | 'sleep' | 'shutdown' | 'restart' | 'signout';
+
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
     if (PREVIEW) return { config: EXAMPLE, problems: [] };
@@ -35,6 +38,15 @@ export const host = {
   async launch(item: AppItem | Favorite) {
     if (PREVIEW) console.info('[aperçu] ouvrir :', item.target, ('args' in item && item.args) || []);
     else await invoke('launch', { id: item.id });
+  },
+  async openTool(tool: Tool) {
+    if (PREVIEW) console.info('[aperçu] ouvrir :', tool);
+    else await invoke('open_tool', { tool });
+  },
+  /* En développement, Rust écrit seulement une ligne de journal (règle 1) */
+  async power(action: PowerAction) {
+    if (PREVIEW) console.info('[aperçu] alimentation :', action);
+    else await invoke('power', { action });
   },
   async profile(): Promise<Profile> {
     if (PREVIEW) return { name: 'Funsaiki', system: 'Windows 11' };

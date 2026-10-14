@@ -152,6 +152,16 @@
           <div class="folders-row" id="folder-row"></div>
         </div>
       </div>
+
+      <!-- Menu d'alimentation (demandé par Funsaiki, pas dans la maquette) : assombrit l'écran,
+           choisir une action sert de confirmation -->
+      <div class="power" id="power" role="dialog" aria-modal="true" aria-label="Alimentation">
+        <div class="power-menu">
+          <div class="power-choices" id="power-choices"></div>
+          <p class="power-error" id="power-error" hidden></p>
+          <button class="power-cancel" id="power-cancel">Annuler</button>
+        </div>
+      </div>
     </div>
     </div>
 

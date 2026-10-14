@@ -320,3 +320,33 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .folder svg { flex: none; }
 .folder span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ══ Menu d'alimentation (demandé par Funsaiki, pas dans la maquette) : l'écran s'assombrit,
+   les choix apparaissent au centre. Masqué par visibility pour qu'il se fonde aussi en
+   disparaissant ; la vue réglages passe en inert tant qu'il est ouvert (ui.ts). ══ */
+.power {
+  position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 42, 47, .62); backdrop-filter: blur(3px);
+  opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility 0s .2s;
+}
+.power.open { opacity: 1; visibility: visible; transition: opacity .2s ease; }
+/* Un peu au-dessus du centre : le bas du téléphone sort de l'écran */
+.power-menu { width: 270px; display: flex; flex-direction: column; gap: 14px; translate: 0 -60px; scale: .94; transition: scale .3s var(--ease); }
+.power.open .power-menu { scale: 1; }
+.power-choices { display: flex; flex-direction: column; gap: 12px; }
+.power-choice {
+  height: 62px; box-sizing: border-box; padding: 0 16px 0 9px; border-radius: 31px; border: 2.5px solid var(--ink);
+  background: #ffffff; color: var(--ink); box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center; gap: 12px;
+  font-weight: 900; font-size: 16px; text-align: left; cursor: pointer;
+}
+.power-dot {
+  width: 40px; height: 40px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2.5px solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+}
+.power-error { margin: 0; padding: 0 6px; text-align: center; font-weight: 800; font-size: 13px; color: #ffe08a; }
+.power-cancel {
+  align-self: center; height: 40px; padding: 0 22px; border-radius: 20px; border: 2.5px solid #ffffff;
+  background: transparent; color: #ffffff; font-weight: 900; font-size: 14px; cursor: pointer; transition: background .15s;
+}
+.power-cancel:hover { background: rgba(255, 255, 255, .14); }
+.power .tp-press:focus-visible, .power-cancel:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }

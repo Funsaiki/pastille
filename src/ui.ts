@@ -2,12 +2,12 @@
    Interface : vue réglages (téléphone debout, incliné) et vue applications
    (téléphone couché). Les applications, groupes, dossiers et lancements
    fonctionnent comme dans le premier lanceur. Dans la vue réglages, l'heure,
-   le débit réseau et le profil sont réels ; le reste garde pour l'instant
-   les données de la maquette.
+   le débit réseau, le profil et les boutons du haut sont réels ; le reste garde
+   pour l'instant les données de la maquette.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type NetRate, type Profile } from './host';
+import { PREVIEW, host, type NetRate, type PowerAction, type Profile } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -47,11 +47,22 @@ const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
 const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
 const HEADSET = 'M4 15v-3a8 8 0 0116 0v3M4 15h3v5H4zM17 15h3v5h-3z';
 
+const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
+
+/* Boutons du haut. L'Explorateur remplace la capture d'écran de la maquette (Funsaiki n'en voulait pas). */
 const ACTIONS = [
-  { label: 'Paramètres', d: ICONS.parametres },
-  { label: "Capture d'écran", d: 'M4 8h3l2-3h6l2 3h3v11H4zM12 10a3.5 3.5 0 100 7 3.5 3.5 0 000-7z' },
-  { label: 'Verrouiller', d: 'M6 11h12v10H6zM8 11V7a4 4 0 018 0v4' },
-  { label: 'Alimentation', d: 'M12 3v9M7 6a8 8 0 1010 0' },
+  { label: 'Paramètres', d: ICONS.parametres, run: () => runAction('Lancement', () => host.openTool('settings')) },
+  { label: 'Explorateur de fichiers', d: ICONS.fichiers, run: () => runAction('Lancement', () => host.openTool('explorer')) },
+  { label: 'Verrouiller', d: 'M6 11h12v10H6zM8 11V7a4 4 0 018 0v4', run: () => runAction('Verrouillage', () => host.power('lock')) },
+  { label: 'Alimentation', d: POWER, run: () => openPowerMenu() },
+];
+
+/* Menu d'alimentation, dans l'ordre de celui de Windows */
+const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string }[] = [
+  { action: 'sleep', label: 'Mettre en veille', d: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z', bg: 'var(--fill)' },
+  { action: 'shutdown', label: 'Arrêter', d: POWER, bg: '#f6c6da' },
+  { action: 'restart', label: 'Redémarrer', d: 'M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5', bg: '#c9d8ff' },
+  { action: 'signout', label: 'Se déconnecter', d: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9', bg: '#ffe08a' },
 ];
 
 type ToggleKey = 'bt' | 'mic' | 'out';
@@ -105,14 +116,64 @@ function stopNetwork() {
   clearTimeout(netTimer);
 }
 
-/* Boutons du haut : pas encore branchés */
 function renderActions() {
   $('actions').replaceChildren(...ACTIONS.map((a) => {
     const b = el('button', 'tp-press action');
     b.setAttribute('aria-label', a.label);
+    b.title = a.label;
     b.append(icon(a.d, 20, 2.2));
+    b.addEventListener('click', a.run);
     return b;
   }));
+}
+
+/* ── Menu d'alimentation : un clic sur le bouton l'ouvre, un second sur un choix agit
+   (la confirmation). Annuler, Échap ou un clic sur l'écran assombri le referme. ── */
+const powerButton = () => $('actions').querySelector<HTMLElement>('[aria-label="Alimentation"]');
+
+function renderPowerChoices() {
+  $('power-choices').replaceChildren(...POWER_CHOICES.map((c) => {
+    const b = el('button', 'tp-press power-choice');
+    const dot = el('span', 'power-dot');
+    dot.style.background = c.bg;
+    dot.append(icon(c.d, 18, 2.2));
+    b.append(dot, el('span', '', c.label));
+    b.addEventListener('click', () => choosePower(c.action));
+    return b;
+  }));
+}
+
+const powerOpen = () => $('power').classList.contains('open');
+
+function openPowerMenu() {
+  $('power-error').hidden = true;
+  $('settings').inert = true;   // ni clic ni Tab derrière le menu
+  $('power').classList.add('open');
+  $('power-cancel').focus({ preventScroll: true });   // Entrée annule, comme dans les boîtes de Windows
+}
+
+function closePowerMenu(refocus = true) {
+  $('power').classList.remove('open');
+  $('settings').inert = false;
+  if (refocus) powerButton()?.focus({ preventScroll: true });
+}
+
+async function choosePower(action: PowerAction) {
+  try {
+    await host.power(action);
+    hideLauncher();   // le menu reste affiché pendant la descente
+  } catch (e) {
+    $('power-error').textContent = String(e);
+    $('power-error').hidden = false;
+  }
+}
+
+/* Flèches haut et bas entre les choix et Annuler */
+function movePowerFocus(dir: 1 | -1) {
+  const buttons = Array.from($('power').querySelectorAll<HTMLElement>('button'));
+  const i = buttons.indexOf(document.activeElement as HTMLElement);
+  const next = i === -1 ? (dir > 0 ? 0 : buttons.length - 1) : (i + dir + buttons.length) % buttons.length;
+  buttons[next].focus();
 }
 
 function renderToggles() {
@@ -168,14 +229,14 @@ function renderAppCount() {
 interface Notif { title: string; when: string; body: string; d: string; bg: string }
 
 let configProblems: string[] = [];
-let actionError: string | null = null;
+let actionError: { title: string; text: string } | null = null;   // dernière action ratée
 
 const ALERT = 'M12 7v6M12 17h.01';
 
 function notifications(): Notif[] {
   if (quick.cleared) return [];
   const problems: Notif[] = configProblems.map((p) => ({ title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
-  if (actionError) problems.unshift({ title: 'Lancement', when: 'à l’instant', body: actionError, d: ALERT, bg: '#ffe08a' });
+  if (actionError) problems.unshift({ title: actionError.title, when: 'à l’instant', body: actionError.text, d: ALERT, bg: '#ffe08a' });
   return [
     ...problems,
     { title: 'Messages', when: '2 min', body: '[Aperçu du message]', d: ICONS.messages, bg: CONFIG.accent },
@@ -241,8 +302,8 @@ function renderHead(count: number) {
   const parent = state.stack[state.stack.length - 2];
   const sup = state.query ? 'Recherche' : group ? parent?.label ?? 'Applications' : 'Lanceur';
   // Échec d'un lancement : signalé à la place du sur-titre, message complet au survol
-  $('head-sup').textContent = actionError ? 'Lancement impossible' : sup;
-  $('head-sup').title = actionError ?? '';
+  $('head-sup').textContent = actionError ? `${actionError.title} impossible` : sup;
+  $('head-sup').title = actionError?.text ?? '';
   $('head-title').textContent = state.query ? 'Résultats' : group ? group.label : 'Applications';
   $('item-count').textContent = String(count);
 }
@@ -360,14 +421,18 @@ function showSettings() {
   startNetwork();
 }
 
-/* ── Lancement : masquer après un succès, signaler un échec ── */
+/* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
 async function launch(item: AppItem | Favorite) {
+  await runAction('Lancement', () => host.launch(item));
+}
+
+async function runAction(title: string, action: () => Promise<void>) {
   try {
-    await host.launch(item);
+    await action();
     actionError = null;
     hideLauncher();
   } catch (e) {
-    actionError = String(e);
+    actionError = { title, text: String(e) };
     renderNotifs();
     if (state.view === 'apps') renderHead(currentList().length);
   }
@@ -390,6 +455,10 @@ function tickClock() {
 function bindEvents() {
   $('open-apps').addEventListener('click', () => showApps());
   $('back').addEventListener('click', goBack);
+  $('power-cancel').addEventListener('click', () => closePowerMenu());
+  $('power').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closePowerMenu();   // clic sur l'écran assombri, hors des boutons
+  });
 
   $('volume').addEventListener('input', () => {
     quick.vol = Number(($('volume') as HTMLInputElement).value);
@@ -437,6 +506,16 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', (e) => {
+    if (powerOpen()) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePowerMenu();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        movePowerFocus(e.key === 'ArrowDown' ? 1 : -1);
+      }
+      return;   // pas de recherche ni de fermeture derrière le menu
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       if (state.view === 'apps') goBack();
@@ -497,6 +576,7 @@ function playEntrance() {
   clearTimeout(leaving);
   leaving = 0;
   $('phone').classList.remove('leaving');
+  closePowerMenu(false);
   state.view = 'settings';
   state.stack = [];
   state.page = 0;
@@ -566,6 +646,7 @@ export async function init() {
   if (PREVIEW) document.body.classList.add('preview');
 
   renderActions();
+  renderPowerChoices();
   bindEvents();
   host.profile().then(renderProfile).catch(console.error);
   addEventListener('resize', fitStage);   // Rust agrandit la fenêtre à l'écran à chaque ouverture

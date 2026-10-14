@@ -1,5 +1,6 @@
 mod config;
 mod launcher;
+mod power;
 mod shell;
 mod steam;
 mod system;
@@ -45,6 +46,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             config::get_config,
             shell::launch,
+            shell::open_tool,
+            power::power,
             system::profile,
             system::network
         ])
