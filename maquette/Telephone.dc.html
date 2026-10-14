@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Lanceur téléphone</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f7f8}
+a{color:#0f3b42}a:hover{color:#0a2a2f}
+@keyframes tp-rise{from{opacity:0;transform:translateY(160px)}to{opacity:1;transform:none}}
+@keyframes tp-pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes tp-eq{from{transform:scaleY(.3)}to{transform:scaleY(1)}}
+@keyframes tp-in-r{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}
+@keyframes tp-in-l{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
+@keyframes tp-fade{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+@keyframes tp-fade-rot{from{opacity:0;transform:rotate(90deg) scale(.97)}to{opacity:1;transform:rotate(90deg)}}
+.tp-rise{animation:tp-rise .8s cubic-bezier(.2,.9,.25,1.05) both}
+.tp-pop{animation:tp-pop .45s cubic-bezier(.2,.8,.2,1) both}
+.tp-in-r{animation:tp-in-r .4s cubic-bezier(.2,.8,.2,1) both}
+.tp-in-l{animation:tp-in-l .4s cubic-bezier(.2,.8,.2,1) both}
+.tp-fade-late{animation:tp-fade .35s .6s cubic-bezier(.2,.8,.2,1) both}
+.tp-land{animation:tp-fade-rot .35s .6s cubic-bezier(.2,.8,.2,1) both}
+.tp-press{transition:transform .12s, box-shadow .12s}
+.tp-press:hover{transform:translateY(-1px);box-shadow:0 4px 0 #0f3b42 !important}
+.tp-press:active{transform:translateY(2px);box-shadow:0 1px 0 #0f3b42 !important}
+.tp-press:focus-visible{outline:3px solid #0f3b42;outline-offset:3px}
+.tp-app .tp-app-ic{transition:transform .12s, box-shadow .12s}
+.tp-app:hover .tp-app-ic{transform:translateY(-2px);box-shadow:0 5px 0 #0f3b42 !important}
+.tp-app:active .tp-app-ic{transform:translateY(2px);box-shadow:0 1px 0 #0f3b42 !important}
+.tp-app:focus-visible{outline:none}
+.tp-app:focus-visible .tp-app-ic{outline:3px solid #0f3b42;outline-offset:3px}
+.tp-search:focus-within{outline:3px solid #0f3b42;outline-offset:3px}
+.tp-eq i{display:block;width:3px;height:100%;border-radius:2px;background:#0f3b42;transform-origin:bottom;transform:scaleY(.3)}
+.tp-eq.on i{animation:tp-eq .8s ease-in-out infinite alternate}
+.tp-eq i:nth-child(2){animation-delay:-.27s}
+.tp-eq i:nth-child(3){animation-delay:-.54s}
+.tp-range{-webkit-appearance:none;appearance:none;display:block;width:100%;height:16px;margin:0;border-radius:999px;border:2.5px solid #0f3b42;box-sizing:border-box;outline:none;cursor:pointer}
+.tp-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:#ffffff;border:2.5px solid #0f3b42;box-shadow:0 2px 0 #0f3b42}
+.tp-range::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#ffffff;border:2.5px solid #0f3b42}
+.tp-range:focus-visible{outline:3px solid #0f3b42;outline-offset:3px}
+.tp-edge{opacity:var(--edge-o,1);transition:opacity .25s ease var(--edge-d,0s)}
+.tp-link{transition:color .15s}
+.tp-link:hover{color:#0a2a2f !important;text-decoration:underline}
+</style>
+</helmet>
+<div style="--fill: {{accent}}; width: 1440px; height: 900px; position: relative; overflow: hidden; font-family: 'Nunito', sans-serif; color: #0f3b42; background: radial-gradient(circle 620px at 22% 30%, #dff4f3, transparent 70%), radial-gradient(circle 560px at 82% 72%, #f6e2ec, transparent 70%), radial-gradient(circle 420px at 62% 12%, #d9ecfa, transparent 70%), #f4f7f8">
+
+<span aria-hidden="true" style="position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgba(15,59,66,.55)">[ TON FOND D'ÉCRAN ]</span>
+
+<div class="tp-rise" style="position: absolute; left: 500px; top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%">
+<div style="position: relative; width: 410px; height: 830px; transform: {{tilt}}; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.45,.05,.25,1)">
+<div style="position: absolute; left: 0; top: 0; width: 410px; height: 830px; transform: {{orient}}; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.45,.05,.25,1)">
+
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 410px; height: 830px; transform-style: preserve-3d; pointer-events: none; --edge-o: {{edgeO}}; --edge-d: {{edgeD}}">
+<div class="tp-edge" style="position: absolute; left: 374.9px; top: 11.9px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(35deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 383.7px; top: 19.3px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(45deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 391.1px; top: 28.1px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(55deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 396.8px; top: 38.1px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(65deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 400.8px; top: 48.9px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(75deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 402.7px; top: 60.2px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(85deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 402.7px; top: 769.8px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(95deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 400.8px; top: 781.1px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(105deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 396.8px; top: 791.9px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(115deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 391.1px; top: 801.9px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(125deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 383.7px; top: 810.7px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(135deg) rotateX(-90deg)"></div>
+<div class="tp-edge" style="position: absolute; left: 409px; top: 64px; width: 40px; height: 702px; box-sizing: border-box; border-left: 4px solid #0f3b42; border-right: 4px solid #0f3b42; background: linear-gradient(90deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: left center; transform: translateZ(2px) rotateY(90deg); transform-style: preserve-3d">
+<div style="position: absolute; left: 10px; top: 100px; width: 14px; height: 70px; box-sizing: border-box; border-radius: 8px; border: 3px solid #0f3b42; background: linear-gradient(90deg, #4a96a0, #2d7a84); box-shadow: 2px 0 0 #0f3b42; transform: translateZ(5px)"></div>
+<div style="position: absolute; left: 10px; top: 182px; width: 14px; height: 70px; box-sizing: border-box; border-radius: 8px; border: 3px solid #0f3b42; background: linear-gradient(90deg, #4a96a0, #2d7a84); box-shadow: 2px 0 0 #0f3b42; transform: translateZ(5px)"></div>
+<div style="position: absolute; left: 10px; top: 308px; width: 14px; height: 104px; box-sizing: border-box; border-radius: 8px; border: 3px solid #0f3b42; background: linear-gradient(90deg, #f6c6da, #e9a9c4); box-shadow: 2px 0 0 #0f3b42; transform: translateZ(5px)"></div>
+<div style="position: absolute; left: 13px; top: 608px; width: 8px; height: 40px; border-radius: 4px; background: #0f3b42"></div>
+</div>
+</div>
+
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 410px; height: 830px; transform-style: preserve-3d; pointer-events: none; display: {{landscapeDisplay}}">
+<div style="position: absolute; left: 391.1px; top: 801.9px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(125deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 383.7px; top: 810.7px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(135deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 374.9px; top: 818.1px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(145deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 364.9px; top: 823.8px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(155deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 354.1px; top: 827.8px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(165deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 342.8px; top: 829.7px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(175deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 53.2px; top: 829.7px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(185deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 41.9px; top: 827.8px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(195deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 31.1px; top: 823.8px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(205deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 21.1px; top: 818.1px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(215deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 12.3px; top: 810.7px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(225deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 4.9px; top: 801.9px; width: 14px; height: 40px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: translateZ(2px) rotateZ(235deg) rotateX(-90deg)"></div>
+<div style="position: absolute; left: 66px; top: 830px; width: 278px; height: 38px; box-sizing: border-box; border-top: 4px solid #0f3b42; border-bottom: 4px solid #0f3b42; background: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%); transform-origin: 50% 0; transform: rotateX(-90deg)">
+<div style="position: absolute; left: 109px; top: 11px; width: 60px; height: 10px; border-radius: 5px; background: #0f3b42"></div>
+<div style="position: absolute; left: 40px; top: 13px; width: 50px; height: 6px; background: radial-gradient(circle 3px at 3px 3px, #0f3b42 99%, transparent 100%) 0 0 / 11px 6px repeat-x"></div>
+<div style="position: absolute; left: 188px; top: 13px; width: 50px; height: 6px; background: radial-gradient(circle 3px at 3px 3px, #0f3b42 99%, transparent 100%) 0 0 / 11px 6px repeat-x"></div>
+</div>
+</div>
+
+<div style="position: absolute; inset: 0; transform: translateZ(1px); box-sizing: border-box; padding: 13px; border-radius: 66px; border: 5px solid #0f3b42; background: linear-gradient(160deg, #2d7a84 0%, #1f5f68 45%, #174b52 100%); box-shadow: 30px 44px 70px rgba(15,59,66,.28), inset 0 2px 0 rgba(255,255,255,.25)">
+<div style="position: relative; width: 100%; height: 100%; box-sizing: border-box; border-radius: 52px; border: 3px solid #0f3b42; overflow: hidden; background: linear-gradient(180deg, #e2f5f4 0%, #f5fbfb 34%, #ffffff 100%)">
+
+<div aria-hidden="true" style="position: absolute; left: 50%; top: 14px; transform: translateX(-50%); width: 104px; height: 30px; border-radius: 15px; background: #0f3b42; display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; box-sizing: border-box; z-index: 2">
+<span style="width: 10px; height: 10px; border-radius: 50%; background: #2d7a84; border: 2px solid #164a51"></span>
+</div>
+
+<sc-if value="{{isSettings}}" hint-placeholder-val="{{ true }}">
+<div class="{{settingsCls}}" style="position: absolute; inset: 0; box-sizing: border-box; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px">
+
+<div style="height: 40px; flex: none; display: flex; justify-content: space-between; align-items: flex-start">
+<div style="display: flex; flex-direction: column; line-height: 1.05">
+<span style="font-weight: 900; font-size: 21px">14:34</span>
+<span style="font-weight: 700; font-size: 12px; color: rgba(15,59,66,.72)">Mer. 14 oct.</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; font-weight: 800; font-size: 12px">
+<span>↓ 1,2 Mo/s</span>
+<span style="color: rgba(15,59,66,.72)">↑ 84 Ko/s</span>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 14px">
+<div aria-hidden="true" style="width: 58px; height: 58px; flex: none; border-radius: 50%; border: 3px solid #0f3b42; background: var(--fill); box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 24px">J</div>
+<div style="display: flex; flex-direction: column; min-width: 0">
+<span style="font-weight: 900; font-size: 19px">Funsaiki</span>
+<span style="font-weight: 700; font-size: 13px; color: rgba(15,59,66,.72)">Windows 11</span>
+</div>
+</div>
+
+<div style="display: flex; justify-content: space-between">
+<sc-for list="{{actions}}" as="a" hint-placeholder-count="4">
+<button class="tp-press" aria-label="{{a.label}}" style="width: 60px; height: 46px; border-radius: 23px; border: 2.5px solid #0f3b42; background: #ffffff; color: #0f3b42; box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="{{a.d}}"></path></svg>
+</button>
+</sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px">
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="3">
+<button class="tp-press tp-pop" aria-pressed="{{t.pressed}}" onClick="{{t.toggle}}" style="height: 60px; box-sizing: border-box; padding: 0 12px 0 8px; border-radius: 30px; border: 2.5px solid #0f3b42; background: {{t.bg}}; color: #0f3b42; box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; gap: 9px; text-align: left; font-family: 'Nunito', sans-serif; cursor: pointer; animation-delay: {{t.delay}}">
+<span style="width: 38px; height: 38px; flex: none; border-radius: 50%; border: 2.5px solid #0f3b42; background: {{t.dotBg}}; display: flex; align-items: center; justify-content: center; box-sizing: border-box">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="{{t.d}}"></path></svg>
+</span>
+<span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.15">
+<span style="font-weight: 900; font-size: 15px">{{t.label}}</span>
+<span style="font-weight: 700; font-size: 12px; color: rgba(15,59,66,.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.sub}}</span>
+</span>
+</button>
+</sc-for>
+<button class="tp-press tp-pop" onClick="{{openApps}}" style="height: 60px; box-sizing: border-box; padding: 0 10px 0 8px; border-radius: 30px; border: 2.5px solid #0f3b42; background: #0f3b42; color: #ffffff; box-shadow: 0 3px 0 #0a2a2f; display: flex; align-items: center; gap: 9px; text-align: left; font-family: 'Nunito', sans-serif; cursor: pointer; animation-delay: .63s">
+<span style="width: 38px; height: 38px; flex: none; border-radius: 50%; border: 2.5px solid #ffffff; background: var(--fill); color: #0f3b42; display: flex; align-items: center; justify-content: center; box-sizing: border-box">
+<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path></svg>
+</span>
+<span style="flex: 1; display: flex; flex-direction: column; min-width: 0; line-height: 1.15">
+<span style="font-weight: 900; font-size: 15px">Applications</span>
+<span style="font-weight: 700; font-size: 12px; color: rgba(255,255,255,.8)">{{appCount}} raccourcis</span>
+</span>
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M9 5l7 7-7 7"></path></svg>
+</button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-radius: 24px; border: 2.5px solid #0f3b42; background: #ffffff; box-shadow: 0 3px 0 #0f3b42">
+<sc-for list="{{sliders}}" as="s" hint-placeholder-count="1">
+<label style="display: flex; flex-direction: column; gap: 6px">
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 14px">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="{{s.d}}"></path></svg>
+<span>{{s.label}}</span>
+<span style="margin-left: auto; font-weight: 800; font-size: 12px; color: rgba(15,59,66,.72)">{{s.text}}</span>
+</span>
+<input class="tp-range" type="range" min="0" max="100" value="{{s.v}}" onChange="{{s.set}}" style="background: linear-gradient(90deg, {{accent}} 0, {{accent}} {{s.pct}}, #ffffff {{s.pct}}, #ffffff 100%)">
+</label>
+</sc-for>
+</div>
+
+<div style="display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 9px; border-radius: 24px; border: 2.5px solid #0f3b42; background: #ffffff; box-shadow: 0 3px 0 #0f3b42">
+<div aria-hidden="true" style="width: 46px; height: 46px; flex: none; border-radius: 16px; border: 2.5px solid #0f3b42; background: linear-gradient(135deg, var(--fill), #f6e2ec); display: flex; align-items: center; justify-content: center; box-sizing: border-box">
+<span class="{{eqCls}}" style="display: flex; align-items: flex-end; gap: 3px; height: 18px"><i></i><i></i><i></i></span>
+</div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2">
+<span style="font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">[Titre du morceau]</span>
+<span style="font-weight: 700; font-size: 12px; color: rgba(15,59,66,.72)">[Artiste]</span>
+</div>
+<button class="tp-press" aria-label="Précédent" style="width: 34px; height: 34px; flex: none; border-radius: 50%; border: 2.5px solid #0f3b42; background: #ffffff; color: #0f3b42; box-shadow: 0 2px 0 #0f3b42; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M18 5v14L8 12zM6 5v14"></path></svg>
+</button>
+<button class="tp-press" aria-label="{{playLabel}}" onClick="{{togglePlay}}" style="width: 40px; height: 40px; flex: none; border-radius: 50%; border: 2.5px solid #0f3b42; background: var(--fill); color: #0f3b42; box-shadow: 0 2px 0 #0f3b42; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<sc-if value="{{playing}}" hint-placeholder-val="{{ true }}">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path></svg>
+</sc-if>
+<sc-if value="{{paused}}" hint-placeholder-val="{{ false }}">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 5l11 7-11 7z"></path></svg>
+</sc-if>
+</button>
+<button class="tp-press" aria-label="Suivant" style="width: 34px; height: 34px; flex: none; border-radius: 50%; border: 2.5px solid #0f3b42; background: #ffffff; color: #0f3b42; box-shadow: 0 2px 0 #0f3b42; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 5v14l10-7zM18 5v14"></path></svg>
+</button>
+</div>
+
+<div style="position: relative; flex: 1; min-height: 0; margin-top: 10px; border-radius: 26px; border: 2.5px solid #0f3b42; background: #f5fbfb; padding: 26px 12px 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="position: absolute; left: 50%; top: -15px; transform: translateX(-50%); height: 28px; padding: 0 14px; border-radius: 14px; border: 2.5px solid #0f3b42; background: #ffffff; box-shadow: 0 2px 0 #0f3b42; display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 13px; white-space: nowrap; box-sizing: border-box">
+Notifications
+<span style="min-width: 20px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: #0f3b42; color: #ffffff; font-size: 12px; display: flex; align-items: center; justify-content: center">{{count}}</span>
+</div>
+<sc-if value="{{hasNotifs}}" hint-placeholder-val="{{ true }}">
+<button class="tp-link" onClick="{{clear}}" style="position: absolute; right: 10px; top: 0; height: 26px; padding: 0 6px; background: transparent; border: none; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 12px; color: rgba(15,59,66,.8)">Tout effacer</button>
+<div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; border: 2px solid #0f3b42; background: #ffffff">
+<span aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; border: 2px solid #0f3b42; background: var(--fill); display: flex; align-items: center; justify-content: center">
+<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f3b42" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+</span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2">
+<span style="font-weight: 900; font-size: 13px">Messages <span style="font-weight: 700; color: rgba(15,59,66,.68)">· 2 min</span></span>
+<span style="font-weight: 700; font-size: 12px; color: rgba(15,59,66,.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">[Aperçu du message]</span>
+</span>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; border: 2px solid #0f3b42; background: #ffffff">
+<span aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; border: 2px solid #0f3b42; background: #f6e2ec; display: flex; align-items: center; justify-content: center">
+<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f3b42" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>
+</span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2">
+<span style="font-weight: 900; font-size: 13px">Téléchargements <span style="font-weight: 700; color: rgba(15,59,66,.68)">· 15 min</span></span>
+<span style="font-weight: 700; font-size: 12px; color: rgba(15,59,66,.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">[Fichier] terminé</span>
+</span>
+</div>
+</sc-if>
+<sc-if value="{{noNotifs}}" hint-placeholder-val="{{ false }}">
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: rgba(15,59,66,.72)">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0"></path></svg>
+<span style="font-weight: 800; font-size: 13px">Rien de neuf</span>
+<button class="tp-link" onClick="{{restore}}" style="height: 32px; padding: 0 6px; background: transparent; border: none; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px; color: rgba(15,59,66,.72)">Revoir l'exemple</button>
+</div>
+</sc-if>
+</div>
+
+</div>
+</sc-if>
+
+<sc-if value="{{isApps}}" hint-placeholder-val="{{ false }}">
+<div class="tp-land" style="position: absolute; left: -210px; top: 210px; width: 788px; height: 368px; box-sizing: border-box; padding: 22px 30px 20px 66px; display: flex; flex-direction: column; gap: 16px; transform: rotate(90deg)">
+
+<div style="display: flex; align-items: center; gap: 12px; height: 46px; flex: none">
+<button class="tp-press" aria-label="Retour" onClick="{{back}}" style="width: 44px; height: 44px; flex: none; border-radius: 50%; border: 2.5px solid #0f3b42; background: #ffffff; color: #0f3b42; box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+</button>
+<div style="width: 150px; flex: none; display: flex; flex-direction: column; line-height: 1.1">
+<span style="font-weight: 800; font-size: 12px; color: rgba(15,59,66,.72)">{{headSup}}</span>
+<span style="font-weight: 900; font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{headTitle}}</span>
+</div>
+<label class="tp-search" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 22px; border: 2.5px solid #0f3b42; background: #ffffff; box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; gap: 10px">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f3b42" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Rechercher une application</span>
+<input type="text" value="{{q}}" onChange="{{setQ}}" placeholder="Rechercher une app…" style="flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; border: none; outline: none; color: #0f3b42; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px">
+</label>
+<span style="flex: none; height: 26px; padding: 0 10px; border-radius: 13px; border: 2px solid #0f3b42; background: var(--fill); display: flex; align-items: center; font-weight: 900; font-size: 12px; box-sizing: border-box">{{itemCount}}</span>
+<span style="flex: none; font-weight: 900; font-size: 15px">14:34</span>
+</div>
+
+<sc-if value="{{gridA}}" hint-placeholder-val="{{ true }}">
+<div class="{{gridCls}}" style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 12px 6px">
+<sc-for list="{{items}}" as="a" hint-placeholder-count="8">
+<button class="tp-app" onClick="{{a.go}}" aria-label="{{a.aria}}" style="min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 4px 0; background: transparent; border: none; cursor: pointer; font-family: 'Nunito', sans-serif; color: #0f3b42">
+<span class="tp-app-ic" style="position: relative; width: 60px; height: 60px; box-sizing: border-box; border-radius: 20px; border: 2.5px solid #0f3b42; background: {{a.bg}}; box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; justify-content: center">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="{{a.d}}"></path></svg>
+<sc-if value="{{a.group}}" hint-placeholder-val="{{ false }}">
+<span aria-hidden="true" style="position: absolute; top: -8px; right: -8px; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box; border-radius: 11px; border: 2px solid #0f3b42; background: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px">{{a.count}}</span>
+</sc-if>
+</span>
+<span style="max-width: 100%; font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{a.label}}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{gridB}}" hint-placeholder-val="{{ false }}">
+<div class="{{gridCls}}" style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 12px 6px">
+<sc-for list="{{items}}" as="a" hint-placeholder-count="8">
+<button class="tp-app" onClick="{{a.go}}" aria-label="{{a.aria}}" style="min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 4px 0; background: transparent; border: none; cursor: pointer; font-family: 'Nunito', sans-serif; color: #0f3b42">
+<span class="tp-app-ic" style="position: relative; width: 60px; height: 60px; box-sizing: border-box; border-radius: 20px; border: 2.5px solid #0f3b42; background: {{a.bg}}; box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; justify-content: center">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="{{a.d}}"></path></svg>
+<sc-if value="{{a.group}}" hint-placeholder-val="{{ false }}">
+<span aria-hidden="true" style="position: absolute; top: -8px; right: -8px; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box; border-radius: 11px; border: 2px solid #0f3b42; background: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px">{{a.count}}</span>
+</sc-if>
+</span>
+<span style="max-width: 100%; font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{a.label}}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{noResult}}" hint-placeholder-val="{{ false }}">
+<div style="height: 90px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: rgba(15,59,66,.72)">Aucune app trouvée</div>
+</sc-if>
+
+<sc-if value="{{showFolders}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 10px; margin-top: auto">
+<span style="font-weight: 900; font-size: 14px">Dossiers</span>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{folders}}" as="f" hint-placeholder-count="4">
+<button class="tp-press" style="height: 46px; box-sizing: border-box; padding: 0 12px; border-radius: 23px; border: 2.5px solid #0f3b42; background: #ffffff; color: #0f3b42; box-shadow: 0 3px 0 #0f3b42; display: flex; align-items: center; gap: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; cursor: pointer; min-width: 0">
+<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="{{f.bg}}" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round" style="flex: none"><path d="M3 6h6l2 2h10v11H3z"></path></svg>
+<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.label}}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+</div>
+</sc-if>
+
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#9fe0dc","options":["#9fe0dc","#f6c6da","#c9d8ff","#ffe08a"]},"inclinaison":{"editor":"boolean","default":true},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { out: true, bt: true, mic: false, vol: 62, playing: true, cleared: false, view: 'settings', group: null, q: '', dir: '', gdir: '', nav: 0 };
+  }
+  renderVals() {
+    const s = this.state;
+    const accent = this.props.accent ?? '#9fe0dc';
+    const tilted = this.props.inclinaison ?? true;
+    const land = s.view === 'apps';
+    const toggle = (key) => () => this.setState({ [key]: !this.state[key] });
+    const tile = (key, label, onSub, offSub, d, i) => ({
+      label: label,
+      sub: s[key] ? onSub : offSub,
+      d: d,
+      pressed: s[key] ? 'true' : 'false',
+      bg: s[key] ? accent : '#ffffff',
+      dotBg: s[key] ? '#ffffff' : '#f0f6f6',
+      toggle: toggle(key),
+      delay: (0.45 + i * 0.06).toFixed(2) + 's'
+    });
+    const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
+    const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
+
+    // Même structure que apps.json du premier lanceur
+    const APPS = [
+      { label: 'Code', d: 'M8 6l-6 6 6 6M16 6l6 6-6 6' },
+      { label: 'Navigateur', d: 'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2c3 3 3 17 0 20M12 2c-3 3-3 17 0 20' },
+      { label: 'Fichiers', d: 'M3 6h6l2 2h10v11H3z' },
+      { label: 'Jeux', d: 'M6 9h12a4 4 0 010 8l-2-2H8l-2 2a4 4 0 010-8zM8 12v2M7 13h2M16 12h.01M18 14h.01', children: [
+        { label: 'Steam', d: 'M4 19V5M8 19V5M12 19l3-14 4 1-3 14z' },
+        { label: 'Epic Games', d: 'M5 4h14v12l-7 4-7-4z' },
+        { label: '[Jeu 1]', d: 'M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z' },
+        { label: '[Jeu 2]', d: 'M20 4l-9 9M20 4h-4M20 4v4M11 13l-3 3M6 14l4 4M5 19l2-2' },
+        { label: '[Jeu 3]', d: 'M5 16h14M6 16l1.5-5h9L18 16M5 16v3h3v-3M16 16v3h3v-3' },
+        { label: '[Jeu 4]', d: 'M9 3h11v15H9zM6 6v15h11' },
+        { label: '[Jeu 5]', d: 'M12 2l9 5v10l-9 5-9-5V7zM12 12l9-5M12 12L3 7M12 12v10' },
+        { label: '[Jeu 6]', d: 'M8 4h8v5a4 4 0 01-8 0zM8 6H5v1a3 3 0 003 3M16 6h3v1a3 3 0 01-3 3M12 13v4M8 20h8M10 17h4' }
+      ] },
+      { label: 'Messages', d: 'M4 5h16v11H9l-5 4z' },
+      { label: 'Musique', d: 'M9 18V5l11-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zM20 16a3 3 0 11-6 0 3 3 0 016 0z' },
+      { label: 'Terminal', d: 'M4 4h16v16H4zM8 9l3 3-3 3M13 15h4' },
+      { label: 'Paramètres', d: 'M12 9a3 3 0 100 6 3 3 0 000-6zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2' }
+    ];
+    const PALETTE = [accent, '#f6c6da', '#c9d8ff', '#ffe08a'];
+    const norm = (x) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const flat = APPS.flatMap((a) => (a.children ? a.children : [a]));
+    const group = APPS.find((a) => a.label === s.group);
+    const query = s.q.trim();
+    const list = query ? flat.filter((a) => norm(a.label).includes(norm(query))).slice(0, 16)
+      : group ? group.children : APPS;
+    const go = (patch) => this.setState({ ...patch, nav: this.state.nav + 1 });
+    const TILT = 'rotateZ(6deg) rotateX(13deg) rotateY(-36deg)';
+    const FLAT = 'rotateZ(0deg) rotateX(0deg) rotateY(0deg)';
+
+    return {
+      accent: accent,
+      tilt: land ? 'translateY(-130px) ' + FLAT : 'translateY(0px) ' + (tilted ? TILT : FLAT),
+      orient: land ? 'rotateZ(-90deg)' : 'rotateZ(0deg)',
+      edgeO: land ? '0' : '1',
+      edgeD: land ? '0s' : '.45s',
+      landscapeDisplay: 'none',
+      isSettings: !land,
+      isApps: land,
+      settingsCls: s.dir === 'l' ? 'tp-fade-late' : '',
+      gridCls: s.gdir === 'r' ? 'tp-in-r' : s.gdir === 'l' ? 'tp-in-l' : '',
+      gridA: list.length > 0 && s.nav % 2 === 0,
+      gridB: list.length > 0 && s.nav % 2 === 1,
+      noResult: list.length === 0,
+      showFolders: !group && !query,
+      appCount: flat.length,
+      openApps: () => go({ view: 'apps', group: null, q: '', dir: 'r', gdir: '' }),
+      back: () => {
+        if (this.state.q) this.setState({ q: '' });
+        else if (this.state.group) go({ group: null, gdir: 'l' });
+        else go({ view: 'settings', dir: 'l' });
+      },
+      q: s.q,
+      setQ: (e) => this.setState({ q: e.target.value }),
+      headSup: query ? 'Recherche' : group ? 'Applications' : 'Lanceur',
+      headTitle: query ? 'Résultats' : group ? group.label : 'Applications',
+      itemCount: list.length,
+      items: list.map((a, i) => ({
+        label: a.label,
+        d: a.d,
+        bg: PALETTE[i % PALETTE.length],
+        group: !!a.children,
+        count: a.children ? a.children.length : 0,
+        aria: a.children ? a.label + ', groupe de ' + a.children.length : a.label,
+        go: a.children ? () => go({ group: a.label, q: '', gdir: 'r' }) : () => {}
+      })),
+      folders: [
+        { label: 'Projets', bg: accent },
+        { label: 'Téléchargements', bg: '#f6c6da' },
+        { label: 'Captures', bg: '#c9d8ff' },
+        { label: 'Documents', bg: '#ffe08a' }
+      ],
+      actions: [
+        { label: 'Paramètres', d: 'M12 9a3 3 0 100 6 3 3 0 000-6zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2' },
+        { label: "Capture d'écran", d: 'M4 8h3l2-3h6l2 3h3v11H4zM12 10a3.5 3.5 0 100 7 3.5 3.5 0 000-7z' },
+        { label: 'Verrouiller', d: 'M6 11h12v10H6zM8 11V7a4 4 0 018 0v4' },
+        { label: 'Alimentation', d: 'M12 3v9M7 6a8 8 0 1010 0' }
+      ],
+      tiles: [
+        tile('bt', 'Bluetooth', '[Manette]', 'Désactivé', 'M7 7l10 10-5 5V2l5 5L7 17', 0),
+        tile('mic', 'Micro', 'Actif', 'Coupé', s.mic ? 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3' : 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3M3 3l18 18', 1),
+        tile('out', 'Sortie audio', 'Casque', 'Enceintes', s.out ? 'M4 15v-3a8 8 0 0116 0v3M4 15h3v5H4zM17 15h3v5h-3z' : SPEAKER, 2)
+      ],
+      sliders: [
+        { label: 'Volume', v: s.vol, pct: s.vol + '%', text: s.vol + ' %', d: s.vol === 0 ? SPEAKER_OFF : SPEAKER, set: (e) => this.setState({ vol: Number(e.target.value) }) }
+      ],
+      playing: s.playing,
+      paused: !s.playing,
+      playLabel: s.playing ? 'Pause' : 'Lecture',
+      eqCls: s.playing ? 'tp-eq on' : 'tp-eq',
+      togglePlay: () => this.setState({ playing: !this.state.playing }),
+      hasNotifs: !s.cleared,
+      noNotifs: s.cleared,
+      count: s.cleared ? '0' : '2',
+      clear: () => this.setState({ cleared: true }),
+      restore: () => this.setState({ cleared: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

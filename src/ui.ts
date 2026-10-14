@@ -1,0 +1,525 @@
+/* ══════════════════════════════════════════════════════════
+   Interface : vue réglages (téléphone debout, incliné) et vue applications
+   (téléphone couché). Les applications, groupes, dossiers et lancements
+   fonctionnent comme dans le premier lanceur ; le reste de la vue réglages
+   garde pour l'instant les données de la maquette.
+   ══════════════════════════════════════════════════════════ */
+import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
+import { ICONS, icon } from './icons';
+import { PREVIEW, host } from './host';
+
+const $ = (id: string) => document.getElementById(id) as HTMLElement;
+const $q = () => $('q') as HTMLInputElement;
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function restartAnimation(node: HTMLElement, className: string) {
+  node.classList.remove(className);
+  void node.offsetWidth;
+  node.classList.add(className);
+}
+
+const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/* Fonds des icônes d'apps et des dossiers, dans l'ordre de la liste */
+const palette = () => [CONFIG.accent, '#f6c6da', '#c9d8ff', '#ffe08a'];
+
+/* ── État ── */
+const state = {
+  view: 'settings' as 'settings' | 'apps',
+  stack: [] as AppItem[],   // groupes ouverts (ex. [Jeux, Steam])
+  page: 0,
+  query: '',
+};
+
+/* Réglages rapides : état local, comme dans la maquette (pas encore reliés au système) */
+const quick = { bt: true, mic: false, out: true, vol: 62, playing: true, cleared: false };
+
+/* ══ Vue réglages ══ */
+const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
+const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
+const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
+const HEADSET = 'M4 15v-3a8 8 0 0116 0v3M4 15h3v5H4zM17 15h3v5h-3z';
+
+const ACTIONS = [
+  { label: 'Paramètres', d: ICONS.parametres },
+  { label: "Capture d'écran", d: 'M4 8h3l2-3h6l2 3h3v11H4zM12 10a3.5 3.5 0 100 7 3.5 3.5 0 000-7z' },
+  { label: 'Verrouiller', d: 'M6 11h12v10H6zM8 11V7a4 4 0 018 0v4' },
+  { label: 'Alimentation', d: 'M12 3v9M7 6a8 8 0 1010 0' },
+];
+
+type ToggleKey = 'bt' | 'mic' | 'out';
+const TOGGLES: { key: ToggleKey; label: string; on: string; off: string; d: () => string }[] = [
+  { key: 'bt', label: 'Bluetooth', on: '[Manette]', off: 'Désactivé', d: () => 'M7 7l10 10-5 5V2l5 5L7 17' },
+  { key: 'mic', label: 'Micro', on: 'Actif', off: 'Coupé', d: () => (quick.mic ? MIC : MIC + 'M3 3l18 18') },
+  { key: 'out', label: 'Sortie audio', on: 'Casque', off: 'Enceintes', d: () => (quick.out ? HEADSET : SPEAKER) },
+];
+
+/* Boutons du haut : pas encore branchés */
+function renderActions() {
+  $('actions').replaceChildren(...ACTIONS.map((a) => {
+    const b = el('button', 'tp-press action');
+    b.setAttribute('aria-label', a.label);
+    b.append(icon(a.d, 20, 2.2));
+    return b;
+  }));
+}
+
+function renderToggles() {
+  const tiles = TOGGLES.map((t, i) => {
+    const b = el('button', 'tp-press tp-pop qtile');
+    b.style.animationDelay = (0.45 + i * 0.06).toFixed(2) + 's';
+    const dot = el('span', 'qtile-dot');
+    const text = el('span', 'qtile-text');
+    const sub = el('span', 'qtile-sub');
+    text.append(el('span', 'qtile-label', t.label), sub);
+    b.append(dot, text);
+    // Mise à jour sur place : recréer la tuile rejouerait son animation d'entrée
+    const update = () => {
+      b.setAttribute('aria-pressed', String(quick[t.key]));
+      sub.textContent = quick[t.key] ? t.on : t.off;
+      dot.replaceChildren(icon(t.d(), 18, 2.2));
+    };
+    b.addEventListener('click', () => {
+      quick[t.key] = !quick[t.key];
+      update();
+    });
+    update();
+    return b;
+  });
+  $('tiles').querySelectorAll('.qtile:not(.qtile-apps)').forEach((n) => n.remove());
+  $('open-apps').before(...tiles);
+}
+
+function renderVolume() {
+  const input = $('volume') as HTMLInputElement;
+  input.value = String(quick.vol);
+  input.style.setProperty('--pct', quick.vol + '%');
+  $('volume-text').textContent = quick.vol + ' %';
+  $('volume-icon').setAttribute('d', quick.vol === 0 ? SPEAKER_OFF : SPEAKER);
+}
+
+function renderMedia() {
+  $('eq').classList.toggle('on', quick.playing);
+  $('play').classList.toggle('paused', !quick.playing);
+  $('play').setAttribute('aria-label', quick.playing ? 'Pause' : 'Lecture');
+}
+
+/* Applications lançables (feuilles de l'arbre, jeux Steam compris) */
+function flattenApps(items: AppItem[]): AppItem[] {
+  return items.flatMap((it) => (it.children ? flattenApps(it.children) : [it]));
+}
+
+function renderAppCount() {
+  $('app-count').textContent = `${flattenApps(CONFIG.apps).length} raccourcis`;
+}
+
+/* ── Notifications : problèmes du lanceur (config, lancement), puis exemples de la maquette ── */
+interface Notif { title: string; when: string; body: string; d: string; bg: string }
+
+let configProblems: string[] = [];
+let actionError: string | null = null;
+
+const ALERT = 'M12 7v6M12 17h.01';
+
+function notifications(): Notif[] {
+  if (quick.cleared) return [];
+  const problems: Notif[] = configProblems.map((p) => ({ title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
+  if (actionError) problems.unshift({ title: 'Lancement', when: 'à l’instant', body: actionError, d: ALERT, bg: '#ffe08a' });
+  return [
+    ...problems,
+    { title: 'Messages', when: '2 min', body: '[Aperçu du message]', d: ICONS.messages, bg: CONFIG.accent },
+    { title: 'Téléchargements', when: '15 min', body: '[Fichier] terminé', d: 'M12 4v11M7 10l5 5 5-5M5 20h14', bg: '#f6e2ec' },
+  ];
+}
+
+function renderNotifs() {
+  const items = notifications();
+  $('notif-count').textContent = String(items.length);
+  $('notif-list').replaceChildren(...items.map((n) => {
+    const row = el('div', 'notif');
+    const badge = el('span', 'notif-icon');
+    badge.setAttribute('aria-hidden', 'true');
+    badge.style.background = n.bg;
+    const svg = icon(n.d, 15, 2.2);
+    svg.setAttribute('stroke', '#0f3b42');
+    badge.append(svg);
+    const title = el('span', 'notif-title', n.title + ' ');
+    title.append(el('span', 'notif-when', '· ' + n.when));
+    const body = el('span', 'notif-body', n.body);
+    body.title = n.body;   // texte complet au survol s'il est coupé
+    const text = el('span', 'notif-text');
+    text.append(title, body);
+    row.append(badge, text);
+    return row;
+  }));
+  $('notif-list').hidden = $('notif-clear').hidden = !items.length;
+  $('notif-empty').hidden = items.length > 0;
+}
+
+function renderSettings() {
+  renderToggles();
+  renderVolume();
+  renderMedia();
+  renderNotifs();
+  renderAppCount();
+}
+
+/* ══ Vue applications ══ */
+function showFolders() {
+  return !state.stack.length && !state.query && CONFIG.favorites.length > 0;
+}
+
+/* Recherche dans toutes les applications, groupes compris : libellé n'importe où,
+   mots-clés en début de mot (comme le premier lanceur) ; 16 au plus, comme la maquette */
+function currentList(): AppItem[] {
+  if (state.query) {
+    const q = norm(state.query);
+    const match = (it: AppItem) => norm(it.label).includes(q) || norm(' ' + (it.keywords ?? '')).includes(' ' + q);
+    return flattenApps(CONFIG.apps).filter(match).slice(0, 16);
+  }
+  return state.stack[state.stack.length - 1]?.children ?? CONFIG.apps;
+}
+
+/* Pages : une rangée de 8 au-dessus des dossiers, deux rangées dans un groupe */
+const COLUMNS = 8;
+const pageSize = () => (showFolders() ? COLUMNS : 2 * COLUMNS);
+const pageCount = () => Math.max(1, Math.ceil(currentList().length / pageSize()));
+
+function renderHead(count: number) {
+  const group = state.stack[state.stack.length - 1];
+  const parent = state.stack[state.stack.length - 2];
+  const sup = state.query ? 'Recherche' : group ? parent?.label ?? 'Applications' : 'Lanceur';
+  // Échec d'un lancement : signalé à la place du sur-titre, message complet au survol
+  $('head-sup').textContent = actionError ? 'Lancement impossible' : sup;
+  $('head-sup').title = actionError ?? '';
+  $('head-title').textContent = state.query ? 'Résultats' : group ? group.label : 'Applications';
+  $('item-count').textContent = String(count);
+}
+
+function appButton(item: AppItem, index: number) {
+  const b = el('button', 'tp-app app');
+  b.setAttribute('aria-label', item.children ? `${item.label}, groupe de ${item.children.length}` : item.label);
+  const ic = el('span', 'tp-app-ic app-icon');
+  ic.style.background = palette()[index % 4];
+  ic.append(icon(ICONS[item.icon ?? ''] ?? ICONS.fichiers, 26, 2.1));
+  if (item.children) {
+    const count = el('span', 'app-count', String(item.children.length));
+    count.setAttribute('aria-hidden', 'true');
+    ic.append(count);
+  }
+  b.append(ic, el('span', 'app-label', item.label));
+  b.addEventListener('click', () => activate(item));
+  return b;
+}
+
+function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
+  const list = currentList();
+  const size = pageSize();
+  state.page = Math.min(state.page, pageCount() - 1);
+  const grid = $('grid');
+  grid.replaceChildren(...list.slice(state.page * size, (state.page + 1) * size).map((it, i) => appButton(it, state.page * size + i)));
+  // Nom coupé par « … » : nom complet au survol
+  grid.querySelectorAll<HTMLElement>('.app-label').forEach((n) => {
+    if (n.scrollWidth > n.clientWidth) n.parentElement!.title = n.textContent ?? '';
+  });
+  grid.hidden = !list.length;
+  $('no-result').hidden = list.length > 0;
+  grid.classList.remove('tp-in-r', 'tp-in-l');
+  if (transition) restartAnimation(grid, transition);
+  $('folders').hidden = !showFolders();
+  renderHead(list.length);
+}
+
+function renderFolders() {
+  $('folder-row').replaceChildren(...CONFIG.favorites.map((f, i) => {
+    const b = el('button', 'tp-press folder');
+    b.append(icon(ICONS.fichiers, 17, 2.1, { fill: palette()[i % 4], caps: false }), el('span', '', f.label));
+    b.addEventListener('click', () => launch(f));
+    return b;
+  }));
+}
+
+function activate(item: AppItem) {
+  if (item.children) {
+    state.stack.push(item);
+    state.page = 0;
+    state.query = '';
+    $q().value = '';
+    renderApps('tp-in-r');
+    focusApp(0);
+  } else {
+    launch(item);
+  }
+}
+
+/* Bouton retour et Échap : efface la recherche, remonte d'un groupe, ou revient aux réglages */
+function goBack() {
+  if (state.query) {
+    state.query = '';
+    $q().value = '';
+    state.page = 0;
+    renderApps();
+    $q().focus();
+  } else if (state.stack.length) {
+    state.stack.pop();
+    state.page = 0;
+    renderApps('tp-in-l');
+    focusApp(0);
+  } else {
+    showSettings();
+  }
+}
+
+function focusApp(index: number) {
+  const apps = $('grid').querySelectorAll<HTMLElement>('.app');
+  apps[Math.min(index, apps.length - 1)]?.focus({ preventScroll: true });
+}
+
+function turnPage(dir: 1 | -1): boolean {
+  const page = state.page + dir;
+  if (page < 0 || page >= pageCount()) return false;
+  state.page = page;
+  renderApps(dir > 0 ? 'tp-in-r' : 'tp-in-l');
+  return true;
+}
+
+/* ── Passage d'une vue à l'autre : le téléphone se couche (ou se relève) en 0,7 s,
+   la nouvelle vue apparaît ensuite (délais des animations tp-land et tp-fade-late) ── */
+function showApps(query = '') {
+  state.view = 'apps';
+  state.stack = [];
+  state.page = 0;
+  state.query = query;
+  $q().value = query;
+  $('stage').classList.add('landscape');
+  $('settings').hidden = true;
+  $('apps').hidden = false;   // affichée : tp-land repart
+  renderApps();
+  $q().focus({ preventScroll: true });
+}
+
+function showSettings() {
+  state.view = 'settings';
+  $('stage').classList.remove('landscape');
+  $('apps').hidden = true;
+  $('settings').classList.add('tp-fade-late');
+  $('settings').hidden = false;   // affichée : ses animations repartent
+  renderSettings();
+}
+
+/* ── Lancement : masquer après un succès, signaler un échec ── */
+async function launch(item: AppItem | Favorite) {
+  try {
+    await host.launch(item);
+    actionError = null;
+    hideLauncher();
+  } catch (e) {
+    actionError = String(e);
+    renderNotifs();
+    if (state.view === 'apps') renderHead(currentList().length);
+  }
+}
+
+/* ── Heure et date ── */
+const fmtTime = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const fmtDay = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' });
+const fmtMonth = new Intl.DateTimeFormat('fr-FR', { month: 'short' });
+
+function tickClock() {
+  const now = new Date();
+  const time = fmtTime.format(now);
+  document.querySelectorAll('.clock').forEach((n) => (n.textContent = time));
+  const day = fmtDay.format(now);   // « mer. »
+  $('date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
+}
+
+/* ── Événements ── */
+function bindEvents() {
+  $('open-apps').addEventListener('click', () => showApps());
+  $('back').addEventListener('click', goBack);
+
+  $('volume').addEventListener('input', () => {
+    quick.vol = Number(($('volume') as HTMLInputElement).value);
+    renderVolume();
+  });
+  $('play').addEventListener('click', () => {
+    quick.playing = !quick.playing;
+    renderMedia();
+  });
+  $('notif-clear').addEventListener('click', () => {
+    quick.cleared = true;
+    renderNotifs();
+  });
+  $('notif-restore').addEventListener('click', () => {
+    quick.cleared = false;
+    renderNotifs();
+  });
+
+  $q().addEventListener('input', () => {
+    state.query = $q().value.trim();
+    state.page = 0;
+    renderApps();
+  });
+  $q().addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const first = $('grid').querySelector<HTMLElement>('.app');
+      first?.click();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusApp(0);
+    }
+  });
+
+  /* Molette : une page par cran (les pavés tactiles envoient des rafales, d'où le délai) */
+  let wheelUntil = 0;
+  $('apps').addEventListener('wheel', (e) => {
+    const now = performance.now();
+    if (now < wheelUntil || Math.abs(e.deltaY) < 4) return;
+    if (turnPage(e.deltaY > 0 ? 1 : -1)) wheelUntil = now + 450;
+  }, { passive: true });
+
+  /* Clic à côté du téléphone : la fenêtre couvre tout l'écran, c'est le « clic ailleurs » */
+  document.addEventListener('pointerdown', (e) => {
+    if (!(e.target as Element).closest('.phone-body')) hideLauncher();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (state.view === 'apps') goBack();
+      else hideLauncher();
+      return;
+    }
+    if (state.view === 'settings') {
+      // Taper un nom depuis les réglages ouvre directement la recherche
+      if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        showApps(e.key);
+      } else if (e.key === 'Enter' && document.activeElement === document.body) {
+        showApps();
+      }
+      return;
+    }
+    /* Flèches dans la grille ; au bord, page suivante ou précédente sur la même rangée */
+    const apps = Array.from($('grid').querySelectorAll<HTMLElement>('.app'));
+    const i = apps.indexOf(document.activeElement as HTMLElement);
+    if (i === -1) return;
+    const row = Math.floor(i / COLUMNS);
+    const atRight = i % COLUMNS === COLUMNS - 1 || i === apps.length - 1;
+    if (((e.key === 'ArrowRight' && atRight) || e.key === 'PageDown') && turnPage(1)) {
+      e.preventDefault();
+      focusApp(row * COLUMNS);
+      return;
+    }
+    if (((e.key === 'ArrowLeft' && i % COLUMNS === 0) || e.key === 'PageUp') && turnPage(-1)) {
+      e.preventDefault();
+      focusApp(row * COLUMNS + COLUMNS - 1);
+      return;
+    }
+    const moves: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: COLUMNS, ArrowUp: -COLUMNS };
+    if (!(e.key in moves)) return;
+    e.preventDefault();
+    const j = i + moves[e.key];
+    if (j < 0) $q().focus();
+    else apps[j]?.focus();
+  });
+}
+
+/* ── Scène de 1440 × 900 (la maquette) agrandie ou réduite à la taille de l'écran ── */
+const STAGE_WIDTH = 1440;
+const STAGE_HEIGHT = 900;
+
+function fitStage() {
+  $('stage').style.setProperty('zoom', String(Math.min(innerWidth / STAGE_WIDTH, innerHeight / STAGE_HEIGHT)));
+}
+
+/* ── Ouverture : à rappeler à chaque affichage de la fenêtre. La scène passe par
+   display: none, ce qui relance toutes les animations d'entrée (montée du téléphone,
+   tuiles) et évite que la rotation ne se rejoue si on l'avait laissé couché. ── */
+function playEntrance() {
+  const stage = $('stage');
+  stage.hidden = true;
+  void stage.offsetWidth;
+  state.view = 'settings';
+  state.stack = [];
+  state.page = 0;
+  state.query = '';
+  $q().value = '';
+  actionError = null;
+  stage.classList.remove('landscape');
+  $('apps').hidden = true;
+  $('settings').classList.remove('tp-fade-late');
+  $('settings').hidden = false;
+  renderSettings();
+  fitStage();
+  stage.hidden = false;
+}
+
+/* ── Masquage : vider la scène avant de masquer la fenêtre, sinon sa dernière image
+   réapparaît un instant au prochain affichage, et ses animations en boucle tourneraient
+   derrière la fenêtre masquée (voir « Image figée » dans CLAUDE.md). ── */
+let shownCount = 0;
+
+function afterNextPaint(fn: () => void) {
+  let done = false;
+  const run = () => {
+    if (!done) { done = true; fn(); }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(run));
+  setTimeout(run, 100);   // filet de sécurité si la page ne peint plus
+}
+
+function hideLauncher() {
+  if (PREVIEW) { host.hide(); return; }
+  $('stage').hidden = true;
+  const n = shownCount;
+  afterNextPaint(() => {
+    if (n === shownCount) host.hide();   // sauf si on a rouvert entre-temps
+  });
+}
+
+/* ── Configuration : au démarrage, puis quand Rust la recharge
+   (« Recharger la config », ou apps.json modifié avant une ouverture) ── */
+let configLoading: Promise<void> = Promise.resolve();
+
+async function loadConfig() {
+  const { config, problems } = await host.getConfig();
+  setConfig(config);
+  configProblems = problems;
+  document.documentElement.style.setProperty('--fill', CONFIG.accent);
+  renderFolders();
+  renderNotifs();
+  renderAppCount();
+  state.stack = [];   // les groupes ouverts appartiennent à l'ancienne config
+  state.page = 0;
+  if (state.view === 'apps') renderApps();
+}
+
+export async function init() {
+  if (PREVIEW) document.body.classList.add('preview');
+
+  renderActions();
+  bindEvents();
+  addEventListener('resize', fitStage);   // Rust agrandit la fenêtre à l'écran à chaque ouverture
+  await loadConfig();
+  host.onConfigChanged(() => {
+    configLoading = loadConfig().catch(console.error);
+  });
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  host.onShown(async () => {
+    shownCount++;
+    await configLoading;   // si apps.json a changé, Rust a envoyé la nouvelle config juste avant
+    tickClock();           // les minuteries ont pu être ralenties pendant que la fenêtre était masquée
+    playEntrance();
+  });
+  host.onHideRequest(hideLauncher);
+  if (await host.isVisible()) playEntrance();
+}

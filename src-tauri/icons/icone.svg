@@ -1,0 +1,10 @@
+<!-- Source de l'icône : tuile « Applications » de la maquette (quatre carrés, accent pastel,
+     contour et ombre portée #0f3b42).
+     Régénérer : exporter en PNG 1024 px fond transparent, puis `npm run tauri icon <png>`
+     (supprimer ensuite les dossiers android/ et ios/ créés). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect x="80" y="103" width="864" height="864" rx="290" fill="#0f3b42"/>
+  <rect x="80" y="58" width="864" height="864" rx="290" fill="#9fe0dc" stroke="#0f3b42" stroke-width="37"/>
+  <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" transform="translate(248 226) scale(22)"
+        fill="none" stroke="#0f3b42" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

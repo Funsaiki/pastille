@@ -1,0 +1,34 @@
+{
+  "accent": "#9fe0dc",
+  "shortcut": "Alt+Shift+Space",
+  "apps": [
+    { "label": "Code", "icon": "code", "target": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe", "args": [] },
+    { "label": "Navigateur", "icon": "navigateur", "target": "C:/Program Files/Google/Chrome/Application/chrome.exe" },
+    { "label": "Fichiers", "icon": "fichiers", "target": "%USERPROFILE%" },
+    {
+      "label": "Jeux",
+      "icon": "jeux",
+      "children": [
+        {
+          "label": "Steam",
+          "icon": "bibliotheque",
+          "auto": "steam",
+          "children": [
+            { "label": "Steam", "icon": "bibliotheque", "source": "LANCEUR", "target": "steam://open/main" }
+          ]
+        },
+        { "label": "Epic Games", "icon": "bouclier", "source": "LANCEUR", "target": "com.epicgames.launcher://" }
+      ]
+    },
+    { "label": "Messages", "icon": "messages", "target": "discord://" },
+    { "label": "Musique", "icon": "musique", "target": "spotify:" },
+    { "label": "Terminal", "icon": "terminal", "target": "wt.exe" },
+    { "label": "Paramètres", "icon": "parametres", "target": "ms-settings:" }
+  ],
+  "favorites": [
+    { "label": "Projets", "target": "%USERPROFILE%/Projets" },
+    { "label": "Téléchargements", "target": "%USERPROFILE%/Downloads" },
+    { "label": "Captures", "target": "%USERPROFILE%/Pictures/Screenshots" },
+    { "label": "Documents", "target": "%USERPROFILE%/Documents" }
+  ]
+}
