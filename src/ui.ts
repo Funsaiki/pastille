@@ -1195,6 +1195,9 @@ function turnPage(dir: 1 | -1): boolean {
 
 /* ── Passage d'une vue à l'autre : le téléphone se couche (ou se relève) en 0,7 s,
    la nouvelle vue apparaît ensuite (délais des animations tp-land et tp-fade-late) ── */
+const TURN_MS = 700;   // rotation du téléphone (--turn, styles.css)
+let settleTimer = 0;
+
 function showApps(query = '') {
   state.view = 'apps';
   state.stack = [];
@@ -1202,6 +1205,9 @@ function showApps(query = '') {
   state.query = query;
   $q().value = query;
   $('stage').classList.add('landscape');
+  // Couché : rendu à plat une fois la rotation finie, pour un texte net (styles.css)
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(() => $('stage').classList.add('settled'), TURN_MS + 50);
   $('settings').hidden = true;
   closeMixer();
   closeTrayMenu(false);
@@ -1220,7 +1226,8 @@ function showSettings() {
    après la rotation, tp-fade-late) ; ses animations repartent */
 function enterSettings(afterTurn: boolean) {
   state.view = 'settings';
-  $('stage').classList.remove('landscape');
+  clearTimeout(settleTimer);
+  $('stage').classList.remove('landscape', 'settled');   // la 3D revient avant de se relever
   $('apps').hidden = true;
   $('settings').classList.toggle('tp-fade-late', afterTurn);
   $('settings').hidden = false;

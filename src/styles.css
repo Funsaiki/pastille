@@ -132,6 +132,11 @@ button, input { font-family: 'Nunito', sans-serif; }
   transform: rotateZ(0deg); transform-style: preserve-3d; transition: transform .7s var(--turn);
 }
 .landscape .phone-orient { transform: rotateZ(-90deg); }
+/* Couché, la rotation finie (.settled, ui.ts) : rendu à plat, sans perspective. En 3D, WebView2
+   étire l'image du texte au lieu de le redessiner à sa taille (agrandi de 10 %) : il était flou
+   (remarque de Funsaiki). Toutes les rotations sont à 0 : rien ne bouge (moins d'un demi-pixel). */
+.landscape.settled .phone { perspective: none; }
+.landscape.settled .phone-tilt, .landscape.settled .phone-orient { transform-style: flat; }
 
 /* Tranche : disparaît tout de suite en se couchant, revient après la rotation */
 .edges { position: absolute; left: 0; top: 0; width: 410px; height: 830px; transform-style: preserve-3d; pointer-events: none; --edge-o: 1; --edge-d: .45s; }
