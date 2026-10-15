@@ -366,16 +366,34 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   font-weight: 800; font-size: 12px; color: var(--soft);
 }
 
-/* ── Onglets de la carte (demandés par Funsaiki, pas dans la maquette) : la pastille du titre
-   coupée en deux, l'onglet ouvert sur fond accent comme une bascule active ── */
-.notifs-tabs { padding: 0 2px; gap: 2px; }
-.notifs-tab {
-  height: 21px; padding: 0 2px 0 8px; border-radius: 11px; border: none; background: transparent; color: var(--ink);
-  display: flex; align-items: center; gap: 6px; font-weight: 900; font-size: 13px; cursor: pointer; transition: background .15s;
+/* ── Onglets de la carte (demandés par Funsaiki, pas dans la maquette) : la pastille du titre en
+   deux moitiés égales (même largeur que « Notifications » de la maquette), un curseur accent
+   bordé d'encre glisse de l'une à l'autre. Le bord de devant part le premier, celui de derrière
+   suit avec un rebond : le curseur s'étire puis se resserre. ── */
+.notifs-tabs { display: grid; grid-template-columns: repeat(2, 1fr); padding: 0 2px; gap: 0; }
+.tabs-thumb {
+  position: absolute; top: 1px; bottom: 1px; left: 2px; right: 50%; box-sizing: border-box;
+  border-radius: 11px; border: 2px solid var(--ink); background: var(--fill);
+  transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
 }
-.notifs-tab[aria-selected="true"] { background: var(--fill); cursor: default; }
-.notifs-tab[aria-selected="false"]:hover { background: #eef7f7; }
+.notifs-tabs[data-pane="notifs"] .tabs-thumb {
+  left: 50%; right: 2px;
+  transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
+}
+.notifs-tab {
+  position: relative; height: 21px; padding: 0 3px 0 7px; border-radius: 11px; border: none; background: transparent;
+  color: rgba(15, 59, 66, .55); display: flex; align-items: center; justify-content: center; gap: 4px;
+  font-weight: 900; font-size: 13px; cursor: pointer; transition: color .2s, scale .12s;
+}
+.notifs-tab[aria-selected="true"] { color: var(--ink); cursor: default; }
+.notifs-tab[aria-selected="false"]:hover { color: var(--ink); }
+.notifs-tab[aria-selected="false"]:active { scale: .94; }
 .notifs-tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+/* Pastilles de nombre plus petites, pâles sur l'onglet fermé ; celle de l'onglet choisi rebondit */
+.notifs-tab .notifs-count { min-width: 17px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 11px; background: rgba(15, 59, 66, .4); transition: background .2s; }
+.notifs-tab[aria-selected="true"] .notifs-count { background: var(--ink); }
+@keyframes tab-pop { 0% { scale: .4; } 60% { scale: 1.2; } 100% { scale: 1; } }
+.notifs-count.tab-pop { animation: tab-pop .4s var(--ease) .12s both; }
 .notifs-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
 
 /* Applications de la zone de notification : leurs vraies icônes dans des tuiles blanches, six
@@ -391,8 +409,6 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   justify-content: center; font-weight: 900; font-size: 15px; cursor: pointer;
 }
 .tray-app canvas { width: 24px; height: 24px; }
-/* tp-pop ne garde pas sa fin : elle annulerait la montée au survol (tp-press) */
-.tray-app.tp-pop { animation-fill-mode: backwards; }
 .tray-app[aria-expanded="true"] { background: var(--fill); }
 
 /* Menu du clic droit : fond encre comme le mélangeur, au-dessus de l'icône, pointe vers elle.

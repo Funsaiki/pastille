@@ -142,7 +142,8 @@
         <!-- Carte du bas : deux onglets (demandés par Funsaiki), les applications de la zone de
              notification et les notifications de la maquette -->
         <div class="notifs">
-          <div class="notifs-title notifs-tabs" role="tablist">
+          <div class="notifs-title notifs-tabs" id="tabs" role="tablist" data-pane="apps">
+            <span class="tabs-thumb" aria-hidden="true"></span>
             <button class="notifs-tab" id="tab-apps" role="tab" aria-selected="true" aria-controls="tray-pane">
               Apps <span class="notifs-count" id="tray-count"></span>
             </button>

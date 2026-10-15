@@ -26,6 +26,20 @@ function restartAnimation(node: HTMLElement, className: string) {
   node.classList.add(className);
 }
 
+/* Animation jouée une fois : sa classe retirée à la fin (ou si le lanceur se masque avant),
+   elle ne repart pas au prochain affichage de la scène */
+function playOnce(node: HTMLElement, className: string) {
+  const done = (e: AnimationEvent) => {
+    if (e.target !== node) return;   // animation d'un enfant
+    node.classList.remove(className);
+    node.removeEventListener('animationend', done);
+    node.removeEventListener('animationcancel', done);
+  };
+  node.addEventListener('animationend', done);
+  node.addEventListener('animationcancel', done);
+  restartAnimation(node, className);
+}
+
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 /* Fonds des icônes d'apps et des dossiers, dans l'ordre de la liste */
@@ -634,7 +648,8 @@ function savedPane(): Pane {
   }
 }
 
-/* `chosen` : clic sur l'onglet, gardé pour les prochaines ouvertures */
+/* `chosen` : clic sur l'onglet, gardé pour les prochaines ouvertures et animé (le curseur de
+   la pastille glisse dans tous les cas, en CSS) */
 function showPane(next: Pane, chosen = false) {
   if (chosen) {
     try {
@@ -646,11 +661,18 @@ function showPane(next: Pane, chosen = false) {
   const changed = next !== pane;
   pane = next;
   closeTrayMenu(false);
+  $('tabs').dataset.pane = pane;
+  const tab = $(pane === 'apps' ? 'tab-apps' : 'tab-notifs');
   $('tab-apps').setAttribute('aria-selected', String(pane === 'apps'));
   $('tab-notifs').setAttribute('aria-selected', String(pane === 'notifs'));
+  const shown = $(pane === 'apps' ? 'tray-pane' : 'notifs-pane');
   $('tray-pane').hidden = pane !== 'apps';
   $('notifs-pane').hidden = pane !== 'notifs';
-  if (changed && pane === 'apps') renderTrayApps(0);   // les icônes apparaissent une à une
+  if (changed && chosen) {
+    // Le contenu arrive du côté de l'onglet, comme les pages de la vue applications
+    playOnce(shown, pane === 'apps' ? 'tp-in-l' : 'tp-in-r');
+    playOnce(tab.querySelector<HTMLElement>('.notifs-count')!, 'tab-pop');
+  }
 }
 
 /* ── Applications de la zone de notification (onglet Apps) : relues à l'affichage de la vue
@@ -674,21 +696,20 @@ async function refreshTrayApps() {
   const apps = await host.trayApps().catch(() => null);
   if (run !== trayRun || !apps) return;
   trayApps = apps;
-  renderTrayApps(null);
+  renderTrayApps();
 }
 
-/* `pop` : délai d'apparition des icônes, une à une ; null : mise à jour sans animation */
-function renderTrayApps(pop: number | null) {
+function renderTrayApps() {
   $('tray-count').textContent = String(trayApps.length);
   $('tray-empty').hidden = trayApps.length > 0;
   const shown = trayApps.map((app) => `${app.key}\n${app.name}`).join('\n');
   // Pas pendant que le menu est ouvert : il est accroché à son icône
-  if (trayMenu || (shown === trayShown && pop === null)) return;
+  if (trayMenu || shown === trayShown) return;
   trayShown = shown;
-  $('tray-grid').replaceChildren(...trayApps.map((app, i) => trayTile(app, i, pop)));
+  $('tray-grid').replaceChildren(...trayApps.map(trayTile));
 }
 
-function trayTile(app: TrayApp, i: number, pop: number | null) {
+function trayTile(app: TrayApp, i: number) {
   const b = el('button', 'tp-press tray-app');
   b.title = app.name;
   b.setAttribute('aria-label', app.name);
@@ -700,10 +721,6 @@ function trayTile(app: TrayApp, i: number, pop: number | null) {
   } else {
     b.textContent = app.name.charAt(0).toUpperCase();
     b.style.background = palette()[i % 4];
-  }
-  if (pop !== null) {
-    b.classList.add('tp-pop');
-    b.style.animationDelay = (pop + i * 0.03).toFixed(2) + 's';
   }
   b.addEventListener('click', () => runAction('Lancement', () => host.trayAppAction(app.key, 'open')));
   b.addEventListener('contextmenu', (e) => {
@@ -791,7 +808,7 @@ function renderSettings() {
   renderVolume();
   renderMedia();
   renderNotifs();
-  renderTrayApps(null);
+  renderTrayApps();
 }
 
 /* ══ Vue applications ══ */
@@ -1079,6 +1096,13 @@ function bindEvents() {
   });
   $('tab-apps').addEventListener('click', () => showPane('apps', true));
   $('tab-notifs').addEventListener('click', () => showPane('notifs', true));
+  // Flèches gauche et droite entre les onglets
+  $('tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    showPane(e.key === 'ArrowRight' ? 'notifs' : 'apps', true);
+    $(pane === 'apps' ? 'tab-apps' : 'tab-notifs').focus();
+  });
 
   $q().addEventListener('input', () => {
     state.query = $q().value.trim();
