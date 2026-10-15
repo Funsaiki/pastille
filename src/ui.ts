@@ -8,7 +8,8 @@
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
+import { SETTINGS, calcResult } from './search';
+import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -516,6 +517,8 @@ async function controlMedia(action: MediaAction) {
    celui du mélangeur de Windows (ce curseur et la tranche de Spotify se suivent alors). Relu à
    l'affichage de la vue réglages puis toutes les 5 s. ── */
 let spotifyVolume: SpotifyVolume | null = null;
+// Aléatoire et répétition (demandés par Funsaiki) : Spotify connecté et appareil actif seulement
+let spotifyModes: { shuffle: boolean; repeat: RepeatMode } | null = null;
 let spotifyProblem: string | null = null;   // échec de connexion, montré dans Notifs
 let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
 let spotifyHold = 0;          // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
@@ -529,10 +532,11 @@ async function refreshSpotifyVolume() {
   if (performance.now() < spotifyHold || spotifyReading) return;
   const run = ++spotifyRun;
   spotifyReading = true;
-  const now = await host.spotifyVolume().catch(() => null);
+  const now = await host.spotifyState().catch(() => null);
   spotifyReading = false;
   if (run !== spotifyRun || !now) return;
   spotifyVolume = now.volume;
+  spotifyModes = now.shuffle != null && now.repeat ? { shuffle: now.shuffle, repeat: now.repeat } : null;
   renderSpotifyVolume();
   if (now.problem !== spotifyProblem) {
     spotifyProblem = now.problem;
@@ -551,6 +555,43 @@ function renderSpotifyVolume() {
     : spotifyVolume.source === 'windows'
       ? `Volume de Spotify (mélangeur de Windows) : ${level} %`
       : `Volume de Spotify : ${level} %`;
+  const shuffle = $('shuffle');
+  const repeat = $('repeat');
+  shuffle.hidden = repeat.hidden = !spotifyModes;
+  if (!spotifyModes) return;
+  shuffle.setAttribute('aria-pressed', String(spotifyModes.shuffle));
+  repeat.setAttribute('aria-pressed', String(spotifyModes.repeat !== 'off'));
+  repeat.dataset.mode = spotifyModes.repeat;
+  repeat.title = REPEAT_LABELS[spotifyModes.repeat];
+}
+
+const REPEAT_LABELS: Record<RepeatMode, string> = {
+  off: 'Répétition : non',
+  context: 'Répétition : la playlist ou l’album',
+  track: 'Répétition : ce titre',
+};
+
+/* Clic : change tout de suite, comme lecture/pause ; Spotify suit (un échec est signalé et
+   la relecture suivante rétablit l'état réel). Répétition : non → playlist → titre → non. */
+async function toggleSpotifyMode(which: 'shuffle' | 'repeat') {
+  if (!spotifyModes) return;
+  spotifyRun++;
+  spotifyHold = performance.now() + 1500;
+  try {
+    if (which === 'shuffle') {
+      spotifyModes.shuffle = !spotifyModes.shuffle;
+      renderSpotifyVolume();
+      await host.setSpotifyShuffle(spotifyModes.shuffle);
+    } else {
+      const next: Record<RepeatMode, RepeatMode> = { off: 'context', context: 'track', track: 'off' };
+      spotifyModes.repeat = next[spotifyModes.repeat];
+      renderSpotifyVolume();
+      await host.setSpotifyRepeat(spotifyModes.repeat);
+    }
+  } catch (e) {
+    report('Spotify', e);
+  }
+  spotifyHold = performance.now() + 1000;
 }
 
 function setSpotifyVolume(level: number) {
@@ -947,9 +988,27 @@ function currentList(): AppItem[] {
   if (state.query) {
     const q = norm(state.query);
     const match = (it: AppItem) => norm(it.label).includes(q) || norm(' ' + (it.keywords ?? '')).includes(' ' + q);
-    return flattenApps(CONFIG.apps).filter(match).sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0)).slice(0, 16);
+    // Puis (demandés par Funsaiki) : le résultat d'un calcul en tête, les pages des Paramètres
+    // et les fenêtres ouvertes (titre ou programme) après les applications
+    const calc = calcResult(state.query);
+    const apps = flattenApps(CONFIG.apps).filter(match).sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
+    const windows = openWindows.filter((w) => norm(w.label).includes(q) || norm(w.keywords ?? '').includes(q));
+    return [...(calc ? [calc] : []), ...apps, ...SETTINGS.filter(match), ...windows].slice(0, 16);
   }
   return state.stack[state.stack.length - 1]?.children ?? CONFIG.apps;
+}
+
+/* ── Fenêtres ouvertes (demandé par Funsaiki), pour la recherche : relues quand une recherche
+   commence ; les résultats se complètent quand elles arrivent ── */
+let openWindows: AppItem[] = [];
+let windowsRun = 0;
+
+async function refreshWindows() {
+  const run = ++windowsRun;
+  const list = await host.openWindows().catch(() => null);
+  if (run !== windowsRun || !list) return;
+  openWindows = list.map((w) => ({ id: 'w' + w.id, label: w.title, keywords: w.app, window: w.id, picture: w.icon ?? undefined }));
+  if (state.view === 'apps' && state.query) renderApps();
 }
 
 /* Pages : une rangée de 8 au-dessus des dossiers, deux rangées dans un groupe */
@@ -972,8 +1031,15 @@ function appButton(item: AppItem, index: number) {
   const b = el('button', 'tp-app app');
   b.setAttribute('aria-label', item.children ? `${item.label}, groupe de ${item.children.length}` : item.label);
   const ic = el('span', 'tp-app-ic app-icon');
-  ic.style.background = palette()[index % 4];
-  ic.append(icon(ICONS[item.icon ?? ''] ?? ICONS.fichiers, 26, 2.1));
+  if (item.picture) {
+    // Fenêtre ouverte : vraie icône de son programme sur fond blanc, comme l'onglet Apps
+    ic.classList.add('app-picture');
+    ic.append(iconCanvas(item.picture));
+    b.title = `${item.label} — ${item.keywords}`;
+  } else {
+    ic.style.background = palette()[index % 4];
+    ic.append(icon(ICONS[item.icon ?? ''] ?? ICONS.fichiers, 26, 2.1));
+  }
   if (item.children) {
     const count = el('span', 'app-count', String(item.children.length));
     count.setAttribute('aria-hidden', 'true');
@@ -1050,7 +1116,11 @@ function renderFolders() {
 
 /* Ctrl+clic (ou Ctrl+Entrée) : nouvelle fenêtre même si l'application est déjà ouverte */
 function activate(item: AppItem, fresh = false) {
-  if (item.children) {
+  if (item.copy != null) {
+    runAction('Calcul', () => host.copy(item.copy!));   // Entrée copie le résultat
+  } else if (item.window) {
+    runAction('Fenêtre', () => host.focusWindow(item.window!));
+  } else if (item.children) {
     state.stack.push(item);
     state.page = 0;
     state.query = '';
@@ -1109,6 +1179,7 @@ function showApps(query = '') {
   $('apps').hidden = false;   // affichée : tp-land repart
   renderApps();
   $q().focus({ preventScroll: true });
+  if (query) refreshWindows();
 }
 
 function showSettings() {
@@ -1212,6 +1283,8 @@ function bindEvents() {
     if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;
     setSpotifyVolume(spotifyVolume.volume + wheelStep(e));
   }, { passive: true });
+  $('shuffle').addEventListener('click', () => toggleSpotifyMode('shuffle'));
+  $('repeat').addEventListener('click', () => toggleSpotifyMode('repeat'));
   $('play').addEventListener('click', () => controlMedia('toggle'));
   $('previous').addEventListener('click', () => controlMedia('previous'));
   $('next').addEventListener('click', () => controlMedia('next'));
@@ -1241,9 +1314,11 @@ function bindEvents() {
   });
 
   $q().addEventListener('input', () => {
+    const started = !state.query;
     state.query = $q().value.trim();
     state.page = 0;
     renderApps();
+    if (started && state.query) refreshWindows();   // fenêtres ouvertes à jour pour cette recherche
   });
   $('web-search').addEventListener('click', webSearch);
   $q().addEventListener('keydown', (e) => {

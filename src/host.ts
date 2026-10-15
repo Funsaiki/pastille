@@ -62,9 +62,21 @@ export interface SpotifyVolume {
   volume: number;   // 0 à 100
 }
 
+export type RepeatMode = 'off' | 'context' | 'track';
+
 export interface SpotifyState {
   volume: SpotifyVolume | null;   // null : pas d'appareil actif (connecté) ou pas de session audio
+  shuffle: boolean | null;        // aléatoire et répétition : Spotify connecté seulement
+  repeat: RepeatMode | null;
   problem: string | null;         // dernier échec de connexion, pour les notifications
+}
+
+/* Fenêtre ouverte, pour la recherche (open_windows.rs) */
+export interface OpenWindow {
+  id: string;      // renvoyé pour la ramener ; Rust vérifie qu'elle est encore là
+  title: string;
+  app: string;     // programme (« Discord »)
+  icon: AppIcon | null;
 }
 
 /* Application de la zone de notification (tray_apps.rs) */
@@ -97,6 +109,10 @@ function previewConfig(): Config {
 
 /* Aperçu navigateur : le morceau de la maquette */
 const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };
+
+/* Aperçu navigateur : aléatoire et répétition de Spotify */
+let previewShuffle = true;
+let previewRepeat: RepeatMode = 'off';
 
 /* Aperçu navigateur : applications de la zone de notification, sans leurs icônes */
 let previewTray: TrayApp[] = ['Discord', 'G HUB', 'Lightshot', 'Riot Client', 'Spotify', 'Steam', 'TranslucentTB', 'Wallpaper Engine']
@@ -162,9 +178,17 @@ export const host = {
     if (PREVIEW) console.info('[aperçu] volume de', key, ':', level);
     else await invoke('set_app_volume', { key, level });
   },
-  async spotifyVolume(): Promise<SpotifyState> {
-    if (PREVIEW) return { volume: { source: 'windows', key: 'spotify', volume: 80 }, problem: null };
-    return invoke<SpotifyState>('spotify_volume');
+  async spotifyState(): Promise<SpotifyState> {
+    if (PREVIEW) return { volume: { source: 'app', key: '', volume: 80 }, shuffle: previewShuffle, repeat: previewRepeat, problem: null };
+    return invoke<SpotifyState>('spotify_state');
+  },
+  async setSpotifyShuffle(on: boolean) {
+    if (PREVIEW) previewShuffle = on;
+    else await invoke('set_spotify_shuffle', { on });
+  },
+  async setSpotifyRepeat(mode: RepeatMode) {
+    if (PREVIEW) previewRepeat = mode;
+    else await invoke('set_spotify_repeat', { mode });
   },
   /* Volume de Spotify lui-même (connecté seulement) */
   async setSpotifyVolume(level: number) {
@@ -200,6 +224,24 @@ export const host = {
   async openDownload(name: string) {
     if (PREVIEW) console.info('[aperçu] ouvrir le téléchargement :', name);
     else await invoke('open_download', { name });
+  },
+  /* Fenêtres de la barre des tâches, la plus récemment active d'abord */
+  async openWindows(): Promise<OpenWindow[]> {
+    if (PREVIEW) {
+      return [
+        { id: '1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', icon: null },
+        { id: '2', title: '#général — Discord', app: 'Discord', icon: null },
+      ];
+    }
+    return invoke<OpenWindow[]>('open_windows');
+  },
+  async focusWindow(id: string) {
+    if (PREVIEW) console.info('[aperçu] fenêtre :', id);
+    else await invoke('focus_window', { id });
+  },
+  /* Résultat d'un calcul */
+  async copy(text: string) {
+    await navigator.clipboard.writeText(text);
   },
   /* Le texte seulement : Rust construit l'adresse de la recherche */
   async webSearch(query: string) {

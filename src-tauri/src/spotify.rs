@@ -36,7 +36,11 @@ use windows_future::{AsyncStatus, IAsyncOperationWithProgress};
 const PORT: u16 = 47913;
 /// À déclarer telle quelle dans l'app Spotify (Redirect URIs)
 pub const REDIRECT: &str = "http://127.0.0.1:47913/callback";
-const SCOPES: &str = "user-read-playback-state user-modify-playback-state";
+/// Lecture et pilotage du lecteur, playlists (groupe auto « spotify »). Une portée ajoutée
+/// demande de se reconnecter (Status::Outdated).
+const SCOPES: &str = "user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative";
+/// Playlists dans le groupe, au plus (titres likés compris)
+const MAX_PLAYLISTS: usize = 100;
 const API: &str = "https://api.spotify.com/v1";
 const TOKEN_URL: &str = "https://accounts.spotify.com/api/token";
 /// Le temps de se connecter dans le navigateur
@@ -70,6 +74,8 @@ struct Auth {
     saved: Saved,
     /// Jeton d'accès et fin de sa validité
     access: Option<(String, Instant)>,
+    /// Portées accordées, d'après la dernière réponse du point d'accès des jetons
+    granted: Option<String>,
     /// Dernier échec (connexion, autorisation retirée), montré dans les notifications
     problem: Option<String>,
 }
@@ -122,6 +128,8 @@ enum Status {
     NoClient,
     Disconnected,
     Connected,
+    /// Connecté, mais sans toutes les portées de SCOPES (connexion antérieure à leur ajout)
+    Outdated,
 }
 
 fn status(app: &AppHandle) -> Status {
@@ -130,8 +138,17 @@ fn status(app: &AppHandle) -> Status {
     match (&auth.saved.client_id, &auth.saved.refresh_token) {
         (id, _) if id.trim().is_empty() => Status::NoClient,
         (_, None) => Status::Disconnected,
+        (_, Some(_)) if auth.granted.as_deref().is_some_and(|granted| !has_scopes(granted)) => Status::Outdated,
         (_, Some(_)) => Status::Connected,
     }
+}
+
+fn connected(app: &AppHandle) -> bool {
+    matches!(status(app), Status::Connected | Status::Outdated)
+}
+
+fn has_scopes(granted: &str) -> bool {
+    SCOPES.split(' ').all(|scope| granted.split(' ').any(|g| g == scope))
 }
 
 /* ── Menu de l'icône ── */
@@ -142,6 +159,7 @@ pub fn menu_label(app: &AppHandle) -> (&'static str, bool) {
         Status::NoClient => ("Connecter Spotify (identifiant à configurer)", false),
         Status::Disconnected => ("Connecter Spotify…", true),
         Status::Connected => ("Déconnecter Spotify", true),
+        Status::Outdated => ("Reconnecter Spotify (playlists)…", true),
     }
 }
 
@@ -162,7 +180,7 @@ fn update_menu(app: &AppHandle) {
 pub fn toggle(app: &AppHandle) {
     match status(app) {
         Status::Connected => disconnect(app, None),
-        Status::Disconnected => {
+        Status::Disconnected | Status::Outdated => {
             if let Some(item) = app.state::<Spotify>().menu.get() {
                 let _ = item.set_text("Connexion à Spotify en cours…");
                 let _ = item.set_enabled(false);
@@ -174,8 +192,12 @@ pub fn toggle(app: &AppHandle) {
                     eprintln!("[lanceur] Spotify : {e}");
                 }
                 app.state::<Spotify>().auth.lock().unwrap().problem =
-                    result.err().map(|e| format!("Connexion impossible : {e}"));
+                    result.as_ref().err().map(|e| format!("Connexion impossible : {e}"));
                 update_menu(&app);
+                // Nouvelles portées : les playlists peuvent maintenant être lues
+                if result.is_ok() {
+                    crate::config::rescan(&app);
+                }
             });
         }
         Status::NoClient => update_menu(app),
@@ -373,7 +395,8 @@ impl TokenError {
 }
 
 fn post_token(params: &[(&str, &str)]) -> Result<Value, TokenError> {
-    let (status, body) = http("POST", TOKEN_URL, None, Some(&form(params))).map_err(TokenError::Other)?;
+    let (status, body) = http("POST", TOKEN_URL, None, Some((&form(params), "application/x-www-form-urlencoded")))
+        .map_err(TokenError::Other)?;
     let json = parse(&body);
     match status {
         200 => Ok(json),
@@ -388,16 +411,27 @@ fn post_token(params: &[(&str, &str)]) -> Result<Value, TokenError> {
 fn store(app: &AppHandle, json: &Value, sent: Option<&str>) -> Result<String, String> {
     let token = json["access_token"].as_str().ok_or("réponse de Spotify sans jeton.")?.to_string();
     let seconds = json["expires_in"].as_u64().unwrap_or(3600);
-    let spotify = app.state::<Spotify>();
-    let mut auth = spotify.auth.lock().unwrap();
-    if sent.is_some() && auth.saved.refresh_token.as_deref() != sent {
-        return Err("Spotify n'est plus connecté.".into());
-    }
-    // Une minute de marge
-    auth.access = Some((token.clone(), Instant::now() + Duration::from_secs(seconds.saturating_sub(60))));
-    if let Some(refresh) = json["refresh_token"].as_str() {
-        auth.saved.refresh_token = Some(refresh.to_string());
-        save(app, &auth.saved);
+    let granted = json["scope"].as_str().map(String::from);
+    let menu_changes = {
+        let spotify = app.state::<Spotify>();
+        let mut auth = spotify.auth.lock().unwrap();
+        if sent.is_some() && auth.saved.refresh_token.as_deref() != sent {
+            return Err("Spotify n'est plus connecté.".into());
+        }
+        // Une minute de marge
+        auth.access = Some((token.clone(), Instant::now() + Duration::from_secs(seconds.saturating_sub(60))));
+        if let Some(refresh) = json["refresh_token"].as_str() {
+            auth.saved.refresh_token = Some(refresh.to_string());
+            save(app, &auth.saved);
+        }
+        let changes = granted.is_some() && granted != auth.granted;
+        if granted.is_some() {
+            auth.granted = granted;
+        }
+        changes
+    };
+    if menu_changes {
+        update_menu(app); // « Reconnecter Spotify (playlists)… » s'il manque des portées
     }
     Ok(token)
 }
@@ -432,7 +466,7 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
     }
 }
 
-/* ── Volume ── */
+/* ── Lecteur : volume, aléatoire, répétition ── */
 
 #[derive(Serialize)]
 pub struct Volume {
@@ -444,55 +478,210 @@ pub struct Volume {
 }
 
 #[derive(Serialize)]
-pub struct VolumeState {
+pub struct PlayerState {
     /// None : Spotify connecté sans appareil actif (ou injoignable), ou pas de session audio
     volume: Option<Volume>,
+    /// Aléatoire et répétition (« off », « context », « track ») : connecté seulement
+    shuffle: Option<bool>,
+    repeat: Option<String>,
     /// Dernier échec de connexion, pour les notifications
     problem: Option<String>,
 }
 
+/// Appareil où Spotify joue (ce PC, ou le téléphone par Spotify Connect) ; None sans appareil actif
+struct Player {
+    volume: Option<u8>,
+    shuffle: bool,
+    repeat: String,
+}
+
 #[tauri::command]
-pub async fn spotify_volume(app: AppHandle) -> VolumeState {
+pub async fn spotify_state(app: AppHandle) -> PlayerState {
     crate::blocking(move || {
-        let volume = if status(&app) == Status::Connected {
-            player_volume(&app)
-                .unwrap_or_else(|e| {
-                    eprintln!("[lanceur] Spotify : {e}");
-                    None
-                })
-                .map(|volume| Volume { source: "app", key: String::new(), volume })
+        let mut state = PlayerState { volume: None, shuffle: None, repeat: None, problem: None };
+        if connected(&app) {
+            match player(&app) {
+                Ok(Some(player)) => {
+                    state.volume = player.volume.map(|volume| Volume { source: "app", key: String::new(), volume });
+                    state.shuffle = Some(player.shuffle);
+                    state.repeat = Some(player.repeat);
+                }
+                Ok(None) => {}
+                Err(e) => eprintln!("[lanceur] Spotify : {e}"),
+            }
         } else {
-            crate::com::with_com(|| crate::mixer::spotify_session().ok().flatten())
-                .map(|(key, volume)| Volume { source: "windows", key, volume })
-        };
-        let problem = app.state::<Spotify>().auth.lock().unwrap().problem.clone();
-        VolumeState { volume, problem }
+            state.volume = crate::com::with_com(|| crate::mixer::spotify_session().ok().flatten())
+                .map(|(key, volume)| Volume { source: "windows", key, volume });
+        }
+        state.problem = app.state::<Spotify>().auth.lock().unwrap().problem.clone();
+        state
     })
     .await
-    .unwrap_or(VolumeState { volume: None, problem: None })
+    .unwrap_or(PlayerState { volume: None, shuffle: None, repeat: None, problem: None })
 }
 
 /// Volume de Spotify lui-même (connecté seulement ; sinon le front passe par le mélangeur)
 #[tauri::command]
 pub async fn set_spotify_volume(app: AppHandle, level: u8) -> Result<(), String> {
-    crate::blocking(move || {
-        let token = access_token(&app)?;
-        let url = format!("{API}/me/player/volume?volume_percent={}", level.min(100));
-        let (status, body) = http("PUT", &url, Some(&token), Some(""))?;
-        if matches!(status, 200 | 202 | 204) { Ok(()) } else { Err(api_error(status, &parse(&body))) }
-    })
-    .await?
+    crate::blocking(move || put(&app, &format!("/me/player/volume?volume_percent={}", level.min(100)))).await?
 }
 
-/// Volume de l'appareil où Spotify joue (ce PC, ou le téléphone par Spotify Connect)
-fn player_volume(app: &AppHandle) -> Result<Option<u8>, String> {
+#[tauri::command]
+pub async fn set_spotify_shuffle(app: AppHandle, on: bool) -> Result<(), String> {
+    crate::blocking(move || put(&app, &format!("/me/player/shuffle?state={on}"))).await?
+}
+
+/// `mode` : « off », « context » (la playlist ou l'album) ou « track » (le titre)
+#[tauri::command]
+pub async fn set_spotify_repeat(app: AppHandle, mode: String) -> Result<(), String> {
+    if !matches!(mode.as_str(), "off" | "context" | "track") {
+        return Err(format!("Répétition « {mode} » inconnue."));
+    }
+    crate::blocking(move || put(&app, &format!("/me/player/repeat?state={mode}"))).await?
+}
+
+/// Commande du lecteur sans corps (volume, aléatoire, répétition)
+fn put(app: &AppHandle, path: &str) -> Result<(), String> {
+    let token = access_token(app)?;
+    let (status, body) = http("PUT", &format!("{API}{path}"), Some(&token), Some(("", "application/json")))?;
+    if matches!(status, 200 | 202 | 204) { Ok(()) } else { Err(api_error(status, &parse(&body))) }
+}
+
+fn player(app: &AppHandle) -> Result<Option<Player>, String> {
     let token = access_token(app)?;
     let (status, body) = http("GET", &format!("{API}/me/player"), Some(&token), None)?;
+    let json = parse(&body);
     match status {
         204 => Ok(None), // aucun appareil actif
-        200 => Ok(parse(&body)["device"]["volume_percent"].as_u64().map(|v| v.min(100) as u8)),
-        _ => Err(api_error(status, &parse(&body))),
+        200 => Ok(Some(Player {
+            volume: json["device"]["volume_percent"].as_u64().map(|v| v.min(100) as u8),
+            shuffle: json["shuffle_state"].as_bool().unwrap_or(false),
+            repeat: json["repeat_state"].as_str().unwrap_or("off").to_string(),
+        })),
+        _ => Err(api_error(status, &json)),
     }
+}
+
+/* ── Playlists : groupe auto « spotify » de apps.json (config.rs) ── */
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Playlist {
+    pub name: String,
+    /// « spotify:playlist:… », ou « spotify:user:…:collection » pour les titres likés
+    pub uri: String,
+}
+
+/// Titres likés puis playlists de Funsaiki (MAX_PLAYLISTS au plus). Vide sans connexion ;
+/// None si Spotify est injoignable (le groupe garde alors la liste précédente).
+pub fn playlists(app: &AppHandle) -> Option<Vec<Playlist>> {
+    if !connected(app) {
+        return Some(Vec::new());
+    }
+    fetch_playlists(app).map_err(|e| eprintln!("[lanceur] Spotify, playlists : {e}")).ok()
+}
+
+fn fetch_playlists(app: &AppHandle) -> Result<Vec<Playlist>, String> {
+    let token = access_token(app)?;
+    // Le jeton dit quelles portées sont accordées : connexion d'avant les playlists, Spotify
+    // refuserait ; le menu de l'icône propose de se reconnecter
+    if status(app) == Status::Outdated {
+        return Ok(Vec::new());
+    }
+    let get = |url: &str| -> Result<Value, String> {
+        let (status, body) = http("GET", url, Some(&token), None)?;
+        if status == 200 { Ok(parse(&body)) } else { Err(api_error(status, &parse(&body))) }
+    };
+    let mut list = Vec::new();
+    if let Some(user) = get(&format!("{API}/me"))?["id"].as_str() {
+        list.push(Playlist { name: "Titres likés".into(), uri: format!("spotify:user:{user}:collection") });
+    }
+    let mut next = Some(format!("{API}/me/playlists?limit=50"));
+    while let Some(url) = next.take() {
+        let page = get(&url)?;
+        for item in page["items"].as_array().into_iter().flatten() {
+            if let (Some(name), Some(uri)) = (item["name"].as_str(), item["uri"].as_str()) {
+                list.push(Playlist { name: name.trim().to_string(), uri: uri.to_string() });
+            }
+        }
+        if list.len() < MAX_PLAYLISTS {
+            next = page["next"].as_str().map(String::from);
+        }
+    }
+    list.truncate(MAX_PLAYLISTS);
+    Ok(list)
+}
+
+/// Cible d'une playlist du groupe : lancée par play plutôt qu'ouverte (shell.rs)
+pub fn is_playable(target: &str) -> bool {
+    target.starts_with("spotify:playlist:") || (target.starts_with("spotify:user:") && target.ends_with(":collection"))
+}
+
+/// Joue une playlist (ou les titres likés). Spotify ouvert quelque part : tout de suite.
+/// Sinon elle s'ouvre dans l'app Spotify de ce PC et démarre dès qu'il est prêt.
+pub fn play(app: &AppHandle, context: &str) -> Result<(), String> {
+    if connected(app) && start(app, context, None)? {
+        return Ok(());
+    }
+    // Pas d'appareil actif (ou pas connecté) : l'app Spotify s'ouvre sur la playlist
+    let uri = if context.ends_with(":collection") { "spotify:collection:tracks" } else { context };
+    crate::shell::open_as_is(uri)?;
+    if connected(app) {
+        let (app, context) = (app.clone(), context.to_string());
+        std::thread::spawn(move || play_when_ready(&app, &context));
+    }
+    Ok(())
+}
+
+/// Lecture lancée ; Ok(false) : pas d'appareil actif
+fn start(app: &AppHandle, context: &str, device: Option<&str>) -> Result<bool, String> {
+    let token = access_token(app)?;
+    let url = match device {
+        Some(id) => format!("{API}/me/player/play?device_id={}", crate::shell::encode_query(id)),
+        None => format!("{API}/me/player/play"),
+    };
+    let body = serde_json::json!({ "context_uri": context }).to_string();
+    let (status, answer) = http("PUT", &url, Some(&token), Some((&body, "application/json")))?;
+    match status {
+        200 | 202 | 204 => Ok(true),
+        404 => Ok(false),
+        _ => Err(api_error(status, &parse(&answer))),
+    }
+}
+
+/// Spotify vient de s'ouvrir : attend qu'il se présente comme appareil (8 s au plus), puis y
+/// lance la lecture
+fn play_when_ready(app: &AppHandle, context: &str) {
+    for _ in 0..16 {
+        std::thread::sleep(Duration::from_millis(500));
+        match this_pc(app) {
+            Ok(Some(device)) => {
+                if let Err(e) = start(app, context, Some(&device)) {
+                    eprintln!("[lanceur] Spotify : {e}");
+                }
+                return;
+            }
+            Ok(None) => {}
+            Err(e) => return eprintln!("[lanceur] Spotify : {e}"),
+        }
+    }
+}
+
+/// Appareil Spotify de ce PC : un ordinateur, de préférence au nom du PC
+fn this_pc(app: &AppHandle) -> Result<Option<String>, String> {
+    let token = access_token(app)?;
+    let (status, body) = http("GET", &format!("{API}/me/player/devices"), Some(&token), None)?;
+    let json = parse(&body);
+    if status != 200 {
+        return Err(api_error(status, &json));
+    }
+    let name = std::env::var("COMPUTERNAME").unwrap_or_default();
+    let computers: Vec<&Value> =
+        json["devices"].as_array().into_iter().flatten().filter(|d| d["type"] == "Computer").collect();
+    let device = computers
+        .iter()
+        .find(|d| d["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(&name)))
+        .or(computers.first());
+    Ok(device.and_then(|d| d["id"].as_str()).map(String::from))
 }
 
 fn parse(body: &str) -> Value {
@@ -505,7 +694,7 @@ fn api_error(status: u16, json: &Value) -> String {
     let reason = json["error"]["reason"].as_str().unwrap_or_default();
     match (status, reason) {
         (404, _) | (_, "NO_ACTIVE_DEVICE") => "Spotify n'a pas d'appareil actif : lance la lecture.".into(),
-        (403, _) | (_, "PREMIUM_REQUIRED") => "Spotify Premium est nécessaire pour régler le volume.".into(),
+        (_, "PREMIUM_REQUIRED") => "Spotify Premium est nécessaire pour piloter la lecture.".into(),
         (429, _) => "Spotify reçoit trop de demandes, réessaie dans un instant.".into(),
         _ => {
             let message = json["error"]["message"]
@@ -536,8 +725,9 @@ fn client() -> windows::core::Result<HttpClient> {
     Ok(created)
 }
 
-/// Requête HTTPS par le client HTTP de Windows (WinRT), sans cache, TIMEOUT au plus par étape
-fn http(method: &str, url: &str, bearer: Option<&str>, form_body: Option<&str>) -> Result<(u16, String), String> {
+/// Requête HTTPS par le client HTTP de Windows (WinRT), sans cache, TIMEOUT au plus par étape.
+/// `body` : (contenu, type : formulaire ou JSON)
+fn http(method: &str, url: &str, bearer: Option<&str>, body: Option<(&str, &str)>) -> Result<(u16, String), String> {
     let send = || -> windows::core::Result<(u16, String)> {
         let request =
             HttpRequestMessage::Create(&HttpMethod::Create(&HSTRING::from(method))?, &Uri::CreateUri(&HSTRING::from(url))?)?;
@@ -546,11 +736,11 @@ fn http(method: &str, url: &str, bearer: Option<&str>, form_body: Option<&str>) 
                 .Headers()?
                 .SetAuthorization(&HttpCredentialsHeaderValue::CreateFromSchemeWithToken(h!("Bearer"), &HSTRING::from(token))?)?;
         }
-        if let Some(body) = form_body {
+        if let Some((content, media_type)) = body {
             request.SetContent(&HttpStringContent::CreateFromStringWithEncodingAndMediaType(
-                &HSTRING::from(body),
+                &HSTRING::from(content),
                 UnicodeEncoding::Utf8,
-                h!("application/x-www-form-urlencoded"),
+                &HSTRING::from(media_type),
             )?)?;
         }
         let response = wait(client()?.SendRequestAsync(&request)?)?;
@@ -597,9 +787,19 @@ mod tests {
         assert_eq!(params["error"], "access denied");
         assert_eq!(decode("%E9t%C3%A9%"), "\u{fffd}té%");
         assert_eq!(
-            form(&[("redirect_uri", REDIRECT), ("scope", SCOPES)]),
-            "redirect_uri=http%3A%2F%2F127.0.0.1%3A47913%2Fcallback&scope=user-read-playback-state+user-modify-playback-state"
+            form(&[("redirect_uri", REDIRECT), ("scope", "a-b c-d")]),
+            "redirect_uri=http%3A%2F%2F127.0.0.1%3A47913%2Fcallback&scope=a-b+c-d"
         );
+    }
+
+    #[test]
+    fn scopes_and_playable_targets() {
+        assert!(has_scopes(&format!("other {SCOPES}")));
+        assert!(!has_scopes("user-read-playback-state user-modify-playback-state"), "connexion d'avant les playlists");
+        assert!(is_playable("spotify:playlist:37i9dQZF1DX"));
+        assert!(is_playable("spotify:user:johnny:collection"));
+        assert!(!is_playable("spotify:"), "le lanceur de Spotify s'ouvre, il ne se joue pas");
+        assert!(!is_playable("steam://rungameid/1"));
     }
 
     /// Le retour de Spotify est attendu malgré une icône d'onglet, un ancien onglet et une

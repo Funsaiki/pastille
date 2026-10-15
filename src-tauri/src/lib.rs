@@ -7,6 +7,7 @@ mod icon;
 mod launcher;
 mod media;
 mod mixer;
+mod open_windows;
 mod power;
 mod shell;
 mod spotify;
@@ -80,7 +81,11 @@ pub fn run() {
             media::media_cover,
             mixer::mixer,
             mixer::set_app_volume,
-            spotify::spotify_volume,
+            spotify::spotify_state,
+            spotify::set_spotify_shuffle,
+            spotify::set_spotify_repeat,
+            open_windows::open_windows,
+            open_windows::focus_window,
             spotify::set_spotify_volume,
             feed::feed,
             feed::open_download,

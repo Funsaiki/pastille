@@ -23,6 +23,11 @@ pub fn focus_existing(target: &str) -> bool {
         return false;
     }
     let Some(hwnd) = find_window(&exe) else { return false };
+    bring(hwnd)
+}
+
+/// Fenêtre au premier plan, restaurée si elle était réduite (aussi pour open_windows.rs)
+pub fn bring(hwnd: HWND) -> bool {
     unsafe {
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
@@ -30,6 +35,20 @@ pub fn focus_existing(target: &str) -> bool {
         // Permis : le lanceur, qui a le focus, appartient au processus au premier plan
         SetForegroundWindow(hwnd).as_bool()
     }
+}
+
+/// Fenêtres de la barre des tâches, la plus récemment active d'abord (open_windows.rs)
+pub fn app_windows() -> Vec<HWND> {
+    unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let found = unsafe { &mut *(lparam.0 as *mut Vec<HWND>) };
+        if is_app_window(hwnd) {
+            found.push(hwnd);
+        }
+        true.into()
+    }
+    let mut found = Vec::new();
+    let _ = unsafe { EnumWindows(Some(collect), LPARAM(&mut found as *mut Vec<HWND> as isize)) };
+    found
 }
 
 struct Search {
@@ -47,7 +66,7 @@ fn find_window(exe: &str) -> Option<HWND> {
 
 unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let search = unsafe { &mut *(lparam.0 as *mut Search) };
-    if is_app_window(hwnd) && process_of(hwnd).is_some_and(|path| path.to_lowercase() == search.exe) {
+    if is_app_window(hwnd) && process_of(hwnd).0.is_some_and(|path| path.to_lowercase() == search.exe) {
         search.found = Some(hwnd);
         return false.into();
     }
@@ -56,7 +75,7 @@ unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
 
 /// Fenêtre de la barre des tâches : visible (ou réduite), sans propriétaire, pas une fenêtre
 /// outil, avec un titre, et pas masquée par Windows (sur un autre bureau virtuel, par exemple)
-fn is_app_window(hwnd: HWND) -> bool {
+pub fn is_app_window(hwnd: HWND) -> bool {
     unsafe {
         let mut cloaked = 0u32;
         let _ = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, (&mut cloaked as *mut u32).cast(), 4);
@@ -68,10 +87,11 @@ fn is_app_window(hwnd: HWND) -> bool {
     }
 }
 
-fn process_of(hwnd: HWND) -> Option<String> {
+/// (programme, identifiant du processus) d'une fenêtre
+pub fn process_of(hwnd: HWND) -> (Option<String>, u32) {
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
-    exe_path(pid)
+    (exe_path(pid), pid)
 }
 
 #[cfg(test)]

@@ -316,7 +316,25 @@ button, input { font-family: 'Nunito', sans-serif; }
 /* Volume de Spotify (demandé par Funsaiki, pas dans la maquette) : petit curseur du style de
    celui du volume, sous l'artiste ; la carte garde sa hauteur (le texte tient dans les 46 px de
    la pochette) */
-.media-volume { height: 9px; margin-top: 5px; border-width: 2px; }
+/* Avec la rangée du volume, le titre et l'artiste se resserrent (1,1 au lieu de 1,2) : la
+   carte garde sa hauteur */
+.media:has(.media-controls) .media-text { line-height: 1.1; }
+.media-controls { display: flex; align-items: center; gap: 3px; margin-top: 2px; height: 15px; }
+.media-volume { flex: 1; min-width: 0; height: 9px; border-width: 2px; }
+/* Aléatoire et répétition (demandés par Funsaiki, Spotify connecté) : petits ronds sans bordure
+   à droite du curseur, fond accent quand ils sont actifs, comme les boutons du haut au survol.
+   Répétition d'un seul titre : un « 1 » au milieu. */
+.media-mode {
+  width: 15px; height: 15px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
+  color: rgba(15, 59, 66, .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.media-controls .media-mode:first-of-type { margin-left: 3px; }
+.media-mode:hover, .media-mode[aria-pressed="true"] { color: var(--ink); }
+.media-mode[aria-pressed="true"] { background: var(--fill); }
+.media-mode:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.media-mode .repeat-one { display: none; }
+.media-mode[data-mode="track"] .repeat-one { display: inline; }
 .media-volume::-webkit-slider-thumb { width: 15px; height: 15px; border-width: 2px; box-shadow: 0 1.5px 0 var(--ink); }
 .media-volume:disabled { opacity: .4; cursor: default; }
 .media-btn {
@@ -495,6 +513,10 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   border-radius: 11px; border: 2px solid var(--ink); background: #ffffff; display: flex; align-items: center;
   justify-content: center; font-weight: 900; font-size: 12px;
 }
+/* Fenêtre ouverte trouvée par la recherche (demandé par Funsaiki) : vraie icône de son programme
+   sur fond blanc, comme l'onglet Apps */
+.app-picture { background: #ffffff; }
+.app-picture canvas { width: 30px; height: 30px; }
 .app-label { max-width: 100%; font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .no-result {
   height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;

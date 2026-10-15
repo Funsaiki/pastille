@@ -17,6 +17,10 @@ export interface AppItem {
   keywords?: string;      // mots cherchés en plus du libellé, en début de mot
   uses?: number;          // lancements (usage.json, envoyé par Rust)
   last?: number;          // date du dernier lancement, en secondes depuis 1970
+  /* Résultats de recherche qui ne viennent pas de apps.json (search.ts, ui.ts) */
+  copy?: string;          // calcul : texte copié au lieu d'un lancement
+  window?: string;        // fenêtre ouverte : son identifiant, pour la ramener
+  picture?: { width: number; height: number; rgba: string };   // vraie icône du programme
 }
 
 export interface Favorite {

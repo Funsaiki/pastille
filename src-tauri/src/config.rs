@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-use crate::{epic, steam, tray, usage};
+use crate::{epic, spotify, steam, tray, usage};
 
 const EXAMPLE: &str = include_str!("../../apps.example.json");
 
@@ -100,15 +100,22 @@ pub struct ConfigState {
 
 pub type SharedConfig = Mutex<ConfigState>;
 
-/// Jeux détectés, ajoutés aux groupes `auto: "steam"` et `auto: "epic"`
-#[derive(Default, PartialEq)]
+/// Jeux détectés, ajoutés aux groupes `auto: "steam"` et `auto: "epic"`, et playlists de
+/// Spotify, ajoutées aux groupes `auto: "spotify"` (demande de Funsaiki)
+#[derive(Clone, Default, PartialEq)]
 struct Detected {
     steam: Vec<steam::Game>,
     epic: Vec<epic::Game>,
+    playlists: Vec<spotify::Playlist>,
 }
 
-fn detect() -> Detected {
-    Detected { steam: steam::installed_games(), epic: epic::installed_games() }
+/// `previous` : Spotify injoignable, les playlists déjà connues restent
+fn detect(app: &AppHandle, previous: &Detected) -> Detected {
+    Detected {
+        steam: steam::installed_games(),
+        epic: epic::installed_games(),
+        playlists: spotify::playlists(app).unwrap_or_else(|| previous.playlists.clone()),
+    }
 }
 
 /* ── Lecture et validation ── */
@@ -158,8 +165,8 @@ fn describe(e: &serde_json::Error) -> String {
 fn validate(items: &mut [AppItem]) -> Result<(), String> {
     for it in items {
         if let Some(auto) = &it.auto {
-            if !matches!(auto.as_str(), "steam" | "epic") {
-                return Err(format!("« {} » : auto « {auto} » inconnu (steam ou epic).", it.label));
+            if !matches!(auto.as_str(), "steam" | "epic" | "spotify") {
+                return Err(format!("« {} » : auto « {auto} » inconnu (steam, epic ou spotify).", it.label));
             }
             it.children.get_or_insert_with(Vec::new);
         }
@@ -181,11 +188,11 @@ fn is_hex_color(s: &str) -> bool {
 /// Complète les groupes `auto` avec les jeux détectés (sauf ceux déjà présents à la main),
 /// puis attribue les identifiants.
 fn merge(base: &Config, games: &Detected) -> Config {
-    fn add(children: &mut Vec<AppItem>, label: &str, target: String, source: &str) {
+    fn add(children: &mut Vec<AppItem>, label: &str, target: String, source: &str, icon: &str) {
         if !children.iter().any(|c| c.target.as_deref() == Some(target.as_str())) {
             children.push(AppItem {
                 label: label.into(),
-                icon: Some("jeux".into()),
+                icon: Some(icon.into()),
                 target: Some(target),
                 source: Some(source.into()),
                 ..Default::default()
@@ -198,12 +205,17 @@ fn merge(base: &Config, games: &Detected) -> Config {
             match it.auto.as_deref() {
                 Some("steam") => {
                     for g in &games.steam {
-                        add(children, &g.name, format!("steam://rungameid/{}", g.appid), "STEAM");
+                        add(children, &g.name, format!("steam://rungameid/{}", g.appid), "STEAM", "jeux");
                     }
                 }
                 Some("epic") => {
                     for g in &games.epic {
-                        add(children, &g.name, g.target.clone(), "EPIC");
+                        add(children, &g.name, g.target.clone(), "EPIC", "jeux");
+                    }
+                }
+                Some("spotify") => {
+                    for p in &games.playlists {
+                        add(children, &p.name, p.uri.clone(), "SPOTIFY", "musique");
                     }
                 }
                 _ => {}
@@ -383,11 +395,26 @@ pub fn refresh_games_if_stale(app: &AppHandle) {
     scan_games(app);
 }
 
-/// Cherche les jeux Steam et Epic sur un autre fil ; le front n'est prévenu qu'en cas de changement
+/// Juste après la connexion à Spotify : ses playlists peuvent maintenant être lues
+pub fn rescan(app: &AppHandle) {
+    {
+        let state = app.state::<SharedConfig>();
+        let mut s = state.lock().unwrap();
+        if s.scanning {
+            return;
+        }
+        s.scanning = true;
+    }
+    scan_games(app);
+}
+
+/// Cherche les jeux Steam et Epic (et les playlists de Spotify) sur un autre fil ; le front
+/// n'est prévenu qu'en cas de changement
 fn scan_games(app: &AppHandle) {
     let app = app.clone();
     thread::spawn(move || {
-        let games = detect();
+        let previous = app.state::<SharedConfig>().lock().unwrap().games.clone();
+        let games = detect(&app, &previous);
         let state = app.state::<SharedConfig>();
         let mut s = state.lock().unwrap();
         s.scanning = false;
@@ -450,7 +477,7 @@ mod tests {
                 { "label": "Hollow Knight", "target": "steam://rungameid/367520" } ] },
             { "label": "Code", "target": "code.exe" } ] }"#).unwrap();
         let steam = vec![game(367520, "Hollow Knight"), game(1687950, "Persona 5 Royal")];
-        let config = merge(&base, &Detected { steam, epic: Vec::new() });
+        let config = merge(&base, &Detected { steam, ..Default::default() });
         let jeux = config.apps[0].children.as_ref().unwrap();
         assert_eq!(jeux.len(), 2, "Hollow Knight ajouté à la main n'est pas doublé");
         assert_eq!(jeux[1].label, "Persona 5 Royal");
@@ -464,10 +491,21 @@ mod tests {
     fn epic_games_complete_auto_groups() {
         let base = parse(r#"{ "apps": [ { "label": "Epic", "auto": "epic", "children": [] } ] }"#).unwrap();
         let epic = vec![epic::Game { name: "F1 Manager 2024".into(), target: "com.epicgames.launcher://apps/a%3Ab%3Ac".into() }];
-        let config = merge(&base, &Detected { steam: Vec::new(), epic });
+        let config = merge(&base, &Detected { epic, ..Default::default() });
         let game = &config.apps[0].children.as_ref().unwrap()[0];
         assert_eq!((game.label.as_str(), game.source.as_deref(), game.id.as_str()), ("F1 Manager 2024", Some("EPIC"), "a0.0"));
         assert!(parse(r#"{ "apps": [ { "label": "X", "auto": "gog" } ] }"#).is_err(), "auto inconnu");
+    }
+
+    #[test]
+    fn playlists_complete_spotify_groups() {
+        let base = parse(r#"{ "apps": [ { "label": "Musique", "auto": "spotify", "children": [
+            { "label": "Spotify", "target": "spotify:" } ] } ] }"#).unwrap();
+        let playlists = vec![spotify::Playlist { name: "Lofi".into(), uri: "spotify:playlist:abc".into() }];
+        let config = merge(&base, &Detected { playlists, ..Default::default() });
+        let music = config.apps[0].children.as_ref().unwrap();
+        assert_eq!(music[0].label, "Spotify", "le lanceur de Spotify reste en tête");
+        assert_eq!((music[1].label.as_str(), music[1].icon.as_deref(), music[1].target.as_deref()), ("Lofi", Some("musique"), Some("spotify:playlist:abc")));
     }
 
     /// Diagnostic sur l'apps.json de Funsaiki : cargo test real_config -- --ignored --nocapture
@@ -475,7 +513,8 @@ mod tests {
     #[ignore]
     fn real_config() {
         let path = PathBuf::from(std::env::var("APPDATA").unwrap()).join("dev.lanceur.pastel").join("apps.json");
-        let config = merge(&parse(&fs::read_to_string(path).unwrap()).unwrap(), &detect());
+        let games = Detected { steam: steam::installed_games(), epic: epic::installed_games(), ..Default::default() };
+        let config = merge(&parse(&fs::read_to_string(path).unwrap()).unwrap(), &games);
         fn show(items: &[AppItem], depth: usize) {
             for it in items {
                 eprintln!("{}{} {} {:?}", "  ".repeat(depth), it.id, it.label, it.source);

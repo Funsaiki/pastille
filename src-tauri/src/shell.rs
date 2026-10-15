@@ -4,7 +4,9 @@
 //! qui demandent l'élévation.
 
 use std::path::Path;
+use std::sync::LazyLock;
 
+use serde::Deserialize;
 use tauri::AppHandle;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::System::Com::{
@@ -23,9 +25,19 @@ use crate::config;
 /// `fresh` (Ctrl+clic) : nouvelle fenêtre même si l'application est déjà ouverte.
 #[tauri::command]
 pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), String> {
-    let (target, args) = config::target_of(&app, &id)
-        .ok_or_else(|| format!("Élément {id} introuvable, la config a peut-être changé."))?;
+    let (target, args) = match setting_target(&id) {
+        Some(target) => (target, Vec::new()),
+        None => config::target_of(&app, &id)
+            .ok_or_else(|| format!("Élément {id} introuvable, la config a peut-être changé."))?,
+    };
     let key = crate::usage::key(&target, &args);
+    // Playlist (groupe auto « spotify ») : Spotify la joue directement (spotify.rs)
+    if crate::spotify::is_playable(&target) {
+        let play = app.clone();
+        crate::blocking(move || crate::spotify::play(&play, &target)).await??;
+        crate::usage::record(&app, key);
+        return Ok(());
+    }
     // Hors du fil principal : l'invite UAC, par exemple, attend la réponse de l'utilisateur
     crate::blocking(move || {
         // Déjà ouverte (Code, Brave…) : sa fenêtre revient au premier plan (switch.rs)
@@ -38,6 +50,19 @@ pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), Strin
     .await??;
     crate::usage::record(&app, key);
     Ok(())
+}
+
+/// Pages des Paramètres proposées par la recherche (demande de Funsaiki) : la liste du front
+/// (src/settings.json), identifiants « s<position> » ; le front n'envoie jamais de cible.
+fn setting_target(id: &str) -> Option<String> {
+    #[derive(Deserialize)]
+    struct Setting {
+        target: String,
+    }
+    static SETTINGS: LazyLock<Vec<Setting>> =
+        LazyLock::new(|| serde_json::from_str(include_str!("../../src/settings.json")).expect("src/settings.json invalide"));
+    let index: usize = id.strip_prefix('s')?.parse().ok()?;
+    SETTINGS.get(index).map(|s| s.target.clone())
 }
 
 /// Boutons du haut de la vue réglages : le front envoie un nom, pas une cible.
@@ -204,6 +229,13 @@ mod tests {
         for path in ["C:/Program Files/x.exe", "c:\\x", "wt.exe", "%USERPROFILE%/Projets"] {
             assert!(!is_uri(path), "{path}");
         }
+    }
+
+    #[test]
+    fn settings_pages() {
+        assert_eq!(setting_target("s0").as_deref(), Some("ms-settings:network-wifi"));
+        assert!(setting_target("s999").is_none());
+        assert!(setting_target("a0").is_none(), "une app de apps.json n'est pas une page");
     }
 
     #[test]
