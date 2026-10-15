@@ -16,6 +16,7 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
     // Volume interne de Spotify par son API web (spotify.rs) : connexion dans le navigateur
     let (label, enabled) = spotify::menu_label(app);
     let spotify_item = MenuItem::with_id(app, "spotify", label, enabled, None::<&str>)?;
+    spotify::set_menu_item(app, spotify_item.clone());
     // Écrit dans le registre (HKCU\…\Run) : seul Funsaiki la coche, depuis la version installée.
     // En développement, l'entrée pointerait vers l'exe de debug : option grisée.
     let installed = !cfg!(debug_assertions);
@@ -38,8 +39,11 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "show" => launcher::show(app),
             "edit" => edit_config(app),
-            "reload" => config::reload(app),
-            "spotify" => spotify::toggle(app, &spotify_item),
+            "reload" => {
+                config::reload(app);
+                spotify::reload(app);
+            }
+            "spotify" => spotify::toggle(app),
             "autostart" => toggle_autostart(app, &autostart),
             "quit" => app.exit(0),
             _ => {}

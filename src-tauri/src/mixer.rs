@@ -7,7 +7,7 @@ use std::path::Path;
 
 use serde::Serialize;
 use windows::core::{w, Interface, HSTRING, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, S_OK};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, S_OK};
 use windows::Win32::Media::Audio::{
     eRender, AudioSessionStateActive, AudioSessionStateExpired, IAudioSessionControl2, IAudioSessionManager2,
     ISimpleAudioVolume,
@@ -130,19 +130,24 @@ fn sessions() -> windows::core::Result<Vec<Session>> {
     Ok(out)
 }
 
-/// Chemin du programme d'un processus (aussi pour switch.rs)
+/// Chemin du programme d'un processus (aussi pour switch.rs et tray_apps.rs)
 pub fn exe_path(pid: u32) -> Option<String> {
     if pid == 0 {
         return None;
     }
-    let mut buf = [0u16; 1024];
-    let mut len = buf.len() as u32;
     unsafe {
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-        let found = QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len);
+        let path = process_path(process);
         let _ = CloseHandle(process);
-        found.ok()?;
+        path
     }
+}
+
+/// Chemin du programme d'un processus déjà ouvert (avec PROCESS_QUERY_LIMITED_INFORMATION)
+pub fn process_path(process: HANDLE) -> Option<String> {
+    let mut buf = [0u16; 1024];
+    let mut len = buf.len() as u32;
+    unsafe { QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len) }.ok()?;
     Some(String::from_utf16_lossy(&buf[..len as usize]))
 }
 

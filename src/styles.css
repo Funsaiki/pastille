@@ -398,6 +398,8 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 /* Pastilles de nombre plus petites, pâles sur l'onglet fermé ; celle de l'onglet choisi rebondit */
 .notifs-tab .notifs-count { min-width: 17px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 11px; background: rgba(15, 59, 66, .4); transition: background .2s; }
 .notifs-tab[aria-selected="true"] .notifs-count { background: var(--ink); }
+/* Liste des apps pas encore lue (premier affichage) : pas de « 0 » */
+.notifs-tab .notifs-count:empty { visibility: hidden; }
 @keyframes tab-pop { 0% { scale: .4; } 60% { scale: 1.2; } 100% { scale: 1; } }
 .notifs-count.tab-pop { animation: tab-pop .4s var(--ease) .12s both; }
 .notifs-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -409,13 +411,14 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   display: grid; grid-template-columns: repeat(6, 42px); justify-content: space-between; gap: 12px 0;
   margin: -6px; padding: 6px; max-height: calc(3 * 42px + 2 * 12px); overflow-y: auto; scrollbar-width: none;
 }
+/* --tile : couleur de la palette derrière l'initiale d'une app sans icône (ui.ts) */
 .tray-app {
   width: 42px; height: 42px; padding: 0; box-sizing: border-box; border-radius: 14px; border: 2.5px solid var(--ink);
-  background: #ffffff; color: var(--ink); box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center;
+  background: var(--tile, #ffffff); color: var(--ink); box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center;
   justify-content: center; font-weight: 900; font-size: 15px; cursor: pointer;
 }
 .tray-app canvas { width: 24px; height: 24px; }
-.tray-app[aria-expanded="true"] { background: var(--fill); }
+.tray-app.menu-open { background: var(--fill); }
 
 /* Menu du clic droit : fond encre comme le mélangeur, au-dessus de l'icône, pointe vers elle.
    Mêmes pastilles de couleur que le menu d'alimentation. */

@@ -26,17 +26,23 @@ function restartAnimation(node: HTMLElement, className: string) {
   node.classList.add(className);
 }
 
-/* Animation jouée une fois : sa classe retirée à la fin (ou si le lanceur se masque avant),
-   elle ne repart pas au prochain affichage de la scène */
+/* Animation jouée une fois : sa classe retirée à la fin, elle ne repart pas au prochain
+   affichage de la scène. Un seul écouteur par élément : rejouée avant la fin, l'ancien est
+   retiré (sinon il couperait la nouvelle). Si elle est interrompue (élément masqué), c'est
+   à l'appelant de retirer la classe (stopPaneAnimations). */
+const playing = new WeakMap<HTMLElement, (e: AnimationEvent) => void>();
+
 function playOnce(node: HTMLElement, className: string) {
+  const previous = playing.get(node);
+  if (previous) node.removeEventListener('animationend', previous);
   const done = (e: AnimationEvent) => {
     if (e.target !== node) return;   // animation d'un enfant
     node.classList.remove(className);
     node.removeEventListener('animationend', done);
-    node.removeEventListener('animationcancel', done);
+    playing.delete(node);
   };
+  playing.set(node, done);
   node.addEventListener('animationend', done);
-  node.addEventListener('animationcancel', done);
   restartAnimation(node, className);
 }
 
@@ -404,6 +410,7 @@ const mixerOpen = () => $('mixer-toggle').getAttribute('aria-expanded') === 'tru
 let mixerRun = 0;   // change à chaque fermeture : une liste arrivée après est ignorée
 
 async function openMixer() {
+  closeTrayMenu(false);
   const run = ++mixerRun;
   $('mixer-toggle').setAttribute('aria-expanded', 'true');
   const apps = await host.mixer().catch(() => []);
@@ -455,9 +462,11 @@ async function refreshMedia() {
   const run = ++mediaRun;
   const now = await host.media().catch(() => media);
   if (run !== mediaRun) return;
+  const opened = !!now !== !!media;   // Spotify ouvert ou fermé : son curseur de volume suit
   media = now;
   renderMedia();
   refreshCover();
+  if (opened) refreshSpotifyVolume();
 }
 
 /* Pochette : demandée au changement de morceau. Spotify annonce le titre un peu avant la
@@ -507,18 +516,28 @@ async function controlMedia(action: MediaAction) {
    celui du mélangeur de Windows (ce curseur et la tranche de Spotify se suivent alors). Relu à
    l'affichage de la vue réglages puis toutes les 5 s. ── */
 let spotifyVolume: SpotifyVolume | null = null;
-let spotifyRun = 0;    // change à chaque réglage : une lecture partie avant est ignorée
-let spotifyHold = 0;   // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
+let spotifyProblem: string | null = null;   // échec de connexion, montré dans Notifs
+let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
+let spotifyHold = 0;          // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
+let spotifyReading = false;   // une lecture à la fois (une requête lente ne s'empile pas)
 
-const sendSpotify = latestOnly((level) => host.setSpotifyVolume(level).catch((e) => report('Spotify', e)));
+// Après chaque envoi, l'attente repart : Spotify met un instant à annoncer le nouveau volume
+const sendSpotify = latestOnly((level) =>
+  host.setSpotifyVolume(level).catch((e) => report('Spotify', e)).finally(() => (spotifyHold = performance.now() + 1000)));
 
 async function refreshSpotifyVolume() {
-  if (performance.now() < spotifyHold) return;
+  if (performance.now() < spotifyHold || spotifyReading) return;
   const run = ++spotifyRun;
+  spotifyReading = true;
   const now = await host.spotifyVolume().catch(() => null);
-  if (run !== spotifyRun) return;
-  spotifyVolume = now;
+  spotifyReading = false;
+  if (run !== spotifyRun || !now) return;
+  spotifyVolume = now.volume;
   renderSpotifyVolume();
+  if (now.problem !== spotifyProblem) {
+    spotifyProblem = now.problem;
+    renderNotifs();
+  }
 }
 
 function renderSpotifyVolume() {
@@ -527,20 +546,21 @@ function renderSpotifyVolume() {
   input.disabled = !spotifyVolume;   // Spotify fermé, sans son ou sans appareil actif
   input.value = String(level);
   input.style.setProperty('--pct', level + '%');
-  input.title = spotifyVolume?.source === 'windows' ? `Volume de Spotify (mélangeur de Windows) : ${level} %` : `Volume de Spotify : ${level} %`;
+  input.title = !spotifyVolume
+    ? 'Volume de Spotify : indisponible'
+    : spotifyVolume.source === 'windows'
+      ? `Volume de Spotify (mélangeur de Windows) : ${level} %`
+      : `Volume de Spotify : ${level} %`;
 }
 
 function setSpotifyVolume(level: number) {
   if (!spotifyVolume) return;
   spotifyVolume.volume = Math.max(0, Math.min(100, Math.round(level)));
   spotifyRun++;
+  spotifyHold = performance.now() + 1500;
   renderSpotifyVolume();
-  if (spotifyVolume.source === 'windows') {
-    sendAppVolume(spotifyVolume.key, spotifyVolume.volume);   // envoi partagé avec le mélangeur
-  } else {
-    spotifyHold = performance.now() + 1500;
-    sendSpotify(spotifyVolume.volume);
-  }
+  if (spotifyVolume.source === 'windows') sendAppVolume(spotifyVolume.key, spotifyVolume.volume);   // partagé avec le mélangeur
+  else sendSpotify(spotifyVolume.volume);
 }
 
 /* Tranche de Spotify bougée dans le mélangeur : le curseur de la carte suit (s'il règle le
@@ -611,6 +631,7 @@ function feedNotif(e: FeedEvent): Notif {
 function allNotifs(): Notif[] {
   const problems: Notif[] = configProblems.map((p) => ({ id: 'config:' + p, title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
   if (actionError) problems.unshift({ id: 'action:' + actionError.text, title: actionError.title, when: 'à l’instant', body: actionError.text, d: ALERT, bg: '#ffe08a' });
+  if (spotifyProblem) problems.push({ id: 'spotify:' + spotifyProblem, title: 'Spotify', when: '', body: spotifyProblem, d: ALERT, bg: '#ffe08a' });
   return [...problems, ...feed.map(feedNotif)];
 }
 
@@ -665,7 +686,8 @@ function renderNotifs() {
     $('notif-list').replaceChildren(...visible.map(notifRow));
   }
   $('notif-count').textContent = String(items.length);
-  $('notif-list').hidden = $('notif-clear').hidden = !items.length;
+  $('notif-list').hidden = !items.length;
+  $('notif-clear').hidden = !items.length || pane !== 'notifs';
   $('notif-empty').hidden = items.length > 0;
   $('notif-restore').hidden = items.length === all.length;   // rien d'effacé
 }
@@ -714,18 +736,33 @@ function showPane(next: Pane, chosen = false) {
   const changed = next !== pane;
   pane = next;
   closeTrayMenu(false);
-  $('tabs').dataset.pane = pane;
-  const tab = $(pane === 'apps' ? 'tab-apps' : 'tab-notifs');
-  $('tab-apps').setAttribute('aria-selected', String(pane === 'apps'));
-  $('tab-notifs').setAttribute('aria-selected', String(pane === 'notifs'));
+  stopPaneAnimations();
   const shown = $(pane === 'apps' ? 'tray-pane' : 'notifs-pane');
-  $('tray-pane').hidden = pane !== 'apps';
-  $('notifs-pane').hidden = pane !== 'notifs';
+  const hidden = $(pane === 'apps' ? 'notifs-pane' : 'tray-pane');
+  const tab = $(pane === 'apps' ? 'tab-apps' : 'tab-notifs');
+  // Le focus était dans le contenu qui disparaît : il passe à l'onglet (sinon il tomberait sur
+  // la page, où Entrée ouvre les applications)
+  if (hidden.contains(document.activeElement)) tab.focus({ preventScroll: true });
+  $('tabs').dataset.pane = pane;
+  for (const t of [$('tab-apps'), $('tab-notifs')]) {
+    t.setAttribute('aria-selected', String(t === tab));
+    t.tabIndex = t === tab ? 0 : -1;   // Tab va à l'onglet ouvert, les flèches à l'autre
+  }
+  shown.hidden = false;
+  hidden.hidden = true;
+  renderNotifs();   // « Tout effacer » n'apparaît qu'avec Notifs
   if (changed && chosen) {
     // Le contenu arrive du côté de l'onglet, comme les pages de la vue applications
     playOnce(shown, pane === 'apps' ? 'tp-in-l' : 'tp-in-r');
     playOnce(tab.querySelector<HTMLElement>('.notifs-count')!, 'tab-pop');
   }
+}
+
+/* Animations d'onglet en cours retirées : un contenu masqué avant la fin la rejouerait au
+   prochain affichage */
+function stopPaneAnimations() {
+  for (const id of ['tray-pane', 'notifs-pane']) $(id).classList.remove('tp-in-l', 'tp-in-r');
+  for (const id of ['tray-count', 'notif-count']) $(id).classList.remove('tab-pop');
 }
 
 /* ── Applications de la zone de notification (onglet Apps) : relues à l'affichage de la vue
@@ -740,40 +777,59 @@ const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[]
   { action: 'quit', label: 'Forcer à quitter', d: CLOSE, bg: '#f6c6da' },
 ];
 
-let trayApps: TrayApp[] = [];
-let trayShown = '';   // ce qui est affiché : on ne refait la grille que si la liste change
-let trayRun = 0;
+let trayApps: TrayApp[] | null = null;   // null : pas encore lue (rien d'affiché, pas « 0 »)
+let trayShown = '';         // ce qui est affiché : on ne refait la grille que si la liste change
+let trayLoading = false;    // une lecture à la fois…
+let trayAgain = false;      // …et une autre juste après si on en a redemandé une entre-temps
 
 async function refreshTrayApps() {
-  const run = ++trayRun;
+  if (trayLoading) {
+    trayAgain = true;
+    return;
+  }
+  trayLoading = true;
   const apps = await host.trayApps().catch(() => null);
-  if (run !== trayRun || !apps) return;
-  trayApps = apps;
-  renderTrayApps();
+  trayLoading = false;
+  if (apps) {
+    trayApps = apps;
+    renderTrayApps();
+  }
+  if (trayAgain) {
+    trayAgain = false;
+    refreshTrayApps();
+  }
 }
 
 function renderTrayApps() {
-  $('tray-count').textContent = String(trayApps.length);
-  $('tray-empty').hidden = trayApps.length > 0;
-  const shown = trayApps.map((app) => `${app.key}\n${app.name}`).join('\n');
-  // Pas pendant que le menu est ouvert : il est accroché à son icône
+  $('tray-count').textContent = trayApps ? String(trayApps.length) : '';
+  $('tray-empty').hidden = !trayApps || trayApps.length > 0;
+  const shown = (trayApps ?? []).map((app) => `${app.key}\n${app.name}`).join('\n');
+  // Pas pendant que le menu est ouvert : il est accroché à son icône (refaite à sa fermeture)
   if (trayMenu || shown === trayShown) return;
   trayShown = shown;
-  $('tray-grid').replaceChildren(...trayApps.map(trayTile));
+  // Le focus reste sur la même app, ou à la même place si elle a disparu (sinon il tomberait
+  // sur la page, où Entrée ouvre les applications)
+  const grid = $('tray-grid');
+  const focused = Array.from(grid.children).indexOf(document.activeElement as Element);
+  const key = (document.activeElement as HTMLElement | null)?.dataset.key;
+  grid.replaceChildren(...(trayApps ?? []).map(trayTile));
+  if (focused === -1) return;
+  const tiles = Array.from(grid.children) as HTMLElement[];
+  const next = tiles.find((t) => t.dataset.key === key) ?? tiles[Math.min(focused, tiles.length - 1)] ?? $('tab-apps');
+  next.focus({ preventScroll: true });
 }
 
 function trayTile(app: TrayApp, i: number) {
   const b = el('button', 'tp-press tray-app');
+  b.dataset.key = app.key;
   b.title = app.name;
   b.setAttribute('aria-label', app.name);
-  b.setAttribute('aria-haspopup', 'menu');
-  b.setAttribute('aria-expanded', 'false');
   // Icône du programme ; à défaut, son initiale sur une couleur de la palette
   if (app.icon) {
     b.append(iconCanvas(app.icon));
   } else {
     b.textContent = app.name.charAt(0).toUpperCase();
-    b.style.background = palette()[i % 4];
+    b.style.setProperty('--tile', palette()[i % 4]);
   }
   b.addEventListener('click', () => runAction('Lancement', () => host.trayAppAction(app.key, 'open')));
   b.addEventListener('contextmenu', (e) => {
@@ -789,7 +845,7 @@ function openTrayMenu(app: TrayApp, tile: HTMLElement) {
   closeTrayMenu(false);
   closeMixer();
   trayMenu = { app, tile };
-  tile.setAttribute('aria-expanded', 'true');
+  tile.classList.add('menu-open');
   $('tray-menu-name').textContent = app.name;
   // Pas d'emplacement pour une app du Store : son dossier est fermé
   const items = TRAY_ITEMS.filter((it) => !(it.action === 'location' && app.packaged));
@@ -824,11 +880,24 @@ function trayMenuItem(app: TrayApp, item: (typeof TRAY_ITEMS)[number]) {
 function placeTrayMenu(tile: HTMLElement) {
   const menu = $('tray-menu');
   const card = menu.offsetParent as HTMLElement;
-  const center = tile.offsetLeft + tile.offsetWidth / 2;
+  const at = offsetIn(tile, card);
+  const center = at.x + tile.offsetWidth / 2;
   const left = Math.max(6, Math.min(card.clientWidth - menu.offsetWidth - 6, center - menu.offsetWidth / 2));
   menu.style.left = left + 'px';
-  menu.style.bottom = card.clientHeight - (tile.offsetTop - $('tray-grid').scrollTop) + 12 + 'px';
+  menu.style.bottom = card.clientHeight - (at.y - $('tray-grid').scrollTop) + 12 + 'px';
   menu.style.setProperty('--arrow', center - left + 'px');
+}
+
+/* Position de mise en page de `node` dans `ancestor`. Pendant le glissement de l'onglet, son
+   contenu (transformé) devient le parent de position de l'icône : on additionne les étages. */
+function offsetIn(node: HTMLElement, ancestor: HTMLElement) {
+  let x = 0;
+  let y = 0;
+  for (let n: HTMLElement | null = node; n && n !== ancestor; n = n.offsetParent as HTMLElement | null) {
+    x += n.offsetLeft;
+    y += n.offsetTop;
+  }
+  return { x, y };
 }
 
 function closeTrayMenu(refocus = true) {
@@ -836,8 +905,9 @@ function closeTrayMenu(refocus = true) {
   const { tile } = trayMenu;
   trayMenu = null;
   $('tray-menu').classList.remove('open');
-  tile.setAttribute('aria-expanded', 'false');
+  tile.classList.remove('menu-open');
   if (refocus && tile.isConnected) tile.focus({ preventScroll: true });
+  renderTrayApps();   // une liste arrivée pendant que le menu était ouvert
 }
 
 /* Ouvrir et Emplacement masquent le lanceur, comme un lancement ; après un arrêt forcé, il
@@ -1157,6 +1227,11 @@ function bindEvents() {
   });
   $('tab-apps').addEventListener('click', () => showPane('apps', true));
   $('tab-notifs').addEventListener('click', () => showPane('notifs', true));
+  // Menu du clic droit fermé quand le focus le quitte (Tab) ou que la grille défile
+  $('tray-menu').addEventListener('focusout', (e) => {
+    if (!$('tray-menu').contains(e.relatedTarget as Node | null)) closeTrayMenu(false);
+  });
+  $('tray-grid').addEventListener('scroll', () => closeTrayMenu(false), { passive: true });
   // Flèches gauche et droite entre les onglets
   $('tabs').addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -1298,7 +1373,8 @@ function playEntrance() {
   $('phone').classList.remove('leaving');
   closePowerMenu(false);
   closeMixer();
-  showPane(savedPane());   // ferme aussi le menu du clic droit
+  // Un problème de config se voit tout de suite ; ferme aussi le menu du clic droit
+  showPane(configProblems.some((p) => !dismissed.has('config:' + p)) ? 'notifs' : savedPane());
   $('strap-swing').style.removeProperty('animation');   // balancement de l'ouverture, pas celui du survol
   state.stack = [];
   state.page = 0;

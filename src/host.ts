@@ -62,6 +62,11 @@ export interface SpotifyVolume {
   volume: number;   // 0 à 100
 }
 
+export interface SpotifyState {
+  volume: SpotifyVolume | null;   // null : pas d'appareil actif (connecté) ou pas de session audio
+  problem: string | null;         // dernier échec de connexion, pour les notifications
+}
+
 /* Application de la zone de notification (tray_apps.rs) */
 export interface TrayApp {
   key: string;        // chemin du programme, renvoyé pour agir (Rust vérifie qu'il est dans la liste)
@@ -157,10 +162,9 @@ export const host = {
     if (PREVIEW) console.info('[aperçu] volume de', key, ':', level);
     else await invoke('set_app_volume', { key, level });
   },
-  /* null : pas d'appareil actif (connecté) ou pas de session audio (fermé, rien joué encore) */
-  async spotifyVolume(): Promise<SpotifyVolume | null> {
-    if (PREVIEW) return { source: 'windows', key: 'spotify', volume: 80 };
-    return invoke<SpotifyVolume | null>('spotify_volume');
+  async spotifyVolume(): Promise<SpotifyState> {
+    if (PREVIEW) return { volume: { source: 'windows', key: 'spotify', volume: 80 }, problem: null };
+    return invoke<SpotifyState>('spotify_volume');
   },
   /* Volume de Spotify lui-même (connecté seulement) */
   async setSpotifyVolume(level: number) {

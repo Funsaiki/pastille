@@ -8,12 +8,16 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use windows::core::{GUID, HSTRING, PWSTR};
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Storage::Packaging::Appx::GetApplicationUserModelId;
-use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
+use windows::Win32::System::Com::{
+    CoInitializeEx, CoUninitialize, COINIT, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+};
 use windows::Win32::System::ProcessStatus::K32EnumProcesses;
 use windows::Win32::System::Threading::{
     OpenProcess, TerminateProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
@@ -76,12 +80,20 @@ fn list() -> Vec<TrayApp> {
     apps
 }
 
+/// Noms déjà lus, par chemin : la liste est relue toutes les 5 s
+static NAMES: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+
 /// Description du programme (« Discord »), sinon son infobulle (« Wallpaper Engine » pour
 /// wallpaper32.exe, qui n'a pas de description), sinon le nom du fichier
 fn name_of(p: &Program) -> String {
-    crate::mixer::description(&p.path).or_else(|| p.tooltip.clone()).unwrap_or_else(|| {
+    if let Some(name) = NAMES.lock().unwrap().get_or_insert_with(HashMap::new).get(&p.path) {
+        return name.clone();
+    }
+    let name = crate::mixer::description(&p.path).or_else(|| p.tooltip.clone()).unwrap_or_else(|| {
         Path::new(&p.path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
-    })
+    });
+    NAMES.lock().unwrap().get_or_insert_with(HashMap::new).insert(p.path.clone(), name.clone());
+    name
 }
 
 fn is_packaged(path: &str) -> bool {
@@ -92,13 +104,14 @@ fn is_packaged(path: &str) -> bool {
 fn programs() -> Vec<Program> {
     let running: HashMap<String, String> =
         processes().into_iter().map(|(_, path)| (path.to_lowercase(), path)).collect();
+    let excluded = Excluded::new();
     let mut seen = HashSet::new();
     registered()
         .into_iter()
         .filter_map(|(path, tooltip)| {
             let lower = path.to_lowercase();
             let path = running.get(&lower)?.clone();
-            (!excluded(&lower) && seen.insert(lower)).then_some(Program { path, tooltip })
+            (!excluded.contains(&lower) && seen.insert(lower)).then_some(Program { path, tooltip })
         })
         .collect()
 }
@@ -130,10 +143,23 @@ fn resolve(path: &str) -> Option<String> {
 }
 
 /// Composants de Windows (Explorateur, Sécurité Windows…) et le lanceur lui-même
-fn excluded(lower: &str) -> bool {
-    let windows = std::env::var("SystemRoot").unwrap_or_default().to_lowercase() + "\\";
-    let own = std::env::current_exe().map(|p| p.to_string_lossy().to_lowercase()).unwrap_or_default();
-    lower.starts_with(&windows) || lower == own
+struct Excluded {
+    windows: String,
+    own: String,
+}
+
+impl Excluded {
+    fn new() -> Self {
+        Excluded {
+            windows: std::env::var("SystemRoot").unwrap_or_default().to_lowercase() + "\\",
+            own: std::env::current_exe().map(|p| p.to_string_lossy().to_lowercase()).unwrap_or_default(),
+        }
+    }
+
+    /// `lower` : chemin en minuscules
+    fn contains(&self, lower: &str) -> bool {
+        lower.starts_with(&self.windows) || lower == self.own
+    }
 }
 
 /// Processus en cours : (identifiant, chemin du programme). Ceux qu'on ne peut pas interroger
@@ -184,7 +210,7 @@ fn app_id(pid: u32) -> Option<String> {
 fn show_in_folder(path: &str) -> Result<(), String> {
     unsafe {
         // Le shell attend un appartement monothread, comme pour ShellExecuteEx (shell.rs)
-        let com = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let com = CoInitializeEx(None, COINIT(COINIT_APARTMENTTHREADED.0 | COINIT_DISABLE_OLE1DDE.0));
         let item = ILCreateFromPathW(&HSTRING::from(path));
         let result = if item.is_null() {
             Err(format!("{path} : introuvable."))
@@ -202,22 +228,33 @@ fn show_in_folder(path: &str) -> Result<(), String> {
 
 /// Arrêt forcé de tous les processus du programme : une application de la zone de notification
 /// ne se ferme pas avec sa fenêtre, elle y retourne. Elle n'a pas le temps de sauvegarder (le
-/// front demande confirmation). Attend la fin de chacun, 2 s au plus.
+/// front demande confirmation). Les arrête tous, puis attend leur fin, 2 s au plus en tout.
 fn quit(path: &str, name: &str) -> Result<(), String> {
     let pids = pids_of(path);
     if pids.is_empty() {
         return Err(format!("{name} n'est plus ouvert."));
     }
     eprintln!("[lanceur] forcer à quitter {path}");
+    let lower = path.to_lowercase();
+    let access = PROCESS_TERMINATE | PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION;
+    let mut stopped = Vec::new();
     for pid in pids {
         // Déjà terminé (enfant d'un processus arrêté juste avant) ou refusé : vu à la fin
-        let Ok(process) = (unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, pid) }) else {
-            continue;
-        };
+        let Ok(process) = (unsafe { OpenProcess(access, false, pid) }) else { continue };
+        // Programme revérifié sur ce handle : un identifiant réattribué entre-temps à un autre
+        // programme n'est pas touché
+        let same = crate::mixer::process_path(process).is_some_and(|p| p.to_lowercase() == lower);
+        if same && unsafe { TerminateProcess(process, 1) }.is_ok() {
+            stopped.push(process);
+        } else {
+            let _ = unsafe { CloseHandle(process) };
+        }
+    }
+    let deadline = Instant::now() + Duration::from_secs(2);
+    for process in stopped {
+        let left = deadline.saturating_duration_since(Instant::now()).as_millis() as u32;
         unsafe {
-            if TerminateProcess(process, 1).is_ok() {
-                WaitForSingleObject(process, 2000);
-            }
+            WaitForSingleObject(process, left);
             let _ = CloseHandle(process);
         }
     }
@@ -247,9 +284,10 @@ mod tests {
     #[test]
     fn windows_and_launcher_are_excluded() {
         let windir = std::env::var("SystemRoot").unwrap();
-        assert!(excluded(&format!(r"{windir}\explorer.exe").to_lowercase()));
-        assert!(excluded(&std::env::current_exe().unwrap().to_string_lossy().to_lowercase()));
-        assert!(!excluded(r"c:\users\johnny\appdata\local\discord\app-1.0\discord.exe"));
+        let excluded = Excluded::new();
+        assert!(excluded.contains(&format!(r"{windir}\explorer.exe").to_lowercase()));
+        assert!(excluded.contains(&std::env::current_exe().unwrap().to_string_lossy().to_lowercase()));
+        assert!(!excluded.contains(r"c:\users\johnny\appdata\local\discord\app-1.0\discord.exe"));
     }
 
     /// Sur un programme lancé par le test : une copie de PING.EXE au nom unique, deux fois

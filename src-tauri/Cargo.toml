@@ -28,6 +28,7 @@ windows = { version = "0.62", features = ["Foundation", "Media_Control", "Storag
 windows-registry = "0.6"
 base64 = "0.22"
 webview2-com = "0.39"
+windows-future = "0.3"
 unicode-normalization = "0.1.25"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"

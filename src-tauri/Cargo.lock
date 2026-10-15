@@ -1958,6 +1958,7 @@ dependencies = [
  "unicode-normalization",
  "webview2-com",
  "windows",
+ "windows-future",
  "windows-registry",
 ]
 
