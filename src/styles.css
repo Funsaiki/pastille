@@ -117,14 +117,16 @@ button, input { font-family: 'Nunito', sans-serif; }
 .wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgba(15, 59, 66, .55); }
 .preview .wallpaper-hint { display: block; }
 
-/* ── Téléphone : incliné et debout, ou à plat et couché (.landscape sur la scène) ── */
+/* ── Téléphone : incliné et debout, ou à plat et couché (.landscape sur la scène) ──
+   Couché, il est agrandi de 10 % (demande de Funsaiki) et remonté de 140 px au lieu de 130 :
+   la Miku du strap reste au-dessus du bord de l'écran. */
 .phone { position: absolute; left: 500px; top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%; }
 .phone-tilt {
   position: relative; width: 410px; height: 830px;
-  transform: translateY(0px) rotateZ(6deg) rotateX(13deg) rotateY(-36deg);
+  transform: translateY(0px) scale(1) rotateZ(6deg) rotateX(13deg) rotateY(-36deg);
   transform-style: preserve-3d; transition: transform .7s var(--turn);
 }
-.landscape .phone-tilt { transform: translateY(-130px) rotateZ(0deg) rotateX(0deg) rotateY(0deg); }
+.landscape .phone-tilt { transform: translateY(-140px) scale(1.1) rotateZ(0deg) rotateX(0deg) rotateY(0deg); }
 .phone-orient {
   position: absolute; left: 0; top: 0; width: 410px; height: 830px;
   transform: rotateZ(0deg); transform-style: preserve-3d; transition: transform .7s var(--turn);
