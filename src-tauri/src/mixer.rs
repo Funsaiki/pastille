@@ -56,26 +56,17 @@ pub async fn set_app_volume(key: String, level: u8) -> Result<(), String> {
     .await
 }
 
-#[derive(Serialize)]
-pub struct SpotifyVolume {
-    /// Programme, à renvoyer à set_app_volume
-    key: String,
-    volume: u8,
-}
-
-/// Volume de Spotify dans le mélangeur (demande de Funsaiki : réglable depuis la carte de
-/// lecture) ; None tant que Spotify n'a pas de session audio (fermé, ou rien joué encore)
-#[tauri::command]
-pub async fn spotify_volume() -> Option<SpotifyVolume> {
-    com_task(|| {
-        match sessions()?.into_iter().find(|s| is_spotify(&s.key)) {
-            Some(session) => Ok(Some(SpotifyVolume { volume: session.level()?, key: session.key })),
-            None => Ok(None),
+/// Volume de Spotify dans le mélangeur : (programme, niveau), pour la carte de lecture quand
+/// Spotify n'est pas connecté (spotify.rs) ; None tant que Spotify n'a pas de session audio
+/// (fermé, ou rien joué encore). À appeler avec COM.
+pub fn spotify_session() -> windows::core::Result<Option<(String, u8)>> {
+    match sessions()?.into_iter().find(|s| is_spotify(&s.key)) {
+        Some(session) => {
+            let level = session.level()?;
+            Ok(Some((session.key, level)))
         }
-    })
-    .await
-    .ok()
-    .flatten()
+        None => Ok(None),
+    }
 }
 
 fn is_spotify(key: &str) -> bool {

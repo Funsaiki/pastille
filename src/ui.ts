@@ -502,13 +502,18 @@ async function controlMedia(action: MediaAction) {
   setTimeout(refreshMedia, 500);   // nouveau morceau : Spotify met un instant à l'annoncer
 }
 
-/* ── Volume de Spotify (demandé par Funsaiki) : celui du mélangeur de Windows, réglable depuis
-   la carte de lecture (curseur, molette). Relu à l'affichage de la vue réglages puis toutes
-   les 5 s ; ce curseur et la tranche de Spotify dans le mélangeur se suivent. ── */
+/* ── Volume de Spotify (demandé par Funsaiki), réglable depuis la carte de lecture (curseur,
+   molette) : celui de Spotify lui-même quand il est connecté (API web, menu de l'icône), sinon
+   celui du mélangeur de Windows (ce curseur et la tranche de Spotify se suivent alors). Relu à
+   l'affichage de la vue réglages puis toutes les 5 s. ── */
 let spotifyVolume: SpotifyVolume | null = null;
-let spotifyRun = 0;   // change à chaque réglage : une lecture partie avant est ignorée
+let spotifyRun = 0;    // change à chaque réglage : une lecture partie avant est ignorée
+let spotifyHold = 0;   // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
+
+const sendSpotify = latestOnly((level) => host.setSpotifyVolume(level).catch((e) => report('Spotify', e)));
 
 async function refreshSpotifyVolume() {
+  if (performance.now() < spotifyHold) return;
   const run = ++spotifyRun;
   const now = await host.spotifyVolume().catch(() => null);
   if (run !== spotifyRun) return;
@@ -519,10 +524,10 @@ async function refreshSpotifyVolume() {
 function renderSpotifyVolume() {
   const input = $('media-volume') as HTMLInputElement;
   const level = spotifyVolume?.volume ?? 0;
-  input.disabled = !spotifyVolume;   // Spotify fermé, ou pas encore de son
+  input.disabled = !spotifyVolume;   // Spotify fermé, sans son ou sans appareil actif
   input.value = String(level);
   input.style.setProperty('--pct', level + '%');
-  input.title = `Volume de Spotify : ${level} %`;
+  input.title = spotifyVolume?.source === 'windows' ? `Volume de Spotify (mélangeur de Windows) : ${level} %` : `Volume de Spotify : ${level} %`;
 }
 
 function setSpotifyVolume(level: number) {
@@ -530,12 +535,18 @@ function setSpotifyVolume(level: number) {
   spotifyVolume.volume = Math.max(0, Math.min(100, Math.round(level)));
   spotifyRun++;
   renderSpotifyVolume();
-  sendAppVolume(spotifyVolume.key, spotifyVolume.volume);   // envoi partagé avec le mélangeur
+  if (spotifyVolume.source === 'windows') {
+    sendAppVolume(spotifyVolume.key, spotifyVolume.volume);   // envoi partagé avec le mélangeur
+  } else {
+    spotifyHold = performance.now() + 1500;
+    sendSpotify(spotifyVolume.volume);
+  }
 }
 
-/* Tranche de Spotify bougée dans le mélangeur : le curseur de la carte suit */
+/* Tranche de Spotify bougée dans le mélangeur : le curseur de la carte suit (s'il règle le
+   même volume, celui de Windows) */
 function followMixer(key: string, level: number) {
-  if (spotifyVolume?.key !== key) return;
+  if (spotifyVolume?.source !== 'windows' || spotifyVolume.key !== key) return;
   spotifyVolume.volume = level;
   spotifyRun++;
   renderSpotifyVolume();

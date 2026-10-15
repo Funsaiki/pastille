@@ -54,9 +54,11 @@ export interface AppVolume {
   icon: AppIcon | null;
 }
 
-/* Volume de Spotify dans le mélangeur de Windows */
+/* Volume de Spotify : celui de Spotify lui-même quand il est connecté (API web, spotify.rs),
+   sinon celui du mélangeur de Windows */
 export interface SpotifyVolume {
-  key: string;      // programme, pour setAppVolume (le même que dans le mélangeur)
+  source: 'app' | 'windows';
+  key: string;      // programme, pour setAppVolume (source « windows », le même que dans le mélangeur)
   volume: number;   // 0 à 100
 }
 
@@ -155,10 +157,15 @@ export const host = {
     if (PREVIEW) console.info('[aperçu] volume de', key, ':', level);
     else await invoke('set_app_volume', { key, level });
   },
-  /* null tant que Spotify n'a pas de session audio (fermé, ou rien joué encore) */
+  /* null : pas d'appareil actif (connecté) ou pas de session audio (fermé, rien joué encore) */
   async spotifyVolume(): Promise<SpotifyVolume | null> {
-    if (PREVIEW) return { key: 'spotify', volume: 80 };
+    if (PREVIEW) return { source: 'windows', key: 'spotify', volume: 80 };
     return invoke<SpotifyVolume | null>('spotify_volume');
+  },
+  /* Volume de Spotify lui-même (connecté seulement) */
+  async setSpotifyVolume(level: number) {
+    if (PREVIEW) console.info('[aperçu] volume de Spotify :', level);
+    else await invoke('set_spotify_volume', { level });
   },
   /* Alertes, activité de Steam, téléchargements des dernières 24 h */
   async feed(): Promise<FeedEvent[]> {

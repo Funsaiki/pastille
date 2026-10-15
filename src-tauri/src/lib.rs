@@ -9,6 +9,7 @@ mod media;
 mod mixer;
 mod power;
 mod shell;
+mod spotify;
 mod steam;
 mod switch;
 mod system;
@@ -53,6 +54,7 @@ pub fn run() {
             // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
             com::keep_mta();
             app.manage(usage::load(app.handle()));
+            app.manage(spotify::load(app.handle()));
             config::init(app.handle());
             app.manage(system::Meter::default());
             let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());
@@ -78,7 +80,8 @@ pub fn run() {
             media::media_cover,
             mixer::mixer,
             mixer::set_app_volume,
-            mixer::spotify_volume,
+            spotify::spotify_volume,
+            spotify::set_spotify_volume,
             feed::feed,
             feed::open_download,
             tray_apps::tray_apps,

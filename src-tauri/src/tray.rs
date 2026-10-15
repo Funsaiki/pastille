@@ -7,12 +7,15 @@ use tauri::{
 };
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::{config, launcher, shell};
+use crate::{config, launcher, shell, spotify};
 
 pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Afficher", true, None::<&str>)?;
     let edit = MenuItem::with_id(app, "edit", "Modifier apps.json", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, "reload", "Recharger la config", true, None::<&str>)?;
+    // Volume interne de Spotify par son API web (spotify.rs) : connexion dans le navigateur
+    let (label, enabled) = spotify::menu_label(app);
+    let spotify_item = MenuItem::with_id(app, "spotify", label, enabled, None::<&str>)?;
     // Écrit dans le registre (HKCU\…\Run) : seul Funsaiki la coche, depuis la version installée.
     // En développement, l'entrée pointerait vers l'exe de debug : option grisée.
     let installed = !cfg!(debug_assertions);
@@ -26,7 +29,7 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
     )?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &edit, &reload, &autostart, &separator, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &edit, &reload, &spotify_item, &autostart, &separator, &quit])?;
 
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip(tooltip)
@@ -36,6 +39,7 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
             "show" => launcher::show(app),
             "edit" => edit_config(app),
             "reload" => config::reload(app),
+            "spotify" => spotify::toggle(app, &spotify_item),
             "autostart" => toggle_autostart(app, &autostart),
             "quit" => app.exit(0),
             _ => {}
