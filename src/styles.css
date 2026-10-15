@@ -137,6 +137,17 @@ button, input { font-family: 'Nunito', sans-serif; }
    (remarque de Funsaiki). Toutes les rotations sont à 0 : rien ne bouge (moins d'un demi-pixel). */
 .landscape.settled .phone { perspective: none; }
 .landscape.settled .phone-tilt, .landscape.settled .phone-orient { transform-style: flat; }
+/* Transformation en 2D pur : les rotations à 0 (rotateX, rotateY) restent de la 3D pour le
+   navigateur, qui en fait un calque à part */
+.landscape.settled .phone-tilt { transform: translateY(-140px) scale(1.1); }
+/* Passage 3D ↔ plat (setSettled, ui.ts) : sans transition, identique à l'œil ; au retour, la
+   rotation repart de la forme 3D d'origine et suit le même chemin qu'avant */
+.settling .phone-tilt, .settling .strap { transition: none !important; }
+/* Sans décalage 3D (il faisait du corps un calque à part, dessiné puis posé) ; isolation garde
+   l'ordre d'empilement que donnait la transformation. La tranche est déjà invisible. */
+.landscape.settled .phone-body { transform: none; isolation: isolate; }
+.landscape.settled .edges { display: none; }
+.landscape.settled .strap { transform: rotate(90deg); transition: none; }
 
 /* Tranche : disparaît tout de suite en se couchant, revient après la rotation */
 .edges { position: absolute; left: 0; top: 0; width: 410px; height: 830px; transform-style: preserve-3d; pointer-events: none; --edge-o: 1; --edge-d: .45s; }

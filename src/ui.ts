@@ -1098,7 +1098,7 @@ function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
     $('web-search').title = label.textContent!;
   }
   grid.classList.remove('tp-in-r', 'tp-in-l');
-  if (transition) restartAnimation(grid, transition);
+  if (transition) playOnce(grid, transition);   // retirée une fois jouée (voir showApps)
   $('folders').hidden = !showFolders();
   renderRecents();
   renderHead(list.length);
@@ -1207,12 +1207,16 @@ function showApps(query = '') {
   $('stage').classList.add('landscape');
   // Couché : rendu à plat une fois la rotation finie, pour un texte net (styles.css)
   clearTimeout(settleTimer);
-  settleTimer = setTimeout(() => $('stage').classList.add('settled'), TURN_MS + 50);
+  settleTimer = setTimeout(() => setSettled(true), TURN_MS + 50);
   $('settings').hidden = true;
   closeMixer();
   closeTrayMenu(false);
   stopStats();
-  $('apps').hidden = false;   // affichée : tp-land repart
+  $('apps').hidden = false;
+  // Apparition après la rotation, retirée une fois jouée : une animation qui garde son état
+  // final garde aussi la vue dans un calque à part, dessiné avant l'agrandissement de 10 % puis
+  // étiré (texte flou, remarqué par Funsaiki)
+  playOnce($('apps'), 'tp-land');
   renderApps();
   $q().focus({ preventScroll: true });
   if (query) refreshWindows();
@@ -1222,12 +1226,24 @@ function showSettings() {
   enterSettings(true);
 }
 
+/* Rendu à plat du téléphone couché (texte net, styles.css) : appliqué ou retiré sans transition,
+   les deux rendus étant identiques à l'œil */
+function setSettled(on: boolean) {
+  const stage = $('stage');
+  if (stage.classList.contains('settled') === on) return;
+  stage.classList.add('settling');
+  stage.classList.toggle('settled', on);
+  void stage.offsetWidth;   // style appliqué tant que les transitions sont coupées
+  stage.classList.remove('settling');
+}
+
 /* Vue réglages affichée (à l'ouverture, ou au retour des applications : elle apparaît alors
    après la rotation, tp-fade-late) ; ses animations repartent */
 function enterSettings(afterTurn: boolean) {
   state.view = 'settings';
   clearTimeout(settleTimer);
-  $('stage').classList.remove('landscape', 'settled');   // la 3D revient avant de se relever
+  setSettled(false);   // la 3D revient, sans transition, avant de se relever
+  $('stage').classList.remove('landscape');
   $('apps').hidden = true;
   $('settings').classList.toggle('tp-fade-late', afterTurn);
   $('settings').hidden = false;
@@ -1313,6 +1329,11 @@ function bindEvents() {
     setVolume(sound.volume + wheelStep(e));
   }, { passive: true });
   $('strap').addEventListener('pointerenter', swingStrap);
+  // Balancement fini (il revient à 0°) : retiré, sinon il garde le strap dans un calque à part
+  // qui oblige ses voisins (le corps du téléphone) à en être aussi ; playEntrance le remet
+  $('strap-swing').addEventListener('animationend', (e) => {
+    if (e.target === e.currentTarget) $('strap-swing').style.animation = 'none';
+  });
   $('mixer-toggle').addEventListener('click', () => (mixerOpen() ? closeMixer() : openMixer()));
   // Marches du volume de Spotify : clic ou glisser, flèches (5 %), Début et Fin
   const meter = $('media-volume');
@@ -1517,6 +1538,9 @@ function playEntrance() {
   startClock();
   fitStage();
   stage.hidden = false;
+  // Montée du téléphone, retirée une fois jouée : elle garderait sinon le téléphone dans un
+  // calque à part (texte flou en vue applications, voir showApps)
+  playOnce($('phone'), 'tp-rise');
 }
 
 /* ── Masquage : le téléphone redescend (.leaving), puis on vide la scène avant de masquer
