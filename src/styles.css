@@ -320,7 +320,19 @@ button, input { font-family: 'Nunito', sans-serif; }
    carte garde sa hauteur */
 .media:has(.media-controls) .media-text { line-height: 1.1; }
 .media-controls { display: flex; align-items: center; gap: 3px; margin-top: 2px; height: 15px; }
-.media-volume { flex: 1; min-width: 0; height: 9px; border-width: 2px; }
+/* Volume de Spotify en marches d'égaliseur (Funsaiki trouvait le petit curseur redondant avec le
+   volume) : dix barres de 4 px de plus en plus hautes, à l'encre comme l'égaliseur de la
+   pochette, pâles au-dessus du niveau ; celle qui contient le niveau se remplit en partie.
+   Chaque barre est une case de 6 px de large, sans espace entre elles : on vise toujours une marche. */
+.media-volume { flex: none; display: flex; height: 14px; cursor: pointer; touch-action: none; border-radius: 3px; }
+.media-volume i { flex: none; width: 6px; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.media-volume i::before {
+  content: ''; width: 4px; height: var(--h); border-radius: 2px;
+  background: linear-gradient(0deg, var(--ink) var(--p, 0%), rgba(15, 59, 66, .18) var(--p, 0%));
+}
+.media-volume:hover i::before { box-shadow: 0 0 0 .5px rgba(15, 59, 66, .25); }
+.media-volume:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.media-volume[aria-disabled="true"] { opacity: .4; cursor: default; pointer-events: none; }
 /* Aléatoire et répétition (demandés par Funsaiki, Spotify connecté) : petits ronds sans bordure
    à droite du curseur, fond accent quand ils sont actifs, comme les boutons du haut au survol.
    Répétition d'un seul titre : un « 1 » au milieu. */
@@ -335,8 +347,11 @@ button, input { font-family: 'Nunito', sans-serif; }
 .media-mode:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .media-mode .repeat-one { display: none; }
 .media-mode[data-mode="track"] .repeat-one { display: inline; }
-.media-volume::-webkit-slider-thumb { width: 15px; height: 15px; border-width: 2px; box-shadow: 0 1.5px 0 var(--ink); }
-.media-volume:disabled { opacity: .4; cursor: default; }
+/* Aléatoire intelligent de Spotify (activé dans Spotify, l'API ne peut que le couper) : petite
+   étincelle et fond rose de la palette */
+.media-mode .smart-spark { display: none; }
+.media-mode[data-mode="smart"] .smart-spark { display: inline; }
+.media-mode[aria-pressed="true"][data-mode="smart"] { background: #f6c6da; }
 .media-btn {
   width: 34px; height: 34px; flex: none; border-radius: 50%; border: 2.5px solid var(--ink); background: #ffffff;
   color: var(--ink); box-shadow: 0 2px 0 var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;

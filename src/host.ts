@@ -63,10 +63,11 @@ export interface SpotifyVolume {
 }
 
 export type RepeatMode = 'off' | 'context' | 'track';
+export type ShuffleMode = 'off' | 'on' | 'smart';   // smart : aléatoire intelligent de Spotify
 
 export interface SpotifyState {
   volume: SpotifyVolume | null;   // null : pas d'appareil actif (connecté) ou pas de session audio
-  shuffle: boolean | null;        // aléatoire et répétition : Spotify connecté seulement
+  shuffle: ShuffleMode | null;    // aléatoire et répétition : Spotify connecté seulement
   repeat: RepeatMode | null;
   problem: string | null;         // dernier échec de connexion, pour les notifications
 }
@@ -111,7 +112,7 @@ function previewConfig(): Config {
 const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };
 
 /* Aperçu navigateur : aléatoire et répétition de Spotify */
-let previewShuffle = true;
+let previewShuffle: ShuffleMode = 'smart';
 let previewRepeat: RepeatMode = 'off';
 
 /* Aperçu navigateur : applications de la zone de notification, sans leurs icônes */
@@ -183,7 +184,7 @@ export const host = {
     return invoke<SpotifyState>('spotify_state');
   },
   async setSpotifyShuffle(on: boolean) {
-    if (PREVIEW) previewShuffle = on;
+    if (PREVIEW) previewShuffle = on ? 'on' : 'off';
     else await invoke('set_spotify_shuffle', { on });
   },
   async setSpotifyRepeat(mode: RepeatMode) {

@@ -481,8 +481,9 @@ pub struct Volume {
 pub struct PlayerState {
     /// None : Spotify connecté sans appareil actif (ou injoignable), ou pas de session audio
     volume: Option<Volume>,
-    /// Aléatoire et répétition (« off », « context », « track ») : connecté seulement
-    shuffle: Option<bool>,
+    /// Aléatoire (« off », « on » ou « smart » : l'aléatoire intelligent de Spotify) et
+    /// répétition (« off », « context », « track ») : connecté seulement
+    shuffle: Option<&'static str>,
     repeat: Option<String>,
     /// Dernier échec de connexion, pour les notifications
     problem: Option<String>,
@@ -491,7 +492,7 @@ pub struct PlayerState {
 /// Appareil où Spotify joue (ce PC, ou le téléphone par Spotify Connect) ; None sans appareil actif
 struct Player {
     volume: Option<u8>,
-    shuffle: bool,
+    shuffle: &'static str,
     repeat: String,
 }
 
@@ -553,12 +554,40 @@ fn player(app: &AppHandle) -> Result<Option<Player>, String> {
     let json = parse(&body);
     match status {
         204 => Ok(None), // aucun appareil actif
-        200 => Ok(Some(Player {
-            volume: json["device"]["volume_percent"].as_u64().map(|v| v.min(100) as u8),
-            shuffle: json["shuffle_state"].as_bool().unwrap_or(false),
-            repeat: json["repeat_state"].as_str().unwrap_or("off").to_string(),
-        })),
+        200 => {
+            log_shuffle(&json);
+            Ok(Some(Player {
+                volume: json["device"]["volume_percent"].as_u64().map(|v| v.min(100) as u8),
+                shuffle: shuffle_mode(&json),
+                repeat: json["repeat_state"].as_str().unwrap_or("off").to_string(),
+            }))
+        }
         _ => Err(api_error(status, &json)),
+    }
+}
+
+/// Aléatoire intelligent (Smart Shuffle) : champ `smart_shuffle` de l'état du lecteur, absent
+/// de la documentation ; l'API ne permet pas de l'activer (seulement aléatoire oui ou non)
+fn shuffle_mode(json: &Value) -> &'static str {
+    match (json["shuffle_state"].as_bool(), json["smart_shuffle"].as_bool()) {
+        (_, Some(true)) => "smart",
+        (Some(true), _) => "on",
+        _ => "off",
+    }
+}
+
+/// Développement : les champs de l'aléatoire tels que Spotify les donne, à chaque changement
+/// (vérification de `smart_shuffle` chez Funsaiki)
+fn log_shuffle(json: &Value) {
+    static LAST: Mutex<String> = Mutex::new(String::new());
+    if !cfg!(debug_assertions) {
+        return;
+    }
+    let now = format!("shuffle_state={} smart_shuffle={}", json["shuffle_state"], json["smart_shuffle"]);
+    let mut last = LAST.lock().unwrap();
+    if *last != now {
+        eprintln!("[lanceur] Spotify : {now}");
+        *last = now;
     }
 }
 
@@ -790,6 +819,14 @@ mod tests {
             form(&[("redirect_uri", REDIRECT), ("scope", "a-b c-d")]),
             "redirect_uri=http%3A%2F%2F127.0.0.1%3A47913%2Fcallback&scope=a-b+c-d"
         );
+    }
+
+    #[test]
+    fn shuffle_modes() {
+        assert_eq!(shuffle_mode(&parse(r#"{"shuffle_state":false}"#)), "off");
+        assert_eq!(shuffle_mode(&parse(r#"{"shuffle_state":true,"smart_shuffle":false}"#)), "on");
+        assert_eq!(shuffle_mode(&parse(r#"{"shuffle_state":true,"smart_shuffle":true}"#)), "smart");
+        assert_eq!(shuffle_mode(&parse(r#"{"shuffle_state":true}"#)), "on", "champ absent");
     }
 
     #[test]

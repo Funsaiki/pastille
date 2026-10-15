@@ -9,7 +9,7 @@
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
-import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
+import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -518,7 +518,7 @@ async function controlMedia(action: MediaAction) {
    l'affichage de la vue réglages puis toutes les 5 s. ── */
 let spotifyVolume: SpotifyVolume | null = null;
 // Aléatoire et répétition (demandés par Funsaiki) : Spotify connecté et appareil actif seulement
-let spotifyModes: { shuffle: boolean; repeat: RepeatMode } | null = null;
+let spotifyModes: { shuffle: ShuffleMode; repeat: RepeatMode } | null = null;
 let spotifyProblem: string | null = null;   // échec de connexion, montré dans Notifs
 let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
 let spotifyHold = 0;          // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
@@ -544,26 +544,54 @@ async function refreshSpotifyVolume() {
   }
 }
 
+/* Marches d'égaliseur : dix barres de 10 %, celle qui contient le niveau remplie en partie */
+const STEPS = 10;
+
 function renderSpotifyVolume() {
-  const input = $('media-volume') as HTMLInputElement;
+  const meter = $('media-volume');
   const level = spotifyVolume?.volume ?? 0;
-  input.disabled = !spotifyVolume;   // Spotify fermé, sans son ou sans appareil actif
-  input.value = String(level);
-  input.style.setProperty('--pct', level + '%');
-  input.title = !spotifyVolume
+  const off = !spotifyVolume;   // Spotify fermé, sans son ou sans appareil actif
+  meter.setAttribute('aria-disabled', String(off));
+  meter.tabIndex = off ? -1 : 0;
+  meter.setAttribute('aria-valuenow', String(level));
+  meter.setAttribute('aria-valuetext', off ? 'indisponible' : `${level} %`);
+  meter.querySelectorAll<HTMLElement>('i').forEach((bar, i) => {
+    const fill = Math.max(0, Math.min(1, (level - i * (100 / STEPS)) / (100 / STEPS)));
+    bar.style.setProperty('--p', fill * 100 + '%');
+  });
+  meter.title = off
     ? 'Volume de Spotify : indisponible'
-    : spotifyVolume.source === 'windows'
+    : spotifyVolume!.source === 'windows'
       ? `Volume de Spotify (mélangeur de Windows) : ${level} %`
       : `Volume de Spotify : ${level} %`;
   const shuffle = $('shuffle');
   const repeat = $('repeat');
   shuffle.hidden = repeat.hidden = !spotifyModes;
   if (!spotifyModes) return;
-  shuffle.setAttribute('aria-pressed', String(spotifyModes.shuffle));
+  shuffle.setAttribute('aria-pressed', String(spotifyModes.shuffle !== 'off'));
+  shuffle.dataset.mode = spotifyModes.shuffle;
+  shuffle.title = SHUFFLE_LABELS[spotifyModes.shuffle];
   repeat.setAttribute('aria-pressed', String(spotifyModes.repeat !== 'off'));
   repeat.dataset.mode = spotifyModes.repeat;
   repeat.title = REPEAT_LABELS[spotifyModes.repeat];
 }
+
+/* Marche sous le pointeur → niveau (10 % par marche). Par le test d'atteinte de la page : le
+   téléphone est incliné en 3D, les coordonnées du rectangle ne correspondraient pas. Un clic sur
+   la première marche quand le niveau y est déjà coupe le son. */
+function stepLevel(x: number, y: number, first: boolean): number | null {
+  const bar = document.elementFromPoint(x, y)?.closest<HTMLElement>('#media-volume i');
+  if (!bar) return null;
+  const index = Array.from($('media-volume').children).indexOf(bar);
+  const level = (index + 1) * (100 / STEPS);
+  return first && index === 0 && (spotifyVolume?.volume ?? 0) > 0 && (spotifyVolume?.volume ?? 0) <= level ? 0 : level;
+}
+
+const SHUFFLE_LABELS: Record<ShuffleMode, string> = {
+  off: 'Lecture aléatoire : non',
+  on: 'Lecture aléatoire : oui',
+  smart: 'Aléatoire intelligent (activé dans Spotify) : cliquer pour le couper',
+};
 
 const REPEAT_LABELS: Record<RepeatMode, string> = {
   off: 'Répétition : non',
@@ -572,16 +600,18 @@ const REPEAT_LABELS: Record<RepeatMode, string> = {
 };
 
 /* Clic : change tout de suite, comme lecture/pause ; Spotify suit (un échec est signalé et
-   la relecture suivante rétablit l'état réel). Répétition : non → playlist → titre → non. */
+   la relecture suivante rétablit l'état réel). Aléatoire : non ↔ oui ; l'aléatoire intelligent
+   ne peut que se couper (l'API de Spotify ne sait pas l'activer). Répétition : non → playlist
+   → titre → non. */
 async function toggleSpotifyMode(which: 'shuffle' | 'repeat') {
   if (!spotifyModes) return;
   spotifyRun++;
   spotifyHold = performance.now() + 1500;
   try {
     if (which === 'shuffle') {
-      spotifyModes.shuffle = !spotifyModes.shuffle;
+      spotifyModes.shuffle = spotifyModes.shuffle === 'off' ? 'on' : 'off';
       renderSpotifyVolume();
-      await host.setSpotifyShuffle(spotifyModes.shuffle);
+      await host.setSpotifyShuffle(spotifyModes.shuffle === 'on');
     } else {
       const next: Record<RepeatMode, RepeatMode> = { off: 'context', context: 'track', track: 'off' };
       spotifyModes.repeat = next[spotifyModes.repeat];
@@ -1277,7 +1307,27 @@ function bindEvents() {
   }, { passive: true });
   $('strap').addEventListener('pointerenter', swingStrap);
   $('mixer-toggle').addEventListener('click', () => (mixerOpen() ? closeMixer() : openMixer()));
-  $('media-volume').addEventListener('input', () => setSpotifyVolume(Number(($('media-volume') as HTMLInputElement).value)));
+  // Marches du volume de Spotify : clic ou glisser, flèches (5 %), Début et Fin
+  const meter = $('media-volume');
+  meter.addEventListener('pointerdown', (e) => {
+    if (!spotifyVolume || e.button !== 0) return;
+    meter.setPointerCapture(e.pointerId);
+    const level = stepLevel(e.clientX, e.clientY, true);
+    if (level !== null) setSpotifyVolume(level);
+  });
+  meter.addEventListener('pointermove', (e) => {
+    if (!meter.hasPointerCapture(e.pointerId)) return;
+    const level = stepLevel(e.clientX, e.clientY, false);
+    if (level !== null && level !== spotifyVolume?.volume) setSpotifyVolume(level);
+  });
+  meter.addEventListener('keydown', (e) => {
+    if (!spotifyVolume) return;
+    const steps: Record<string, number> = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5 };
+    if (e.key in steps) setSpotifyVolume(spotifyVolume.volume + steps[e.key]);
+    else if (e.key === 'Home' || e.key === 'End') setSpotifyVolume(e.key === 'Home' ? 0 : 100);
+    else return;
+    e.preventDefault();
+  });
   // Molette sur la carte de lecture : volume de Spotify, 2 % par cran comme celui du volume
   $('media-volume').closest<HTMLElement>('.media')!.addEventListener('wheel', (e) => {
     if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;

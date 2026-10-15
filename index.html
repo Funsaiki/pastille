@@ -129,10 +129,14 @@
             <!-- Volume de Spotify (demandé par Funsaiki) : celui de Spotify lui-même une fois
                  connecté (menu de l'icône), sinon celui du mélangeur de Windows -->
             <div class="media-controls">
-              <input class="tp-range media-volume" id="media-volume" type="range" min="0" max="100" aria-label="Volume de Spotify">
+              <!-- Dix marches d'égaliseur (Funsaiki trouvait un petit curseur redondant avec le
+                   volume) : clic ou glisser, 10 % par marche ; molette sur la carte, flèches -->
+              <div class="media-volume" id="media-volume" role="slider" tabindex="0" aria-label="Volume de Spotify" aria-valuemin="0" aria-valuemax="100">
+                <i style="--h: 5px"></i><i style="--h: 6px"></i><i style="--h: 7px"></i><i style="--h: 8px"></i><i style="--h: 9px"></i><i style="--h: 10px"></i><i style="--h: 11px"></i><i style="--h: 12px"></i><i style="--h: 13px"></i><i style="--h: 14px"></i>
+              </div>
               <!-- Aléatoire et répétition (demandés par Funsaiki), Spotify connecté seulement -->
               <button class="media-mode" id="shuffle" aria-label="Lecture aléatoire" title="Lecture aléatoire" aria-pressed="false" hidden>
-                <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path></svg>
+                <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path><path class="smart-spark" d="M4.5 10v7M1 13.5h7"></path></svg>
               </button>
               <button class="media-mode" id="repeat" aria-label="Répétition" title="Répétition" aria-pressed="false" hidden>
                 <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"></path><path class="repeat-one" d="M11 10.5l1.5-1.5v6"></path></svg>
