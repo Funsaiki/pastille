@@ -56,11 +56,37 @@ pub async fn set_app_volume(key: String, level: u8) -> Result<(), String> {
     .await
 }
 
+#[derive(Serialize)]
+pub struct SpotifyVolume {
+    /// Programme, à renvoyer à set_app_volume
+    key: String,
+    volume: u8,
+}
+
+/// Volume de Spotify dans le mélangeur (demande de Funsaiki : réglable depuis la carte de
+/// lecture) ; None tant que Spotify n'a pas de session audio (fermé, ou rien joué encore)
+#[tauri::command]
+pub async fn spotify_volume() -> Option<SpotifyVolume> {
+    com_task(|| {
+        match sessions()?.into_iter().find(|s| is_spotify(&s.key)) {
+            Some(session) => Ok(Some(SpotifyVolume { volume: session.level()?, key: session.key })),
+            None => Ok(None),
+        }
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+fn is_spotify(key: &str) -> bool {
+    Path::new(key).file_name().is_some_and(|name| name.eq_ignore_ascii_case("spotify.exe"))
+}
+
 fn list() -> windows::core::Result<Vec<AppVolume>> {
     // Programme -> (volume de sa première session, l'une de ses sessions joue du son)
     let mut apps: HashMap<String, (u8, bool)> = HashMap::new();
     for session in sessions()? {
-        let level = (unsafe { session.volume.GetMasterVolume()? } * 100.0).round() as u8;
+        let level = session.level()?;
         apps.entry(session.key).or_insert((level, false)).1 |= session.playing;
     }
     let mut apps: Vec<(AppVolume, bool)> = apps
@@ -80,6 +106,13 @@ struct Session {
     volume: ISimpleAudioVolume,
     /// Joue du son en ce moment
     playing: bool,
+}
+
+impl Session {
+    /// 0 à 100
+    fn level(&self) -> windows::core::Result<u8> {
+        Ok((unsafe { self.volume.GetMasterVolume()? } * 100.0).round() as u8)
+    }
 }
 
 /// Sessions de la sortie par défaut, sauf celles des applications fermées
@@ -175,6 +208,14 @@ mod tests {
         let windir = std::env::var("SystemRoot").unwrap();
         assert!(description(&format!("{windir}\\System32\\cmd.exe")).is_some());
         assert_eq!(name_of("C:\\nulle-part\\MonJeu.exe"), "MonJeu");
+    }
+
+    #[test]
+    fn spotify_is_found_by_its_program() {
+        assert!(is_spotify(r"C:\Program Files\WindowsApps\SpotifyAB.SpotifyMusic_1.304.258.0_x64__zpdnekdrzrea0\Spotify.exe"));
+        assert!(is_spotify(r"C:\Users\johnny\AppData\Roaming\Spotify\spotify.exe"));
+        assert!(!is_spotify(r"C:\Outils\spotify-dl.exe"));
+        assert!(!is_spotify(SYSTEM));
     }
 
     /// Diagnostic : cargo test real_mixer -- --ignored --nocapture

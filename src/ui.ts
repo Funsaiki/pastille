@@ -8,7 +8,7 @@
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats, type TrayAction, type TrayApp } from './host';
+import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -153,6 +153,7 @@ async function pollStats(run: number) {
   if (++statsTicks % 5 === 0) {
     refreshFeed();
     refreshTrayApps();
+    refreshSpotifyVolume();
   }
   statsTimer = setTimeout(() => pollStats(run), 1000);
 }
@@ -362,12 +363,14 @@ function renderMixer(apps: AppVolume[]) {
     input.addEventListener('input', () => {
       show(Number(input.value));
       sendAppVolume(app.key, Number(input.value));
+      followMixer(app.key, Number(input.value));
     });
     input.addEventListener('wheel', (e) => {
       if (Math.abs(e.deltaY) < 4) return;
       const level = Math.max(0, Math.min(100, Number(input.value) + wheelStep(e)));
       show(level);
       sendAppVolume(app.key, level);
+      followMixer(app.key, level);
     }, { passive: true });
     // Icône du programme sur fond blanc ; à défaut, haut-parleur (sons système) ou initiale
     const badge = el('span', 'mixer-badge');
@@ -497,6 +500,45 @@ async function controlMedia(action: MediaAction) {
     report('Lecture', e);
   }
   setTimeout(refreshMedia, 500);   // nouveau morceau : Spotify met un instant à l'annoncer
+}
+
+/* ── Volume de Spotify (demandé par Funsaiki) : celui du mélangeur de Windows, réglable depuis
+   la carte de lecture (curseur, molette). Relu à l'affichage de la vue réglages puis toutes
+   les 5 s ; ce curseur et la tranche de Spotify dans le mélangeur se suivent. ── */
+let spotifyVolume: SpotifyVolume | null = null;
+let spotifyRun = 0;   // change à chaque réglage : une lecture partie avant est ignorée
+
+async function refreshSpotifyVolume() {
+  const run = ++spotifyRun;
+  const now = await host.spotifyVolume().catch(() => null);
+  if (run !== spotifyRun) return;
+  spotifyVolume = now;
+  renderSpotifyVolume();
+}
+
+function renderSpotifyVolume() {
+  const input = $('media-volume') as HTMLInputElement;
+  const level = spotifyVolume?.volume ?? 0;
+  input.disabled = !spotifyVolume;   // Spotify fermé, ou pas encore de son
+  input.value = String(level);
+  input.style.setProperty('--pct', level + '%');
+  input.title = `Volume de Spotify : ${level} %`;
+}
+
+function setSpotifyVolume(level: number) {
+  if (!spotifyVolume) return;
+  spotifyVolume.volume = Math.max(0, Math.min(100, Math.round(level)));
+  spotifyRun++;
+  renderSpotifyVolume();
+  sendAppVolume(spotifyVolume.key, spotifyVolume.volume);   // envoi partagé avec le mélangeur
+}
+
+/* Tranche de Spotify bougée dans le mélangeur : le curseur de la carte suit */
+function followMixer(key: string, level: number) {
+  if (spotifyVolume?.key !== key) return;
+  spotifyVolume.volume = level;
+  spotifyRun++;
+  renderSpotifyVolume();
 }
 
 /* Applications lançables (feuilles de l'arbre, jeux Steam compris) */
@@ -807,6 +849,7 @@ function renderSettings() {
   updateTiles();
   renderVolume();
   renderMedia();
+  renderSpotifyVolume();
   renderNotifs();
   renderTrayApps();
 }
@@ -1003,6 +1046,7 @@ function enterSettings(afterTurn: boolean) {
   startStats();
   refreshAudio();
   refreshMedia();
+  refreshSpotifyVolume();
   refreshFeed();
   refreshTrayApps();
 }
@@ -1081,6 +1125,12 @@ function bindEvents() {
   }, { passive: true });
   $('strap').addEventListener('pointerenter', swingStrap);
   $('mixer-toggle').addEventListener('click', () => (mixerOpen() ? closeMixer() : openMixer()));
+  $('media-volume').addEventListener('input', () => setSpotifyVolume(Number(($('media-volume') as HTMLInputElement).value)));
+  // Molette sur la carte de lecture : volume de Spotify, 2 % par cran comme celui du volume
+  $('media-volume').closest<HTMLElement>('.media')!.addEventListener('wheel', (e) => {
+    if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;
+    setSpotifyVolume(spotifyVolume.volume + wheelStep(e));
+  }, { passive: true });
   $('play').addEventListener('click', () => controlMedia('toggle'));
   $('previous').addEventListener('click', () => controlMedia('previous'));
   $('next').addEventListener('click', () => controlMedia('next'));

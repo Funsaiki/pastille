@@ -78,6 +78,7 @@ pub fn run() {
             media::media_cover,
             mixer::mixer,
             mixer::set_app_volume,
+            mixer::spotify_volume,
             feed::feed,
             feed::open_download,
             tray_apps::tray_apps,

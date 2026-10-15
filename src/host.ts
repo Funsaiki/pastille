@@ -54,6 +54,12 @@ export interface AppVolume {
   icon: AppIcon | null;
 }
 
+/* Volume de Spotify dans le mélangeur de Windows */
+export interface SpotifyVolume {
+  key: string;      // programme, pour setAppVolume (le même que dans le mélangeur)
+  volume: number;   // 0 à 100
+}
+
 /* Application de la zone de notification (tray_apps.rs) */
 export interface TrayApp {
   key: string;        // chemin du programme, renvoyé pour agir (Rust vérifie qu'il est dans la liste)
@@ -148,6 +154,11 @@ export const host = {
   async setAppVolume(key: string, level: number) {
     if (PREVIEW) console.info('[aperçu] volume de', key, ':', level);
     else await invoke('set_app_volume', { key, level });
+  },
+  /* null tant que Spotify n'a pas de session audio (fermé, ou rien joué encore) */
+  async spotifyVolume(): Promise<SpotifyVolume | null> {
+    if (PREVIEW) return { key: 'spotify', volume: 80 };
+    return invoke<SpotifyVolume | null>('spotify_volume');
   },
   /* Alertes, activité de Steam, téléchargements des dernières 24 h */
   async feed(): Promise<FeedEvent[]> {
