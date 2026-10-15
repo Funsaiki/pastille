@@ -11,7 +11,7 @@ use std::{
 };
 
 use serde::Serialize;
-use windows::core::HSTRING;
+use windows::core::{GUID, HSTRING};
 use windows_registry::LOCAL_MACHINE;
 use windows::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives};
 use windows::Win32::System::Com::CoTaskMemFree;
@@ -75,8 +75,13 @@ pub async fn open_download(name: String) -> Result<(), String> {
 
 /// Dossier Téléchargements de Windows, même déplacé par l'utilisateur
 fn downloads_dir() -> Option<PathBuf> {
+    known_folder(&FOLDERID_Downloads)
+}
+
+/// Dossier connu de Windows (Téléchargements, Program Files…) ; aussi pour tray_apps.rs
+pub fn known_folder(id: &GUID) -> Option<PathBuf> {
     unsafe {
-        let path = SHGetKnownFolderPath(&FOLDERID_Downloads, KF_FLAG_DEFAULT, None).ok()?;
+        let path = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None).ok()?;
         let dir = path.to_string().ok();
         CoTaskMemFree(Some(path.0 as *const _));
         dir.map(PathBuf::from)

@@ -3,12 +3,12 @@
    (téléphone couché). Les applications, groupes, dossiers et lancements
    fonctionnent comme dans le premier lanceur. Dans la vue réglages, l'heure,
    le débit réseau, le profil, les boutons du haut, le volume, le micro, les
-   performances, la lecture en cours (Spotify) et les notifications (alertes du PC,
-   Steam, téléchargements) sont réels.
+   performances, la lecture en cours (Spotify), les applications de la zone de notification
+   et les notifications (alertes du PC, Steam, téléchargements) sont réels.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
-import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats } from './host';
+import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -136,7 +136,10 @@ async function pollStats(run: number) {
     updateTiles();
   }
   refreshMedia();   // morceau suivant, pause depuis Spotify…
-  if (++statsTicks % 5 === 0) refreshFeed();
+  if (++statsTicks % 5 === 0) {
+    refreshFeed();
+    refreshTrayApps();
+  }
   statsTimer = setTimeout(() => pollStats(run), 1000);
 }
 
@@ -183,6 +186,7 @@ const powerOpen = () => $('power').classList.contains('open');
 
 function openPowerMenu() {
   closeMixer();
+  closeTrayMenu(false);
   $('power-error').hidden = true;
   $('settings').inert = true;   // ni clic ni Tab derrière le menu
   $('power').classList.add('open');
@@ -205,9 +209,10 @@ async function choosePower(action: PowerAction) {
   }
 }
 
-/* Flèches haut et bas entre les choix et Annuler */
-function movePowerFocus(dir: 1 | -1) {
-  const buttons = Array.from($('power').querySelectorAll<HTMLElement>('button'));
+/* Flèches haut et bas entre les boutons d'un menu (alimentation : les choix et Annuler ;
+   clic droit sur une application) */
+function moveFocus(menu: HTMLElement, dir: 1 | -1) {
+  const buttons = Array.from(menu.querySelectorAll<HTMLElement>('button'));
   const i = buttons.indexOf(document.activeElement as HTMLElement);
   const next = i === -1 ? (dir > 0 ? 0 : buttons.length - 1) : (i + dir + buttons.length) % buttons.length;
   buttons[next].focus();
@@ -615,11 +620,178 @@ async function refreshFeed() {
   renderNotifs();
 }
 
+/* ── Onglets de la carte du bas (demandés par Funsaiki) : Apps (zone de notification) ou
+   Notifs. Le dernier choisi revient à chaque ouverture ; une erreur montre Notifs pour cette fois. ── */
+type Pane = 'apps' | 'notifs';
+const PANE_KEY = 'onglet-carte';
+let pane: Pane = savedPane();
+
+function savedPane(): Pane {
+  try {
+    return localStorage.getItem(PANE_KEY) === 'notifs' ? 'notifs' : 'apps';
+  } catch {
+    return 'apps';
+  }
+}
+
+/* `chosen` : clic sur l'onglet, gardé pour les prochaines ouvertures */
+function showPane(next: Pane, chosen = false) {
+  if (chosen) {
+    try {
+      localStorage.setItem(PANE_KEY, next);
+    } catch {
+      /* sans stockage, l'onglet Apps revient à chaque ouverture */
+    }
+  }
+  const changed = next !== pane;
+  pane = next;
+  closeTrayMenu(false);
+  $('tab-apps').setAttribute('aria-selected', String(pane === 'apps'));
+  $('tab-notifs').setAttribute('aria-selected', String(pane === 'notifs'));
+  $('tray-pane').hidden = pane !== 'apps';
+  $('notifs-pane').hidden = pane !== 'notifs';
+  if (changed && pane === 'apps') renderTrayApps(0);   // les icônes apparaissent une à une
+}
+
+/* ── Applications de la zone de notification (onglet Apps) : relues à l'affichage de la vue
+   réglages puis toutes les 5 s. Clic : ouvrir ; clic droit : le menu du lanceur (ceux des
+   icônes ne sont pas accessibles, voir tray_apps.rs). ── */
+const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
+const CLOSE = 'M6 6l12 12M18 6L6 18';
+
+const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[] = [
+  { action: 'open', label: 'Ouvrir', d: OPEN, bg: 'var(--fill)' },
+  { action: 'location', label: 'Emplacement du fichier', d: ICONS.fichiers, bg: '#c9d8ff' },
+  { action: 'quit', label: 'Forcer à quitter', d: CLOSE, bg: '#f6c6da' },
+];
+
+let trayApps: TrayApp[] = [];
+let trayShown = '';   // ce qui est affiché : on ne refait la grille que si la liste change
+let trayRun = 0;
+
+async function refreshTrayApps() {
+  const run = ++trayRun;
+  const apps = await host.trayApps().catch(() => null);
+  if (run !== trayRun || !apps) return;
+  trayApps = apps;
+  renderTrayApps(null);
+}
+
+/* `pop` : délai d'apparition des icônes, une à une ; null : mise à jour sans animation */
+function renderTrayApps(pop: number | null) {
+  $('tray-count').textContent = String(trayApps.length);
+  $('tray-empty').hidden = trayApps.length > 0;
+  const shown = trayApps.map((app) => `${app.key}\n${app.name}`).join('\n');
+  // Pas pendant que le menu est ouvert : il est accroché à son icône
+  if (trayMenu || (shown === trayShown && pop === null)) return;
+  trayShown = shown;
+  $('tray-grid').replaceChildren(...trayApps.map((app, i) => trayTile(app, i, pop)));
+}
+
+function trayTile(app: TrayApp, i: number, pop: number | null) {
+  const b = el('button', 'tp-press tray-app');
+  b.title = app.name;
+  b.setAttribute('aria-label', app.name);
+  b.setAttribute('aria-haspopup', 'menu');
+  b.setAttribute('aria-expanded', 'false');
+  // Icône du programme ; à défaut, son initiale sur une couleur de la palette
+  if (app.icon) {
+    b.append(iconCanvas(app.icon));
+  } else {
+    b.textContent = app.name.charAt(0).toUpperCase();
+    b.style.background = palette()[i % 4];
+  }
+  if (pop !== null) {
+    b.classList.add('tp-pop');
+    b.style.animationDelay = (pop + i * 0.03).toFixed(2) + 's';
+  }
+  b.addEventListener('click', () => runAction('Lancement', () => host.trayAppAction(app.key, 'open')));
+  b.addEventListener('contextmenu', (e) => {
+    e.preventDefault();   // pas le menu de WebView2
+    openTrayMenu(app, b);
+  });
+  return b;
+}
+
+let trayMenu: { app: TrayApp; tile: HTMLElement } | null = null;
+
+function openTrayMenu(app: TrayApp, tile: HTMLElement) {
+  closeTrayMenu(false);
+  closeMixer();
+  trayMenu = { app, tile };
+  tile.setAttribute('aria-expanded', 'true');
+  $('tray-menu-name').textContent = app.name;
+  // Pas d'emplacement pour une app du Store : son dossier est fermé
+  const items = TRAY_ITEMS.filter((it) => !(it.action === 'location' && app.packaged));
+  $('tray-menu-items').replaceChildren(...items.map((it) => trayMenuItem(app, it)));
+  placeTrayMenu(tile);
+  $('tray-menu').classList.add('open');
+  $('tray-menu-items').querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+}
+
+function trayMenuItem(app: TrayApp, item: (typeof TRAY_ITEMS)[number]) {
+  const b = el('button', 'tray-item');
+  b.setAttribute('role', 'menuitem');
+  const dot = el('span', 'tray-dot');
+  dot.style.background = item.bg;
+  dot.append(icon(item.d, 14, 2.4));
+  const label = el('span', '', item.label);
+  b.append(dot, label);
+  b.addEventListener('click', () => {
+    // Arrêt forcé : le premier clic demande confirmation
+    if (item.action === 'quit' && !b.classList.contains('confirm')) {
+      b.classList.add('confirm');
+      label.textContent = 'Vraiment quitter ?';
+      return;
+    }
+    trayAction(app, item.action);
+  });
+  return b;
+}
+
+/* Au-dessus de l'icône (le bas de la carte sort de l'écran), pointe vers elle, sans sortir
+   de la carte. Positions de mise en page (offset…) : le téléphone est incliné en 3D. */
+function placeTrayMenu(tile: HTMLElement) {
+  const menu = $('tray-menu');
+  const card = menu.offsetParent as HTMLElement;
+  const center = tile.offsetLeft + tile.offsetWidth / 2;
+  const left = Math.max(6, Math.min(card.clientWidth - menu.offsetWidth - 6, center - menu.offsetWidth / 2));
+  menu.style.left = left + 'px';
+  menu.style.bottom = card.clientHeight - (tile.offsetTop - $('tray-grid').scrollTop) + 12 + 'px';
+  menu.style.setProperty('--arrow', center - left + 'px');
+}
+
+function closeTrayMenu(refocus = true) {
+  if (!trayMenu) return;
+  const { tile } = trayMenu;
+  trayMenu = null;
+  $('tray-menu').classList.remove('open');
+  tile.setAttribute('aria-expanded', 'false');
+  if (refocus && tile.isConnected) tile.focus({ preventScroll: true });
+}
+
+/* Ouvrir et Emplacement masquent le lanceur, comme un lancement ; après un arrêt forcé, il
+   reste ouvert et l'application disparaît de la liste */
+async function trayAction(app: TrayApp, action: TrayAction) {
+  closeTrayMenu(action === 'quit');
+  if (action !== 'quit') {
+    runAction('Lancement', () => host.trayAppAction(app.key, action));
+    return;
+  }
+  try {
+    await host.trayAppAction(app.key, 'quit');
+  } catch (e) {
+    report('Quitter', e);
+  }
+  refreshTrayApps();
+}
+
 function renderSettings() {
   updateTiles();
   renderVolume();
   renderMedia();
   renderNotifs();
+  renderTrayApps(null);
 }
 
 /* ══ Vue applications ══ */
@@ -791,6 +963,7 @@ function showApps(query = '') {
   $('stage').classList.add('landscape');
   $('settings').hidden = true;
   closeMixer();
+  closeTrayMenu(false);
   stopStats();
   $('apps').hidden = false;   // affichée : tp-land repart
   renderApps();
@@ -814,6 +987,7 @@ function enterSettings(afterTurn: boolean) {
   refreshAudio();
   refreshMedia();
   refreshFeed();
+  refreshTrayApps();
 }
 
 /* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
@@ -842,10 +1016,11 @@ function webSearch() {
   runAction('Recherche web', () => host.webSearch(state.query));
 }
 
-/* Échec signalé dans les notifications (et dans l'en-tête de la vue applications) */
+/* Échec signalé dans les notifications, onglet ouvert (et dans l'en-tête de la vue applications) */
 function report(title: string, e: unknown) {
   actionError = { title, text: String(e) };
   renderNotifs();
+  showPane('notifs');
   if (state.view === 'apps') renderHead(currentList().length);
 }
 
@@ -902,6 +1077,8 @@ function bindEvents() {
     saveDismissed();
     renderNotifs();
   });
+  $('tab-apps').addEventListener('click', () => showPane('apps', true));
+  $('tab-notifs').addEventListener('click', () => showPane('notifs', true));
 
   $q().addEventListener('input', () => {
     state.query = $q().value.trim();
@@ -934,6 +1111,7 @@ function bindEvents() {
   document.addEventListener('pointerdown', (e) => {
     const target = e.target as Element;
     if (mixerOpen() && !target.closest('#mixer, #mixer-toggle')) closeMixer();
+    if (trayMenu && !target.closest('#tray-menu')) closeTrayMenu(false);
     if (!target.closest('.phone-body, .strap')) hideLauncher();
   });
 
@@ -945,9 +1123,19 @@ function bindEvents() {
         closePowerMenu();
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        movePowerFocus(e.key === 'ArrowDown' ? 1 : -1);
+        moveFocus($('power'), e.key === 'ArrowDown' ? 1 : -1);
       }
       return;   // pas de recherche ni de fermeture derrière le menu
+    }
+    if (trayMenu) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeTrayMenu();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveFocus($('tray-menu'), e.key === 'ArrowDown' ? 1 : -1);
+      }
+      return;   // Entrée active l'élément ; pas de recherche derrière le menu
     }
     if (e.key === 'Escape' && mixerOpen()) {
       e.preventDefault();
@@ -1025,6 +1213,7 @@ function playEntrance() {
   $('phone').classList.remove('leaving');
   closePowerMenu(false);
   closeMixer();
+  showPane(savedPane());   // ferme aussi le menu du clic droit
   $('strap-swing').style.removeProperty('animation');   // balancement de l'ouverture, pas celui du survol
   state.stack = [];
   state.page = 0;

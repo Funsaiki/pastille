@@ -132,8 +132,8 @@ fn name_of(key: &str) -> String {
     })
 }
 
-/// FileDescription des informations de version du programme
-fn description(path: &str) -> Option<String> {
+/// FileDescription des informations de version du programme (aussi pour tray_apps.rs)
+pub fn description(path: &str) -> Option<String> {
     let path = HSTRING::from(path);
     unsafe {
         let size = GetFileVersionInfoSizeW(&path, None);

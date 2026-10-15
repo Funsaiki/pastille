@@ -54,6 +54,16 @@ export interface AppVolume {
   icon: AppIcon | null;
 }
 
+/* Application de la zone de notification (tray_apps.rs) */
+export interface TrayApp {
+  key: string;        // chemin du programme, renvoyé pour agir (Rust vérifie qu'il est dans la liste)
+  name: string;
+  icon: AppIcon | null;
+  packaged: boolean;  // Microsoft Store : pas d'emplacement de fichier
+}
+
+export type TrayAction = 'open' | 'location' | 'quit';
+
 /* Notifications lues par Rust (feed.rs) ; `age` en secondes */
 export type FeedEvent =
   | { kind: 'download'; name: string; age: number }
@@ -74,6 +84,10 @@ function previewConfig(): Config {
 
 /* Aperçu navigateur : le morceau de la maquette */
 const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };
+
+/* Aperçu navigateur : applications de la zone de notification, sans leurs icônes */
+let previewTray: TrayApp[] = ['Discord', 'G HUB', 'Lightshot', 'Riot Client', 'Spotify', 'Steam', 'TranslucentTB', 'Wallpaper Engine']
+  .map((name) => ({ key: name, name, icon: null, packaged: name === 'Spotify' || name === 'TranslucentTB' }));
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
@@ -145,6 +159,20 @@ export const host = {
       ];
     }
     return invoke<FeedEvent[]>('feed');
+  },
+  /* Programmes qui tournent et ont une icône dans la zone de notification, par nom */
+  async trayApps(): Promise<TrayApp[]> {
+    if (PREVIEW) return [...previewTray];
+    return invoke<TrayApp[]>('tray_apps');
+  },
+  /* « quit » : arrêt forcé, à confirmer avant */
+  async trayAppAction(key: string, action: TrayAction) {
+    if (PREVIEW) {
+      console.info('[aperçu] zone de notification :', action, key);
+      if (action === 'quit') previewTray = previewTray.filter((app) => app.key !== key);
+    } else {
+      await invoke('tray_app_action', { key, action });
+    }
   },
   /* Le nom du fichier seulement : Rust le cherche dans Téléchargements */
   async openDownload(name: string) {

@@ -13,6 +13,7 @@ mod steam;
 mod switch;
 mod system;
 mod tray;
+mod tray_apps;
 mod usage;
 
 use tauri::{Manager, WindowEvent};
@@ -78,7 +79,9 @@ pub fn run() {
             mixer::mixer,
             mixer::set_app_volume,
             feed::feed,
-            feed::open_download
+            feed::open_download,
+            tray_apps::tray_apps,
+            tray_apps::tray_app_action
         ])
         .on_window_event(|window, event| match event {
             // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)

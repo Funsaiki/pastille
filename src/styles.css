@@ -366,6 +366,68 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   font-weight: 800; font-size: 12px; color: var(--soft);
 }
 
+/* ── Onglets de la carte (demandés par Funsaiki, pas dans la maquette) : la pastille du titre
+   coupée en deux, l'onglet ouvert sur fond accent comme une bascule active ── */
+.notifs-tabs { padding: 0 2px; gap: 2px; }
+.notifs-tab {
+  height: 21px; padding: 0 2px 0 8px; border-radius: 11px; border: none; background: transparent; color: var(--ink);
+  display: flex; align-items: center; gap: 6px; font-weight: 900; font-size: 13px; cursor: pointer; transition: background .15s;
+}
+.notifs-tab[aria-selected="true"] { background: var(--fill); cursor: default; }
+.notifs-tab[aria-selected="false"]:hover { background: #eef7f7; }
+.notifs-tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.notifs-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+
+/* Applications de la zone de notification : leurs vraies icônes dans des tuiles blanches, six
+   par rangée ; au-delà de trois rangées, défilement (la carte sort de l'écran en bas). Marge
+   intérieure de 6 px pour que le défilement ne coupe ni le survol ni le focus. */
+.tray-grid {
+  display: grid; grid-template-columns: repeat(6, 42px); justify-content: space-between; gap: 12px 0;
+  margin: -6px; padding: 6px; max-height: calc(3 * 42px + 2 * 12px); overflow-y: auto; scrollbar-width: none;
+}
+.tray-app {
+  width: 42px; height: 42px; padding: 0; box-sizing: border-box; border-radius: 14px; border: 2.5px solid var(--ink);
+  background: #ffffff; color: var(--ink); box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center;
+  justify-content: center; font-weight: 900; font-size: 15px; cursor: pointer;
+}
+.tray-app canvas { width: 24px; height: 24px; }
+/* tp-pop ne garde pas sa fin : elle annulerait la montée au survol (tp-press) */
+.tray-app.tp-pop { animation-fill-mode: backwards; }
+.tray-app[aria-expanded="true"] { background: var(--fill); }
+
+/* Menu du clic droit : fond encre comme le mélangeur, au-dessus de l'icône, pointe vers elle.
+   Mêmes pastilles de couleur que le menu d'alimentation. */
+.tray-menu {
+  position: absolute; z-index: 2; width: 214px; box-sizing: border-box; padding: 10px 8px 8px; border-radius: 20px;
+  background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgba(15, 59, 66, .25);
+  display: flex; flex-direction: column; gap: 4px;
+  opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+}
+.tray-menu.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
+.tray-menu::after {
+  content: ''; position: absolute; bottom: -7px; left: calc(var(--arrow, 50%) - 7px); width: 14px; height: 14px;
+  border-radius: 0 0 3px 0; background: var(--ink); rotate: 45deg;
+}
+.tray-menu-name {
+  padding: 0 8px 2px; font-weight: 900; font-size: 12px; color: rgba(255, 255, 255, .7);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tray-menu-items { display: flex; flex-direction: column; gap: 2px; }
+.tray-item {
+  height: 38px; padding: 0 10px 0 4px; border-radius: 19px; border: none; background: transparent; color: #ffffff;
+  display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 13px; text-align: left; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.tray-item:hover { background: rgba(255, 255, 255, .14); }
+.tray-item:focus-visible { outline: 3px solid #ffffff; outline-offset: -2px; }
+.tray-dot {
+  width: 28px; height: 28px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid #ffffff;
+  color: var(--ink); display: flex; align-items: center; justify-content: center;
+}
+/* Forcer à quitter : le premier clic demande confirmation, l'élément passe au rose */
+.tray-item.confirm, .tray-item.confirm:hover { background: #f6c6da; color: var(--ink); }
+.tray-item.confirm .tray-dot { border-color: var(--ink); }
+
 /* ══ Vue applications : couchée dans l'écran (pivotée de 90°, le téléphone l'est de -90°) ══ */
 .view-apps {
   position: absolute; left: -210px; top: 210px; width: 788px; height: 368px; box-sizing: border-box;

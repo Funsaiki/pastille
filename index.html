@@ -139,17 +139,42 @@
           </button>
         </div>
 
+        <!-- Carte du bas : deux onglets (demandés par Funsaiki), les applications de la zone de
+             notification et les notifications de la maquette -->
         <div class="notifs">
-          <div class="notifs-title">
-            Notifications
-            <span class="notifs-count" id="notif-count"></span>
+          <div class="notifs-title notifs-tabs" role="tablist">
+            <button class="notifs-tab" id="tab-apps" role="tab" aria-selected="true" aria-controls="tray-pane">
+              Apps <span class="notifs-count" id="tray-count"></span>
+            </button>
+            <button class="notifs-tab" id="tab-notifs" role="tab" aria-selected="false" aria-controls="notifs-pane">
+              Notifs <span class="notifs-count" id="notif-count"></span>
+            </button>
           </div>
-          <button class="tp-link notifs-clear" id="notif-clear">Tout effacer</button>
-          <div class="notifs-list" id="notif-list"></div>
-          <div class="notifs-empty" id="notif-empty">
-            <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0"></path></svg>
-            <span class="notifs-empty-text">Rien de neuf</span>
-            <button class="tp-link notifs-restore" id="notif-restore">Tout réafficher</button>
+
+          <!-- Applications de la zone de notification : clic pour ouvrir, clic droit pour le menu -->
+          <div class="notifs-pane" id="tray-pane" role="tabpanel" aria-labelledby="tab-apps">
+            <div class="tray-grid" id="tray-grid"></div>
+            <div class="notifs-empty" id="tray-empty" hidden>
+              <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path></svg>
+              <span class="notifs-empty-text">Aucune app en arrière-plan</span>
+            </div>
+          </div>
+
+          <div class="notifs-pane" id="notifs-pane" role="tabpanel" aria-labelledby="tab-notifs" hidden>
+            <button class="tp-link notifs-clear" id="notif-clear">Tout effacer</button>
+            <div class="notifs-list" id="notif-list"></div>
+            <div class="notifs-empty" id="notif-empty">
+              <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0"></path></svg>
+              <span class="notifs-empty-text">Rien de neuf</span>
+              <button class="tp-link notifs-restore" id="notif-restore">Tout réafficher</button>
+            </div>
+          </div>
+
+          <!-- Menu du clic droit sur une application (les vrais menus des icônes ne sont pas
+               accessibles, voir tray_apps.rs) -->
+          <div class="tray-menu" id="tray-menu" role="menu" aria-labelledby="tray-menu-name">
+            <span class="tray-menu-name" id="tray-menu-name"></span>
+            <div class="tray-menu-items" id="tray-menu-items"></div>
           </div>
         </div>
       </div>
