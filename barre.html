@@ -20,7 +20,7 @@
   <span class="bar-sep" aria-hidden="true"></span>
   <button class="bar-round" id="bar-tray" title="Applications en arrière-plan" aria-label="Applications en arrière-plan"
           aria-expanded="false" aria-controls="bar-pop"></button>
-  <div class="bar-clock" id="bar-clock"><span class="bar-time" id="bar-time"></span><span class="bar-date" id="bar-date"></span></div>
+  <button class="bar-clock" id="bar-clock" aria-expanded="false" aria-controls="bar-cal"><span class="bar-time" id="bar-time"></span><span class="bar-date" id="bar-date"></span></button>
 </nav>
 
 <!-- Zone de notification : les applications de l'onglet Apps du téléphone -->
@@ -28,6 +28,20 @@
   <div class="bar-pop-head">Apps <span class="bar-pop-count" id="bar-pop-count"></span></div>
   <div class="bar-grid" id="bar-grid"></div>
   <p class="bar-empty" id="bar-empty" hidden>Aucune app en arrière-plan</p>
+</section>
+
+<!-- Calendrier : clic sur l'heure -->
+<section class="bar-cal" id="bar-cal" aria-label="Calendrier">
+  <div class="bar-cal-head">
+    <button class="bar-cal-nav" id="bar-cal-prev" aria-label="Mois précédent"></button>
+    <button class="bar-cal-month" id="bar-cal-month" title="Revenir à aujourd'hui"></button>
+    <button class="bar-cal-nav" id="bar-cal-next" aria-label="Mois suivant"></button>
+  </div>
+  <div class="bar-cal-grid" id="bar-cal-grid"></div>
+  <div class="bar-cal-foot">
+    <span class="bar-cal-today" id="bar-cal-today"></span>
+    <button class="bar-cal-notif tp-press" id="bar-cal-notif" title="Centre de notifications de Windows">Notifications</button>
+  </div>
 </section>
 
 <!-- Aperçu des fenêtres d'un programme au survol de sa tuile : Windows dessine les vignettes en

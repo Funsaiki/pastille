@@ -335,6 +335,7 @@ const popOpen = () => $('bar-pop').classList.contains('open');
 function togglePop(open = !popOpen()) {
   closePreview();
   closeMenu(false);
+  if (open && calOpen()) toggleCal(false);
   $('bar-pop').classList.toggle('open', open);
   $('bar-tray').setAttribute('aria-expanded', String(open));
   if (open) {
@@ -446,10 +447,11 @@ function windowsChanged() {
 }
 
 function hide(force = false) {
-  if (!shown || (!force && (menu || popOpen() || inside))) return;
+  if (!shown || (!force && (menu || popOpen() || calOpen() || inside))) return;
   closePreview();
   closeMenu(false);
   if (popOpen()) togglePop(false);
+  if (calOpen()) toggleCal(false);
   clearTimeout(hideTimer);
   clearTimeout(signalTimer);
   clearInterval(refreshTimer);
@@ -477,7 +479,7 @@ function reportRects() {
     if (shown) {
       const bar = $('bar');
       rects.push([bar.offsetLeft - 8, bar.offsetTop - 8, bar.offsetWidth + 16, innerHeight - bar.offsetTop + 8]);
-      for (const id of ['bar-pop', 'bar-menu', 'bar-preview']) {
+      for (const id of ['bar-pop', 'bar-cal', 'bar-menu', 'bar-preview']) {
         const n = $(id);
         if (n.classList.contains('open')) rects.push([n.offsetLeft - 8, n.offsetTop - 8, n.offsetWidth + 16, n.offsetHeight + 24]);
       }
@@ -497,6 +499,7 @@ function clickedOutside() {
   closePreview();
   closeMenu(false);
   if (popOpen()) togglePop(false);
+  if (calOpen()) toggleCal(false);
   autoHide();
 }
 
@@ -512,8 +515,60 @@ function tickClock() {
   const full = fmtFull.format(now);
   $('bar-time').textContent = fmtTime.format(now);
   $('bar-date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
-  $('bar-clock').title = full.charAt(0).toUpperCase() + full.slice(1);
+  $('bar-clock').setAttribute('aria-label', `${full.charAt(0).toUpperCase()}${full.slice(1)}, ${fmtTime.format(now)} : calendrier`);
+  if (calOpen()) renderCal();   // minuit
   setTimeout(tickClock, 60_000 - (Date.now() % 60_000) + 20);
+}
+
+/* ══ Calendrier : clic sur l'heure. Mois précédent ou suivant (flèches, molette), clic sur le
+   mois : aujourd'hui ; Notifications : le centre de notifications de Windows ══ */
+const fmtMonthYear = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
+const fmtToday = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const LEFT = 'M15 6l-6 6 6 6';
+const RIGHT = 'M9 6l6 6-6 6';
+let calMonth = new Date();   // premier jour du mois affiché
+
+const calOpen = () => $('bar-cal').classList.contains('open');
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+function toggleCal(open = !calOpen()) {
+  closePreview();
+  closeMenu(false);
+  if (open && popOpen()) togglePop(false);
+  $('bar-cal').classList.toggle('open', open);
+  $('bar-clock').setAttribute('aria-expanded', String(open));
+  if (open) {
+    const now = new Date();
+    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    renderCal();
+    place($('bar-cal'), $('bar-clock'), $('bar'));
+  } else {
+    autoHide();
+  }
+  reportRects();
+}
+
+/* Six semaines, du lundi au dimanche : la carte garde sa hauteur d'un mois à l'autre */
+function renderCal() {
+  const now = new Date();
+  $('bar-cal-month').textContent = capital(fmtMonthYear.format(calMonth));
+  const start = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1 - ((calMonth.getDay() + 6) % 7));
+  const cells = WEEKDAYS.map((d) => el('span', 'bar-cal-wd', d));
+  for (let i = 0; i < 42; i++) {
+    const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const cell = el('span', 'bar-cal-day', String(day.getDate()));
+    cell.classList.toggle('out', day.getMonth() !== calMonth.getMonth());
+    cell.classList.toggle('today', day.toDateString() === now.toDateString());
+    cells.push(cell);
+  }
+  $('bar-cal-grid').replaceChildren(...cells);
+  $('bar-cal-today').textContent = capital(fmtToday.format(now));
+}
+
+function moveCal(step: number) {
+  calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + step, 1);
+  renderCal();
 }
 
 /* ── Événements ── */
@@ -548,6 +603,24 @@ function init() {
   $('bar-tray').append(icon(CHEVRON, 20, 2.6));
   $('bar-tray').hidden = !MAIN;
   $('bar-tray').addEventListener('click', () => togglePop());
+  $('bar-clock').addEventListener('click', () => toggleCal());
+  $('bar-cal-prev').append(icon(LEFT, 18, 2.6));
+  $('bar-cal-next').append(icon(RIGHT, 18, 2.6));
+  $('bar-cal-prev').addEventListener('click', () => moveCal(-1));
+  $('bar-cal-next').addEventListener('click', () => moveCal(1));
+  $('bar-cal-month').addEventListener('click', () => {
+    const now = new Date();
+    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    renderCal();
+  });
+  $('bar-cal-grid').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.deltaY) moveCal(Math.sign(e.deltaY));
+  }, { passive: false });
+  $('bar-cal-notif').addEventListener('click', () => {
+    toggleCal(false);
+    act(() => host.openTool('notifications'));
+  });
   // Aperçu : la souris peut aller de la tuile à la carte
   $('bar-preview').addEventListener('pointerenter', () => clearTimeout(previewTimer));
   $('bar-preview').addEventListener('pointerleave', leavePreview);
@@ -559,7 +632,7 @@ function init() {
   host.onBarOutside(clickedOutside);
   // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
   if (PREVIEW) {
-    for (const id of ['bar', 'bar-pop', 'bar-menu', 'bar-preview']) {
+    for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-menu', 'bar-preview']) {
       $(id).addEventListener('pointerenter', () => setInside(true));
       $(id).addEventListener('pointerleave', () => setInside(false));
     }
@@ -568,7 +641,7 @@ function init() {
     });
     document.addEventListener('pointerdown', (e) => {
       const target = e.target as Node;
-      if (!['bar', 'bar-pop', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
+      if (!['bar', 'bar-pop', 'bar-cal', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
     });
   }
   document.addEventListener('keydown', (e) => {
@@ -578,6 +651,9 @@ function init() {
     else if (popOpen()) {
       togglePop(false);
       $('bar-tray').focus({ preventScroll: true });
+    } else if (calOpen()) {
+      toggleCal(false);
+      $('bar-clock').focus({ preventScroll: true });
     }
   });
   // Flèches haut et bas dans les menus, comme le menu d'alimentation

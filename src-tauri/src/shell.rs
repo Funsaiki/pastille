@@ -75,6 +75,8 @@ pub async fn open_tool(tool: String) -> Result<(), String> {
         "steam-downloads" => "steam://open/downloads",
         "windows-update" => "ms-settings:windowsupdate",
         "storage" => "ms-settings:storagesense",
+        // Barre pastel : calendrier
+        "notifications" => "ms-actioncenter:",
         _ => return Err(format!("Outil inconnu : {tool}.")),
     };
     crate::blocking(move || open(target, &[])).await?

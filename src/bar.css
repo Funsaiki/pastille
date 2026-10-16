@@ -94,7 +94,15 @@ button { font-family: inherit; }
 .bar-round[aria-expanded="true"] svg { rotate: 180deg; }
 .bar-round:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
-.bar-clock { display: flex; flex-direction: column; align-items: flex-end; padding: 0 8px 0 2px; line-height: 1.15; cursor: default; }
+/* Heure : ouvre le calendrier ; fond accent au survol et une fois ouvert, comme le ^ */
+.bar-clock {
+  height: 40px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 0 10px;
+  border: none; border-radius: 20px; background: transparent; color: var(--ink); line-height: 1.15; cursor: pointer;
+  transition: background .15s, translate .12s;
+}
+.bar-clock:hover, .bar-clock[aria-expanded="true"] { background: var(--fill); }
+.bar-clock:active { translate: 0 2px; }
+.bar-clock:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .bar-time { font-weight: 900; font-size: 15px; }
 .bar-date { font-weight: 800; font-size: 11px; color: var(--soft); }
 
@@ -120,6 +128,51 @@ button { font-family: inherit; }
 .bar-grid .bar-tile { width: 42px; height: 42px; border-radius: 14px; }
 .bar-grid .bar-tile canvas { width: 24px; height: 24px; }
 .bar-empty { margin: 0; font-weight: 800; font-size: 13px; color: var(--soft); }
+
+/* ── Calendrier : carte au-dessus de l'heure, comme la zone de notification ; six semaines du
+   lundi au dimanche, aujourd'hui en rond accent bordé d'encre ── */
+.bar-cal {
+  position: fixed; width: 300px; box-sizing: border-box; padding: 10px 14px 14px; border-radius: 24px;
+  border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
+  opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+}
+.bar-cal.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
+.bar-cal::after {
+  content: ''; position: absolute; bottom: -9px; left: calc(var(--arrow, 50%) - 7px); width: 14px; height: 14px;
+  box-sizing: border-box; border: solid var(--ink); border-width: 0 2.5px 2.5px 0; border-radius: 0 0 3px 0;
+  background: #ffffff; rotate: 45deg;
+}
+.bar-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.bar-cal-nav {
+  width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%; background: transparent; color: var(--ink);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, translate .12s;
+}
+.bar-cal-nav:hover { background: var(--fill); }
+.bar-cal-nav:active { translate: 0 2px; }
+.bar-cal-month {
+  padding: 4px 10px; border: none; border-radius: 14px; background: transparent; color: var(--ink);
+  font-weight: 900; font-size: 15px; cursor: pointer; transition: background .15s;
+}
+.bar-cal-month:hover { background: color-mix(in srgb, var(--fill) 45%, #ffffff); }
+.bar-cal-nav:focus-visible, .bar-cal-month:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.bar-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; justify-items: center; }
+.bar-cal-wd { height: 24px; display: flex; align-items: center; font-weight: 900; font-size: 11px; color: rgba(15, 59, 66, .55); }
+.bar-cal-day {
+  width: 32px; height: 30px; box-sizing: border-box; border-radius: 15px; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px;
+}
+.bar-cal-day.out { opacity: .3; }
+.bar-cal-day.today { background: var(--fill); border: 2px solid var(--ink); box-shadow: 0 2px 0 var(--ink); font-weight: 900; }
+.bar-cal-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 10px;
+  border-top: 2px solid rgba(15, 59, 66, .1);
+}
+.bar-cal-today { min-width: 0; font-weight: 800; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-cal-notif {
+  flex: none; height: 30px; padding: 0 12px; border-radius: 15px; border: 2px solid var(--ink); background: #ffffff; color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink); font-weight: 900; font-size: 12px; cursor: pointer;
+}
+.bar-cal-notif:hover { background: var(--fill); }
 
 /* ── Aperçu au survol d'une tuile : carte blanche au-dessus d'elle, pointe vers elle ; un cadre
    par fenêtre, à sa proportion, où Windows dessine la vignette en direct (6 px à l'intérieur) ;
