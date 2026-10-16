@@ -120,7 +120,7 @@ function ring(node: HTMLElement) {
 const windowLabel = (w: BarWindow) => (w.title.includes(w.app) ? w.title : `${w.title} — ${w.app}`);
 
 /* Clic : ramène la fenêtre, ou la réduit si elle est déjà au premier plan ; plusieurs fenêtres :
-   leur liste. Clic droit : nouvelle fenêtre, fermer. */
+   leur liste. Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. */
 function groupTile(g: Group, i: number) {
   const b = el('button', 'bar-tile tp-press');
   const [first] = g.windows;
@@ -136,6 +136,15 @@ function groupTile(g: Group, i: number) {
   b.addEventListener('click', () => {
     if (many) openMenu(b, g.app, g.windows.map(windowItem));
     else act(() => (first.active ? host.minimizeWindow(first.id) : host.focusWindow(first.id)));
+  });
+  // Clic du milieu : nouvelle fenêtre, comme dans la barre de Windows
+  b.addEventListener('mousedown', (e) => {
+    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+  });
+  b.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    act(() => host.newWindow(first.id));
   });
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();   // pas le menu de WebView2
