@@ -305,6 +305,19 @@ export const host = {
     if (PREVIEW) return previewBar.map((w) => ({ ...w }));
     return invoke<BarWindow[]>('bar_windows', { known });
   },
+  /* Aperçus au survol (bar_preview.rs) : vignettes en direct des fenêtres `ids`, dessinées par
+     Windows ; pour chacune, sa taille, ou null si elle est réduite ou fermée (pas d'image) */
+  async barPreview(ids: string[]): Promise<([number, number] | null)[]> {
+    if (PREVIEW) return ids.map((id) => (id === 'w4' ? null : [1600, 900]));
+    return invoke<([number, number] | null)[]>('bar_preview', { ids });
+  },
+  /* Places des vignettes (x, y, largeur, hauteur en pixels CSS), dans l'ordre de barPreview */
+  barPreviewPlace(rects: number[][]) {
+    if (!PREVIEW) invoke('bar_preview_place', { rects });
+  },
+  barPreviewClose() {
+    if (!PREVIEW) invoke('bar_preview_close');
+  },
   async minimizeWindow(id: string) {
     if (PREVIEW) {
       console.info('[aperçu] réduire :', id);

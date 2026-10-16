@@ -1,5 +1,6 @@
 mod audio;
 mod bar;
+mod bar_preview;
 mod com;
 mod config;
 mod epic;
@@ -104,7 +105,10 @@ pub fn run() {
             bar::close_window,
             bar::new_window,
             bar::show_launcher,
-            bar::bar_menu
+            bar::bar_menu,
+            bar_preview::bar_preview,
+            bar_preview::bar_preview_place,
+            bar_preview::bar_preview_close
         ])
         // Fenêtre du lanceur seulement (pas celles de la barre pastel)
         .on_window_event(|window, event| match event {

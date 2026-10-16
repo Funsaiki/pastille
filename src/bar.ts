@@ -94,8 +94,9 @@ function groups(): Group[] {
 function renderWindows() {
   const list = groups();
   const shown = JSON.stringify(list.map((g) => g.windows.map((w) => [w.id, w.title, w.active, w.attention])));
-  // Pas pendant qu'un menu est ouvert : il est accroché à sa tuile (refaite à sa fermeture)
-  if (menu || shown === windowsShown) return;
+  // Pas pendant qu'un menu ou un aperçu est ouvert : il est accroché à sa tuile (refaite à sa
+  // fermeture)
+  if (menu || preview || shown === windowsShown) return;
   windowsShown = shown;
   const first = seen.size === 0;
   const calling = new Set(list.filter((g) => g.windows.some((w) => w.attention)).map((g) => g.key));
@@ -120,7 +121,8 @@ function ring(node: HTMLElement) {
 const windowLabel = (w: BarWindow) => (w.title.includes(w.app) ? w.title : `${w.title} — ${w.app}`);
 
 /* Clic : ramène la fenêtre, ou la réduit si elle est déjà au premier plan ; plusieurs fenêtres :
-   leur liste. Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. */
+   leur liste. Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. Survol :
+   aperçu des fenêtres (il remplace l'infobulle). */
 function groupTile(g: Group, i: number) {
   const b = el('button', 'bar-tile tp-press');
   const [first] = g.windows;
@@ -128,12 +130,15 @@ function groupTile(g: Group, i: number) {
   const calling = g.windows.some((w) => w.attention);
   b.classList.toggle('active', g.windows.some((w) => w.active));
   b.classList.toggle('attention', calling);
-  b.title = many ? `${g.app} : ${g.windows.length} fenêtres` : windowLabel(first);
-  b.setAttribute('aria-label', calling ? `${b.title} (demande l'attention)` : b.title);
+  const label = many ? `${g.app} : ${g.windows.length} fenêtres` : windowLabel(first);
+  b.setAttribute('aria-label', calling ? `${label} (demande l'attention)` : label);
   fillTile(b, g.app, first.icon, first.glyph, i, 22);
   if (many) b.append(el('span', 'bar-count', String(g.windows.length)));
   if (calling) b.append(el('span', 'bar-alert'));
+  b.addEventListener('pointerenter', () => hoverTile(g, b));
+  b.addEventListener('pointerleave', leavePreview);
   b.addEventListener('click', () => {
+    closePreview();
     if (many) openMenu(b, g.app, g.windows.map(windowItem));
     else act(() => (first.active ? host.minimizeWindow(first.id) : host.focusWindow(first.id)));
   });
@@ -144,6 +149,7 @@ function groupTile(g: Group, i: number) {
   b.addEventListener('auxclick', (e) => {
     if (e.button !== 1) return;
     e.preventDefault();
+    closePreview();
     act(() => host.newWindow(first.id));
   });
   b.addEventListener('contextmenu', (e) => {
@@ -155,6 +161,105 @@ function groupTile(g: Group, i: number) {
     ]);
   });
   return b;
+}
+
+/* ══ Aperçus au survol (bar_preview.rs) : une carte au-dessus de la tuile, une vignette en
+   direct par fenêtre (cinq au plus), que Windows dessine dans son cadre. Elles ne suivent pas
+   les animations : posées une fois la carte arrivée. ══ */
+const PREVIEW_DELAY = 450;   // survol avant la première carte ; d'une tuile à l'autre, tout de suite
+const PREVIEW_LEAVE = 250;   // le temps d'aller de la tuile à la carte
+const PREVIEW_SETTLE = 200;  // arrivée de la carte (.bar-preview)
+const PREVIEW_MAX = 5;
+const THUMB_H = 112;
+const THUMB_INSET = 6;       // la vignette de Windows est rectangulaire : dans le cadre arrondi
+
+let preview: { tile: HTMLElement } | null = null;
+let previewAsked = false;    // vignettes demandées à Rust, à libérer
+let previewRun = 0;
+let previewTimer = 0;
+
+function hoverTile(g: Group, tile: HTMLElement) {
+  clearTimeout(previewTimer);
+  if (menu || preview?.tile === tile) return;
+  previewTimer = window.setTimeout(() => openPreview(g, tile), preview ? 0 : PREVIEW_DELAY);
+}
+
+function leavePreview() {
+  clearTimeout(previewTimer);
+  if (preview) previewTimer = window.setTimeout(closePreview, PREVIEW_LEAVE);
+}
+
+async function openPreview(g: Group, tile: HTMLElement) {
+  const run = ++previewRun;
+  const list = g.windows.slice(0, PREVIEW_MAX);
+  previewAsked = true;
+  const sizes = await host.barPreview(list.map((w) => w.id)).catch(() => null);
+  // Autre tuile survolée, menu ouvert ou pilule rentrée entre-temps
+  if (run !== previewRun) return;
+  if (!sizes || menu || !shown || !tile.isConnected) {
+    closePreview();
+    return;
+  }
+  const card = $('bar-preview');
+  card.replaceChildren(...list.map((w, i) => previewItem(w, sizes[i], i)));
+  preview = { tile };
+  card.classList.add('open');
+  place(card, tile);
+  reportRects();
+  window.setTimeout(() => run === previewRun && placeThumbs(), PREVIEW_SETTLE);
+}
+
+function closePreview() {
+  clearTimeout(previewTimer);
+  previewRun++;
+  if (previewAsked) host.barPreviewClose();
+  previewAsked = false;
+  if (!preview) return;
+  preview = null;
+  $('bar-preview').classList.remove('open');
+  renderWindows();   // listes arrivées pendant l'aperçu
+  reportRects();
+}
+
+/* Cadres en position finale (sans l'animation de la carte), dans la fenêtre */
+function placeThumbs() {
+  const card = $('bar-preview');
+  const rects = Array.from(card.querySelectorAll<HTMLElement>('.bar-thumb')).map((box) => {
+    let x = card.offsetLeft + card.clientLeft;
+    let y = card.offsetTop + card.clientTop;
+    for (let n: HTMLElement | null = box; n && n !== card; n = n.offsetParent as HTMLElement | null) {
+      x += n.offsetLeft;
+      y += n.offsetTop;
+    }
+    return [x + THUMB_INSET, y + THUMB_INSET, box.offsetWidth - 2 * THUMB_INSET, box.offsetHeight - 2 * THUMB_INSET];
+  });
+  host.barPreviewPlace(rects);
+}
+
+/* Titre, puis le cadre à la proportion de la fenêtre ; réduite : son icône (Windows n'en garde
+   pas d'image). Clic : la ramener. */
+function previewItem(w: BarWindow, size: [number, number] | null, i: number) {
+  const item = el('button', 'bar-shot');
+  item.classList.toggle('current', w.active);
+  item.setAttribute('aria-label', windowLabel(w));
+  const badge = el('span', 'bar-shot-icon');
+  fillTile(badge, w.app, w.icon, w.glyph, i, 14);
+  item.append(el('span', 'bar-shot-head'));
+  item.firstElementChild!.append(badge, el('span', 'bar-shot-title', w.title));
+  const box = el('span', 'bar-thumb');
+  box.style.width = (size ? Math.min(200, Math.max(84, (THUMB_H * size[0]) / Math.max(1, size[1]))) : 150) + 'px';
+  if (!size || PREVIEW) {
+    const big = el('span', 'bar-thumb-icon');
+    fillTile(big, w.app, w.icon, w.glyph, i, 26);
+    box.append(big);
+    if (!size) box.append(el('span', 'bar-thumb-note', 'Réduite'));
+  }
+  item.append(box);
+  item.addEventListener('click', () => {
+    closePreview();
+    act(() => host.focusWindow(w.id));
+  });
+  return item;
 }
 
 /* Une fenêtre dans la liste d'un programme ; celle du premier plan est surlignée */
@@ -228,6 +333,7 @@ function trayItem(app: TrayApp, it: (typeof TRAY_ITEMS)[number]) {
 const popOpen = () => $('bar-pop').classList.contains('open');
 
 function togglePop(open = !popOpen()) {
+  closePreview();
   closeMenu(false);
   $('bar-pop').classList.toggle('open', open);
   $('bar-tray').setAttribute('aria-expanded', String(open));
@@ -262,6 +368,7 @@ function menuItem(label: string, dot: HTMLElement, run: (item: HTMLButtonElement
 /* Un second clic sur la même tuile referme son menu */
 function openMenu(tile: HTMLElement, name: string, items: HTMLElement[]) {
   const again = menu?.tile === tile;
+  closePreview();
   closeMenu(false);
   if (again) return;
   $('bar-menu-name').textContent = name;
@@ -340,6 +447,7 @@ function windowsChanged() {
 
 function hide(force = false) {
   if (!shown || (!force && (menu || popOpen() || inside))) return;
+  closePreview();
   closeMenu(false);
   if (popOpen()) togglePop(false);
   clearTimeout(hideTimer);
@@ -369,7 +477,7 @@ function reportRects() {
     if (shown) {
       const bar = $('bar');
       rects.push([bar.offsetLeft - 8, bar.offsetTop - 8, bar.offsetWidth + 16, innerHeight - bar.offsetTop + 8]);
-      for (const id of ['bar-pop', 'bar-menu']) {
+      for (const id of ['bar-pop', 'bar-menu', 'bar-preview']) {
         const n = $(id);
         if (n.classList.contains('open')) rects.push([n.offsetLeft - 8, n.offsetTop - 8, n.offsetWidth + 16, n.offsetHeight + 24]);
       }
@@ -386,6 +494,7 @@ function setInside(on: boolean) {
 
 /* Clic ailleurs : menus et zone de notification se referment, la pilule rentre */
 function clickedOutside() {
+  closePreview();
   closeMenu(false);
   if (popOpen()) togglePop(false);
   autoHide();
@@ -439,6 +548,9 @@ function init() {
   $('bar-tray').append(icon(CHEVRON, 20, 2.6));
   $('bar-tray').hidden = !MAIN;
   $('bar-tray').addEventListener('click', () => togglePop());
+  // Aperçu : la souris peut aller de la tuile à la carte
+  $('bar-preview').addEventListener('pointerenter', () => clearTimeout(previewTimer));
+  $('bar-preview').addEventListener('pointerleave', leavePreview);
   new ResizeObserver(reportRects).observe($('bar'));
 
   host.onBarReveal(show);
@@ -447,7 +559,7 @@ function init() {
   host.onBarOutside(clickedOutside);
   // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
   if (PREVIEW) {
-    for (const id of ['bar', 'bar-pop', 'bar-menu']) {
+    for (const id of ['bar', 'bar-pop', 'bar-menu', 'bar-preview']) {
       $(id).addEventListener('pointerenter', () => setInside(true));
       $(id).addEventListener('pointerleave', () => setInside(false));
     }
@@ -456,11 +568,12 @@ function init() {
     });
     document.addEventListener('pointerdown', (e) => {
       const target = e.target as Node;
-      if (!['bar', 'bar-pop', 'bar-menu'].some((id) => $(id).contains(target))) clickedOutside();
+      if (!['bar', 'bar-pop', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
     });
   }
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    closePreview();
     if (menu) closeMenu();
     else if (popOpen()) {
       togglePop(false);
