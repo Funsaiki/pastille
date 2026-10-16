@@ -65,6 +65,19 @@ button { font-family: inherit; }
   display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px;
 }
 
+/* Fenêtre qui demande l'attention (Discord à un nouveau message) : tuile rose avec une
+   pastille, qui sonne une fois en arrivant */
+.bar-tile.attention { background: #f6c6da; }
+.bar-alert {
+  position: absolute; top: -5px; left: -5px; width: 13px; height: 13px; box-sizing: border-box;
+  border-radius: 50%; border: 2.5px solid #ffffff; background: var(--ink);
+}
+@keyframes tp-ring {
+  0%, 100% { rotate: 0deg; }
+  14% { rotate: -11deg; } 28% { rotate: 9deg; } 42% { rotate: -7deg; } 56% { rotate: 5deg; } 70% { rotate: -2deg; }
+}
+.tp-ring { animation: tp-ring .75s var(--ease); }
+
 .bar-windows { display: flex; gap: 8px; }
 .bar-windows:empty, .bar-windows:empty + .bar-sep { display: none; }
 .bar-sep { width: 2.5px; height: 26px; flex: none; border-radius: 2px; background: rgba(15, 59, 66, .16); }
@@ -134,6 +147,8 @@ button { font-family: inherit; }
 .bar-item:hover { background: rgba(255, 255, 255, .14); }
 .bar-item:focus-visible { outline: 3px solid #ffffff; outline-offset: -2px; }
 .bar-item.current { background: rgba(255, 255, 255, .14); }
+/* Fenêtre qui demande l'attention : anneau rose autour de son icône */
+.bar-item.alert .bar-dot { box-shadow: 0 0 0 3px #f6c6da; }
 .bar-dot {
   width: 28px; height: 28px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid #ffffff;
   background: var(--tile, #ffffff); color: var(--ink); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px;

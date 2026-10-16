@@ -11,6 +11,7 @@ mod mixer;
 mod open_windows;
 mod power;
 mod shell;
+mod shell_hook;
 mod spotify;
 mod steam;
 mod switch;

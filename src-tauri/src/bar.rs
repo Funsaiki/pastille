@@ -11,12 +11,17 @@
 //! sort (pas par-dessus le téléphone ni une application en plein écran) ; il dit au front quand
 //! la souris est sur la pilule (elle rentre 0,7 s après son départ) et quand on clique ailleurs.
 //!
+//! Les signaux que Windows envoie à sa barre des tâches (shell_hook.rs) font relire les fenêtres
+//! des pilules sorties, et une fenêtre qui demande l'attention (Discord à un nouveau message)
+//! fait sortir un instant la pilule de son écran, sa tuile en rose.
+//!
 //! Seulement si Funsaiki coche « Barre pastel » dans le menu de l'icône (barre.json, à côté de
 //! apps.json) ; la barre des tâches de Windows est alors masquée (taskbar.rs).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
+use std::sync::mpsc::Receiver;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -24,13 +29,16 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use windows::core::BOOL;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT, WPARAM};
-use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO};
+use windows::Win32::Graphics::Gdi::{
+    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromWindow, HDC, HMONITOR, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsZoomed, PostMessageW,
     ShowWindow, MONITORINFOF_PRIMARY, SW_MINIMIZE, WM_CLOSE,
 };
 
+use crate::shell_hook::{self, Event};
 use crate::{launcher, open_windows, switch, taskbar, tray_apps};
 
 /// Hauteur des fenêtres de la barre, en pixels logiques : la pilule, et au-dessus la zone de
@@ -106,17 +114,21 @@ static SCREENS: Mutex<Vec<Screen>> = Mutex::new(Vec::new());
 static RUNNING: AtomicBool = AtomicBool::new(false);
 /// Dernière fenêtre au premier plan qui n'est pas au lanceur : celle que la barre montre active
 static ACTIVE: Mutex<isize> = Mutex::new(0);
+/// Fenêtres qui demandent l'attention, jusqu'à ce qu'elles passent au premier plan
+static ATTENTION: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 
 fn start(app: &AppHandle) {
     if RUNNING.swap(true, SeqCst) {
         return;
     }
     taskbar::hide();
+    let (sender, signals) = std::sync::mpsc::channel();
+    shell_hook::start(sender);
     let app = app.clone();
     std::thread::spawn(move || {
         let mut pressed = false;
         while RUNNING.load(SeqCst) {
-            tick(&app, &mut pressed);
+            tick(&app, &mut pressed, &signals);
             std::thread::sleep(POLL);
         }
     });
@@ -132,6 +144,8 @@ fn stop(app: &AppHandle) {
         }
     }
     SCREENS.lock().unwrap().clear();
+    ATTENTION.lock().unwrap().clear();
+    shell_hook::stop();
     taskbar::restore();
 }
 
@@ -233,12 +247,15 @@ fn place(w: &WebviewWindow, monitor: &RECT) {
 /* ── Relevé de la souris ── */
 
 enum Action {
-    Reveal(usize, RECT),
+    /// Souris au bord bas, ou un instant pour une fenêtre qui demande l'attention (vrai)
+    Reveal(usize, RECT, bool),
     Pointer(usize, bool),
     Outside(usize),
+    /// Fenêtres à relire
+    Changed(usize),
 }
 
-fn tick(app: &AppHandle, pressed_before: &mut bool) {
+fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
     let mut cursor = POINT::default();
     if unsafe { GetCursorPos(&mut cursor) }.is_err() {
         return;
@@ -246,6 +263,7 @@ fn tick(app: &AppHandle, pressed_before: &mut bool) {
     let foreground = remember_foreground();
     let monitors = monitors();
     ensure_windows(app, &monitors);
+    let (changed, peek) = read_signals(signals, foreground);
     let pressed = [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].iter().any(|k| unsafe { GetAsyncKeyState(k.0 as i32) } < 0);
     let click = pressed && !*pressed_before;
     *pressed_before = pressed;
@@ -257,9 +275,12 @@ fn tick(app: &AppHandle, pressed_before: &mut bool) {
         for (i, monitor) in monitors.iter().enumerate() {
             let Some(screen) = screens.get_mut(i) else { continue };
             let at_edge = contains(monitor, cursor) && cursor.y >= monitor.bottom - 2;
-            if at_edge && !screen.out && !blocked(foreground, monitor) {
+            let peeking = peek == Some(*monitor);
+            if (at_edge || peeking) && !screen.out && !blocked(foreground, monitor) {
                 screen.out = true;
-                actions.push(Action::Reveal(i, *monitor));
+                actions.push(Action::Reveal(i, *monitor, !at_edge));
+            } else if changed && screen.out {
+                actions.push(Action::Changed(i));
             }
             // Le bord bas compte : la pilule ne rentre pas tant que la souris y reste
             let inside = screen.out && (at_edge || screen.rects.iter().any(|r| contains(r, cursor)));
@@ -274,12 +295,12 @@ fn tick(app: &AppHandle, pressed_before: &mut bool) {
     }
     for action in actions {
         match action {
-            Action::Reveal(i, monitor) => {
+            Action::Reveal(i, monitor, peek) => {
                 let Some(w) = app.get_webview_window(&label(i)) else { continue };
                 place(&w, &monitor);
                 launcher::set_memory_low(&w, false);
                 let _ = w.show();
-                let _ = app.emit_to(label(i), "bar:reveal", ());
+                let _ = app.emit_to(label(i), "bar:reveal", peek);
             }
             Action::Pointer(i, inside) => {
                 if let Some(w) = app.get_webview_window(&label(i)) {
@@ -290,8 +311,42 @@ fn tick(app: &AppHandle, pressed_before: &mut bool) {
             Action::Outside(i) => {
                 let _ = app.emit_to(label(i), "bar:outside", ());
             }
+            Action::Changed(i) => {
+                let _ = app.emit_to(label(i), "bar:windows", ());
+            }
         }
     }
+}
+
+/// Signaux de Windows depuis le dernier relevé : fenêtres à relire ? Écran d'une fenêtre qui
+/// vient de demander l'attention (la pilule y sort un instant) ?
+fn read_signals(signals: &Receiver<Event>, foreground: HWND) -> (bool, Option<RECT>) {
+    let own = std::process::id();
+    let mut changed = false;
+    let mut peek = None;
+    let mut attention = ATTENTION.lock().unwrap();
+    for event in signals.try_iter() {
+        match event {
+            Event::Changed => changed = true,
+            Event::Gone(h) | Event::Activated(h) => {
+                attention.retain(|&a| a != h);
+                changed = true;
+            }
+            // Répété tant qu'elle clignote : seul le premier compte
+            Event::Flash(h) => {
+                let hwnd = HWND(h as *mut _);
+                if hwnd != foreground && !attention.contains(&h) && switch::is_app_window(hwnd) && pid_of(hwnd) != own {
+                    attention.push(h);
+                    peek = monitor_info(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }).map(|(_, r)| r);
+                    changed = true;
+                }
+            }
+        }
+    }
+    // Passée au premier plan sans signal
+    let before = attention.len();
+    attention.retain(|&a| a != foreground.0 as isize);
+    (changed || attention.len() != before, peek)
 }
 
 fn contains(r: &RECT, p: POINT) -> bool {
@@ -383,6 +438,8 @@ pub struct BarWindow {
     icon: Option<crate::icon::Icon>,
     /// Au premier plan
     active: bool,
+    /// Demande l'attention (clignote dans la barre de Windows)
+    attention: bool,
 }
 
 /// Fenêtres de la barre des tâches, sauf celles du lanceur. Toutes, quel que soit leur écran
@@ -395,6 +452,7 @@ pub async fn bar_windows(known: Vec<String>) -> Vec<BarWindow> {
 
 fn list(known: &[String]) -> Vec<BarWindow> {
     let active = *ACTIVE.lock().unwrap();
+    let attention = ATTENTION.lock().unwrap().clone();
     let own = std::process::id();
     switch::app_windows()
         .into_iter()
@@ -425,6 +483,7 @@ fn list(known: &[String]) -> Vec<BarWindow> {
                 key,
                 icon,
                 active: hwnd.0 as isize == active,
+                attention: attention.contains(&(hwnd.0 as isize)),
             })
         })
         .collect()

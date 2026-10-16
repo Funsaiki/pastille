@@ -66,6 +66,7 @@ let windows: BarWindow[] = [];
 let order: string[] = [];        // programmes dans leur ordre d'arrivée : les tuiles ne bougent pas
 let windowsShown = '';           // ce qui est affiché : on ne refait les tuiles que si ça change
 const seen = new Set<string>();  // programmes déjà affichés : seuls les nouveaux apparaissent en sautant
+let alerted = new Set<string>(); // programmes qui demandent l'attention : seuls les nouveaux sonnent
 const icons = new Map<string, AppIcon | null>();  // par programme : Rust ne la renvoie pas chaque seconde
 
 async function refreshWindows() {
@@ -92,17 +93,27 @@ function groups(): Group[] {
 
 function renderWindows() {
   const list = groups();
-  const shown = JSON.stringify(list.map((g) => g.windows.map((w) => [w.id, w.title, w.active])));
+  const shown = JSON.stringify(list.map((g) => g.windows.map((w) => [w.id, w.title, w.active, w.attention])));
   // Pas pendant qu'un menu est ouvert : il est accroché à sa tuile (refaite à sa fermeture)
   if (menu || shown === windowsShown) return;
   windowsShown = shown;
   const first = seen.size === 0;
+  const calling = new Set(list.filter((g) => g.windows.some((w) => w.attention)).map((g) => g.key));
   $('bar-windows').replaceChildren(...list.map((g, i) => {
     const tile = groupTile(g, i);
     if (!first && !seen.has(g.key)) popIn(tile);
+    else if (calling.has(g.key) && !alerted.has(g.key)) ring(tile);
     seen.add(g.key);
     return tile;
   }));
+  alerted = calling;
+}
+
+/* La tuile d'une fenêtre qui demande l'attention sonne une fois (comme le clignotement de la
+   barre de Windows, sans animation en boucle) */
+function ring(node: HTMLElement) {
+  node.classList.add('tp-ring');
+  node.addEventListener('animationend', () => node.classList.remove('tp-ring'), { once: true });
 }
 
 /* Titre de la fenêtre, avec le programme s'il n'y est pas déjà */
@@ -114,11 +125,14 @@ function groupTile(g: Group, i: number) {
   const b = el('button', 'bar-tile tp-press');
   const [first] = g.windows;
   const many = g.windows.length > 1;
+  const calling = g.windows.some((w) => w.attention);
   b.classList.toggle('active', g.windows.some((w) => w.active));
+  b.classList.toggle('attention', calling);
   b.title = many ? `${g.app} : ${g.windows.length} fenêtres` : windowLabel(first);
-  b.setAttribute('aria-label', b.title);
+  b.setAttribute('aria-label', calling ? `${b.title} (demande l'attention)` : b.title);
   fillTile(b, g.app, first.icon, first.glyph, i, 22);
   if (many) b.append(el('span', 'bar-count', String(g.windows.length)));
+  if (calling) b.append(el('span', 'bar-alert'));
   b.addEventListener('click', () => {
     if (many) openMenu(b, g.app, g.windows.map(windowItem));
     else act(() => (first.active ? host.minimizeWindow(first.id) : host.focusWindow(first.id)));
@@ -140,6 +154,7 @@ function windowItem(w: BarWindow, i: number) {
   fillTile(dot, w.app, w.icon, w.glyph, i, 16);
   const item = menuItem(w.title, dot, () => act(() => host.focusWindow(w.id)));
   item.classList.toggle('current', w.active);
+  item.classList.toggle('alert', w.attention);
   return item;
 }
 
@@ -279,22 +294,39 @@ function place(node: HTMLElement, anchor: HTMLElement, over: HTMLElement = ancho
    0,7 s après l'avoir quittée, pas tant qu'un menu ou la zone de notification est ouvert ══ */
 const HIDE_MS = 700;
 const SINK_MS = 280;      // rentrée de la pilule (.bar.hidden), avant que Rust masque la fenêtre
-const REFRESH_MS = 1000;  // fenêtres relues tant que la pilule est sortie
+const PEEK_MS = 2500;     // sortie pour une fenêtre qui demande l'attention
+// Fenêtres relues aux signaux de Windows (ouverte, fermée, activée, titre) ; et, au cas où un
+// signal manquerait, toutes les 5 s tant que la pilule est sortie
+const REFRESH_MS = 5000;
 let shown = false;
 let inside = false;       // souris sur la pilule, la zone de notification ou un menu
 let hideTimer = 0;
 let sinkTimer = 0;
 let refreshTimer = 0;
+let signalTimer = 0;
 
-function show() {
-  clearTimeout(hideTimer);
+function show(peek = false) {
   clearTimeout(sinkTimer);
-  if (shown) return;
-  shown = true;
-  $('bar').classList.remove('hidden');
-  refreshWindows();
-  refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
-  reportRects();
+  if (!peek) clearTimeout(hideTimer);
+  if (!shown) {
+    shown = true;
+    $('bar').classList.remove('hidden');
+    refreshWindows();
+    refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
+    reportRects();
+  }
+  // Un instant seulement, sauf si la souris vient dessus
+  if (peek && !inside && !menu && !popOpen()) {
+    clearTimeout(hideTimer);
+    hideTimer = window.setTimeout(hide, PEEK_MS);
+  }
+}
+
+/* Plusieurs signaux arrivent souvent ensemble : une seule lecture */
+function windowsChanged() {
+  if (!shown) return;
+  clearTimeout(signalTimer);
+  signalTimer = window.setTimeout(refreshWindows, 60);
 }
 
 function hide(force = false) {
@@ -302,6 +334,7 @@ function hide(force = false) {
   closeMenu(false);
   if (popOpen()) togglePop(false);
   clearTimeout(hideTimer);
+  clearTimeout(signalTimer);
   clearInterval(refreshTimer);
   shown = false;
   inside = false;
@@ -400,6 +433,7 @@ function init() {
   new ResizeObserver(reportRects).observe($('bar'));
 
   host.onBarReveal(show);
+  host.onBarWindows(windowsChanged);
   host.onBarPointer(setInside);
   host.onBarOutside(clickedOutside);
   // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
@@ -442,7 +476,7 @@ function init() {
   refreshTray();
   // Rentrée jusqu'à ce que la souris touche le bas de l'écran ; dans l'aperçu, elle sort tout de suite
   $('bar').classList.add('hidden');
-  if (PREVIEW) requestAnimationFrame(() => requestAnimationFrame(show));
+  if (PREVIEW) requestAnimationFrame(() => requestAnimationFrame(() => show()));
 }
 
 init();

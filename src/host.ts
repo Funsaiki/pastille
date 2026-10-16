@@ -88,6 +88,7 @@ export interface BarWindow {
   key: string;        // programme : ses fenêtres partagent une tuile
   icon: AppIcon | null;   // null aussi quand le front l'a déjà (barWindows, known)
   active: boolean;    // au premier plan
+  attention: boolean; // demande l'attention (clignote dans la barre de Windows)
   glyph?: string;     // aperçu navigateur seulement : icône à trait (ICONS) à la place de la vraie
 }
 
@@ -140,7 +141,7 @@ let previewBar: BarWindow[] = [
   { id: 'w6', title: '#général — Discord', app: 'Discord', key: 'discord', glyph: 'messages', active: false },
   { id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', glyph: 'musique', active: false },
   { id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', glyph: 'steam', active: false },
-].map((w) => ({ ...w, icon: null }));
+].map((w) => ({ ...w, icon: null, attention: w.key === 'discord' }));
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
@@ -263,6 +264,7 @@ export const host = {
     if (PREVIEW) {
       console.info('[aperçu] fenêtre :', id);
       previewBar.forEach((w) => (w.active = w.id === id));
+      previewBar.forEach((w) => w.id === id && (w.attention = false));
     } else {
       await invoke('focus_window', { id });
     }
@@ -282,10 +284,14 @@ export const host = {
   barHidden() {
     if (!PREVIEW) invoke('bar_hidden');
   },
-  /* Envoyés par Rust à la fenêtre de cet écran : souris au bord bas, souris sur la pilule ou
-     non, clic ailleurs */
-  onBarReveal(fn: () => void) {
-    if (!PREVIEW) getCurrentWindow().listen('bar:reveal', fn);
+  /* Envoyés par Rust à la fenêtre de cet écran : souris au bord bas (ou `peek` : un instant,
+     pour une fenêtre qui demande l'attention), souris sur la pilule ou non, clic ailleurs,
+     fenêtres à relire (signaux de Windows) */
+  onBarReveal(fn: (peek: boolean) => void) {
+    if (!PREVIEW) getCurrentWindow().listen<boolean>('bar:reveal', (e) => fn(e.payload));
+  },
+  onBarWindows(fn: () => void) {
+    if (!PREVIEW) getCurrentWindow().listen('bar:windows', fn);
   },
   onBarPointer(fn: (inside: boolean) => void) {
     if (!PREVIEW) getCurrentWindow().listen<boolean>('bar:pointer', (e) => fn(e.payload));
