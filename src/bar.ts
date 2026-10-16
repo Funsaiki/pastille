@@ -9,7 +9,7 @@
    ══════════════════════════════════════════════════════════ */
 import { ICONS, icon } from './icons';
 import { el, iconCanvas } from './dom';
-import { PREVIEW, host, type AppIcon, type BarWindow, type TrayAction, type TrayApp } from './host';
+import { PREVIEW, host, type AppIcon, type BarWindow, type NowPlaying, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -430,6 +430,8 @@ function show(peek = false) {
     $('bar').classList.remove('hidden');
     refreshWindows();
     refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
+    refreshMedia();
+    mediaTimer = window.setInterval(refreshMedia, MEDIA_MS);
     reportRects();
   }
   // Un instant seulement, sauf si la souris vient dessus
@@ -455,6 +457,7 @@ function hide(force = false) {
   clearTimeout(hideTimer);
   clearTimeout(signalTimer);
   clearInterval(refreshTimer);
+  clearInterval(mediaTimer);
   shown = false;
   inside = false;
   $('bar').classList.add('hidden');
@@ -518,6 +521,73 @@ function tickClock() {
   $('bar-clock').setAttribute('aria-label', `${full.charAt(0).toUpperCase()}${full.slice(1)}, ${fmtTime.format(now)} : calendrier`);
   if (calOpen()) renderCal();   // minuit
   setTimeout(tickClock, 60_000 - (Date.now() % 60_000) + 20);
+}
+
+/* ══ Spotify (media.rs, comme la carte de lecture du téléphone) : une tuile avec la pochette
+   tant que Spotify a un morceau, en lecture ou en pause ; clic : lecture/pause, molette :
+   morceau suivant (vers le bas) ou précédent. Relu à la sortie de la pilule puis toutes les
+   2 s. ══ */
+const MEDIA_MS = 2000;
+const WHEEL_MS = 400;     // un cran de molette à la fois
+let media: NowPlaying | null = null;
+let mediaHold = 0;        // après un clic, Spotify annonce encore l'ancien état
+let mediaTimer = 0;
+let wheelAt = 0;
+let cover = { key: '', url: null as string | null, previous: null as string | null, tries: 0, loading: false };
+
+async function refreshMedia() {
+  if (performance.now() < mediaHold) return;
+  media = await host.media().catch(() => media);
+  renderMedia();
+  refreshCover();
+}
+
+function renderMedia() {
+  const b = $('bar-music');
+  b.hidden = !media?.title;
+  if (!media?.title) return;
+  const text = media.artist ? `${media.title} — ${media.artist}` : media.title;
+  b.classList.toggle('playing', media.playing);
+  b.title = `${text}\nClic : ${media.playing ? 'pause' : 'lecture'} · molette : morceau suivant ou précédent`;
+  b.setAttribute('aria-label', `${text}, ${media.playing ? 'en lecture' : 'en pause'}`);
+}
+
+/* Pochette demandée au changement de morceau ; Spotify annonce le titre avant la pochette :
+   nouvel essai tant qu'il redonne la précédente (3 au plus), comme le téléphone */
+async function refreshCover() {
+  const key = media?.title ? `${media.title}\n${media.artist}` : '';
+  if (key !== cover.key) {
+    cover = { key, url: null, previous: cover.url ?? cover.previous, tries: 0, loading: false };
+    renderCover();
+  }
+  if (!key || cover.url || cover.loading || cover.tries >= 3) return;
+  cover.tries++;
+  cover.loading = true;
+  const url = await host.mediaCover().catch(() => null);
+  if (key !== cover.key) return;   // autre morceau entre-temps
+  cover.loading = false;
+  if (!url || (url === cover.previous && cover.tries < 3)) return;
+  cover.url = url;
+  renderCover();
+}
+
+function renderCover() {
+  $('bar-music').classList.toggle('has-cover', !!cover.url);
+  $('bar-music').style.backgroundImage = cover.url ? `url("${cover.url}")` : '';
+}
+
+async function controlMedia(action: 'toggle' | 'next' | 'previous') {
+  if (action === 'toggle' && media) {
+    media.playing = !media.playing;   // tout de suite, sans attendre Spotify
+    renderMedia();
+  }
+  mediaHold = performance.now() + 450;
+  try {
+    await host.mediaControl(action);
+  } catch (e) {
+    console.error(e);
+  }
+  window.setTimeout(refreshMedia, action === 'toggle' ? 500 : 600);
 }
 
 /* ══ Calendrier : clic sur l'heure. Mois précédent ou suivant (flèches, molette), clic sur le
@@ -603,6 +673,14 @@ function init() {
   $('bar-tray').append(icon(CHEVRON, 20, 2.6));
   $('bar-tray').hidden = !MAIN;
   $('bar-tray').addEventListener('click', () => togglePop());
+  $('bar-music').prepend(icon(ICONS.musique, 22, 2.4));
+  $('bar-music').addEventListener('click', () => controlMedia('toggle'));
+  $('bar-music').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (!e.deltaY || performance.now() - wheelAt < WHEEL_MS) return;
+    wheelAt = performance.now();
+    controlMedia(e.deltaY > 0 ? 'next' : 'previous');
+  }, { passive: false });
   $('bar-clock').addEventListener('click', () => toggleCal());
   $('bar-cal-prev').append(icon(LEFT, 18, 2.6));
   $('bar-cal-next').append(icon(RIGHT, 18, 2.6));
@@ -672,6 +750,7 @@ function init() {
 
   tickClock();
   refreshTray();
+  refreshMedia();   // la tuile est là avant la première sortie : la pilule ne change pas de taille en sortant
   // Rentrée jusqu'à ce que la souris touche le bas de l'écran ; dans l'aperçu, elle sort tout de suite
   $('bar').classList.add('hidden');
   if (PREVIEW) requestAnimationFrame(() => requestAnimationFrame(() => show()));

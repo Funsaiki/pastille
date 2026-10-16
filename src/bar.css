@@ -78,6 +78,18 @@ button { font-family: inherit; }
 }
 .tp-ring { animation: tp-ring .75s var(--ease); }
 
+/* Spotify : la pochette du morceau (à défaut, une note sur l'accent) ; pastille de l'action du
+   clic, pause en lecture (fond accent) ou lecture en pause, comme le bouton du téléphone */
+.bar-music { background-color: var(--fill); background-size: cover; background-position: center; }
+.bar-music.has-cover > svg { display: none; }
+.bar-music-state {
+  position: absolute; right: -6px; bottom: -6px; width: 18px; height: 18px; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid var(--ink); background: #ffffff; color: var(--ink); display: flex; align-items: center; justify-content: center;
+}
+.bar-music.playing .bar-music-state { background: var(--fill); }
+.bar-music .icon-pause, .bar-music.playing .icon-play { display: none; }
+.bar-music.playing .icon-pause { display: block; }
+
 .bar-windows { display: flex; gap: 8px; }
 .bar-windows:empty, .bar-windows:empty + .bar-sep { display: none; }
 .bar-sep { width: 2.5px; height: 26px; flex: none; border-radius: 2px; background: rgba(15, 59, 66, .16); }

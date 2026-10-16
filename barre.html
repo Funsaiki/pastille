@@ -11,13 +11,19 @@
 <span class="wallpaper-hint" aria-hidden="true">[ TON FOND D'ÉCRAN ]</span>
 <p class="preview-help" id="preview-help" hidden></p>
 
-<!-- Pilule : Applications, fenêtres de l'écran (une tuile par programme), zone de notification
-     (écran principal seulement), heure -->
+<!-- Pilule : Applications, fenêtres ouvertes (une tuile par programme), Spotify, zone de
+     notification (écran principal seulement), heure -->
 <nav class="bar" id="bar" aria-label="Barre des tâches">
   <button class="bar-tile bar-apps tp-press" id="bar-apps" title="Applications (clic droit : menu du lanceur)" aria-label="Applications"></button>
   <span class="bar-sep" aria-hidden="true"></span>
   <div class="bar-windows" id="bar-windows"></div>
   <span class="bar-sep" aria-hidden="true"></span>
+  <button class="bar-tile bar-music tp-press" id="bar-music" hidden>
+    <span class="bar-music-state" aria-hidden="true">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" class="icon-pause"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path></svg>
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="icon-play"><path d="M8 5l11 7-11 7z"></path></svg>
+    </span>
+  </button>
   <button class="bar-round" id="bar-tray" title="Applications en arrière-plan" aria-label="Applications en arrière-plan"
           aria-expanded="false" aria-controls="bar-pop"></button>
   <button class="bar-clock" id="bar-clock" aria-expanded="false" aria-controls="bar-cal"><span class="bar-time" id="bar-time"></span><span class="bar-date" id="bar-date"></span></button>
