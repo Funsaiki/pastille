@@ -325,6 +325,12 @@ export const host = {
     if (PREVIEW) console.info('[aperçu] ouvrir le lanceur');
     else await invoke('show_launcher');
   },
+  /* Menu de l'icône du lanceur, à la souris (la barre de Windows masquée, l'icône n'est plus
+     accessible) */
+  barMenu() {
+    if (PREVIEW) console.info('[aperçu] menu du lanceur');
+    else invoke('bar_menu');
+  },
   /* Résultat d'un calcul */
   async copy(text: string) {
     await navigator.clipboard.writeText(text);

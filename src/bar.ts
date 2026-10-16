@@ -381,6 +381,11 @@ function init() {
     hide(true);
     host.showLauncher();
   });
+  // Clic droit : le menu de l'icône du lanceur (couper la barre pastel, quitter…)
+  $('bar-apps').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    host.barMenu();
+  });
   $('bar-tray').append(icon(CHEVRON, 20, 2.6));
   $('bar-tray').hidden = !MAIN;
   $('bar-tray').addEventListener('click', () => togglePop());

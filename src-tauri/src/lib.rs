@@ -100,7 +100,8 @@ pub fn run() {
             bar::minimize_window,
             bar::close_window,
             bar::new_window,
-            bar::show_launcher
+            bar::show_launcher,
+            bar::bar_menu
         ])
         // Fenêtre du lanceur seulement (pas celles de la barre pastel)
         .on_window_event(|window, event| match event {

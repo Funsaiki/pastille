@@ -487,6 +487,13 @@ pub fn show_launcher(app: AppHandle) {
     launcher::show(&app);
 }
 
+/// Clic droit sur Applications : le menu de l'icône du lanceur (couper la barre pastel,
+/// quitter…), que la barre de Windows masquée ne montre plus
+#[tauri::command]
+pub fn bar_menu(app: AppHandle) {
+    crate::tray::popup_menu(&app);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

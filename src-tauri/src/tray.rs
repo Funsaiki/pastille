@@ -1,9 +1,11 @@
 //! Icône dans la zone de notification : indispensable, l'app n'apparaît pas dans la barre des tâches.
 
+use std::sync::OnceLock;
+
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
+    menu::{CheckMenuItem, ContextMenu, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle,
+    AppHandle, Manager, Wry,
 };
 use tauri_plugin_autostart::ManagerExt;
 
@@ -33,6 +35,7 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &edit, &reload, &spotify_item, &bar_item, &autostart, &separator, &quit])?;
+    let _ = MENU.set(menu.clone());
 
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip(tooltip)
@@ -68,6 +71,19 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
     }
     tray.build(app)?;
     Ok(())
+}
+
+/// Menu de l'icône, aussi montré par la barre pastel (la barre de Windows masquée, l'icône n'est
+/// plus accessible)
+static MENU: OnceLock<Menu<Wry>> = OnceLock::new();
+
+/// À la souris, attaché à la fenêtre du lanceur (masquée) : la barre pastel peut rentrer
+/// pendant qu'il est ouvert. Les choix passent par `on_menu_event`, comme depuis l'icône.
+pub fn popup_menu(app: &AppHandle) {
+    let (Some(menu), Some(w)) = (MENU.get(), app.get_webview_window("main")) else { return };
+    if let Err(e) = menu.popup(w.as_ref().window()) {
+        eprintln!("[lanceur] menu du lanceur : {e}");
+    }
 }
 
 pub fn set_tooltip(app: &AppHandle, tooltip: &str) {
