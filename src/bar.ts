@@ -9,7 +9,10 @@
    ══════════════════════════════════════════════════════════ */
 import { ICONS, icon } from './icons';
 import { el, iconCanvas } from './dom';
-import { PREVIEW, host, type AppIcon, type BarWindow, type NowPlaying, type TrayAction, type TrayApp } from './host';
+import {
+  PREVIEW, host, type AppIcon, type BarWindow, type NowPlaying, type RepeatMode, type ShuffleMode, type SpotifyVolume,
+  type TrayAction, type TrayApp,
+} from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -336,6 +339,7 @@ function togglePop(open = !popOpen()) {
   closePreview();
   closeMenu(false);
   if (open && calOpen()) toggleCal(false);
+  if (open && playerOpen()) togglePlayer(false);
   $('bar-pop').classList.toggle('open', open);
   $('bar-tray').setAttribute('aria-expanded', String(open));
   if (open) {
@@ -449,11 +453,12 @@ function windowsChanged() {
 }
 
 function hide(force = false) {
-  if (!shown || (!force && (menu || popOpen() || calOpen() || inside))) return;
+  if (!shown || (!force && (menu || popOpen() || calOpen() || playerOpen() || inside))) return;
   closePreview();
   closeMenu(false);
   if (popOpen()) togglePop(false);
   if (calOpen()) toggleCal(false);
+  if (playerOpen()) togglePlayer(false);
   clearTimeout(hideTimer);
   clearTimeout(signalTimer);
   clearInterval(refreshTimer);
@@ -482,7 +487,7 @@ function reportRects() {
     if (shown) {
       const bar = $('bar');
       rects.push([bar.offsetLeft - 8, bar.offsetTop - 8, bar.offsetWidth + 16, innerHeight - bar.offsetTop + 8]);
-      for (const id of ['bar-pop', 'bar-cal', 'bar-menu', 'bar-preview']) {
+      for (const id of ['bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview']) {
         const n = $(id);
         if (n.classList.contains('open')) rects.push([n.offsetLeft - 8, n.offsetTop - 8, n.offsetWidth + 16, n.offsetHeight + 24]);
       }
@@ -503,6 +508,7 @@ function clickedOutside() {
   closeMenu(false);
   if (popOpen()) togglePop(false);
   if (calOpen()) toggleCal(false);
+  if (playerOpen()) togglePlayer(false);
   autoHide();
 }
 
@@ -524,12 +530,12 @@ function tickClock() {
 }
 
 /* ══ Spotify (media.rs, comme la carte de lecture du téléphone) : une tuile avec la pochette
-   tant que Spotify a un morceau, en lecture ou en pause ; clic : lecture/pause, molette :
-   morceau suivant (vers le bas) ou précédent. Relu à la sortie de la pilule puis toutes les
-   2 s. ══ */
+   tant que Spotify a un morceau, en lecture ou en pause ; clic : le lecteur, molette : morceau
+   suivant (vers le bas) ou précédent. Relu à la sortie de la pilule puis toutes les 2 s. ══ */
 const MEDIA_MS = 2000;
 const WHEEL_MS = 400;     // un cran de molette à la fois
 let media: NowPlaying | null = null;
+let mediaRun = 0;         // une réponse plus ancienne que la dernière demande est ignorée
 let mediaHold = 0;        // après un clic, Spotify annonce encore l'ancien état
 let mediaTimer = 0;
 let wheelAt = 0;
@@ -537,7 +543,10 @@ let cover = { key: '', url: null as string | null, previous: null as string | nu
 
 async function refreshMedia() {
   if (performance.now() < mediaHold) return;
-  media = await host.media().catch(() => media);
+  const run = ++mediaRun;
+  const now = await host.media().catch(() => media);
+  if (run !== mediaRun) return;
+  media = now;
   renderMedia();
   refreshCover();
 }
@@ -545,11 +554,21 @@ async function refreshMedia() {
 function renderMedia() {
   const b = $('bar-music');
   b.hidden = !media?.title;
-  if (!media?.title) return;
+  if (!media?.title) {
+    if (playerOpen()) togglePlayer(false);   // Spotify fermé : la tuile du lecteur est partie
+    return;
+  }
   const text = media.artist ? `${media.title} — ${media.artist}` : media.title;
   b.classList.toggle('playing', media.playing);
-  b.title = `${text}\nClic : ${media.playing ? 'pause' : 'lecture'} · molette : morceau suivant ou précédent`;
-  b.setAttribute('aria-label', `${text}, ${media.playing ? 'en lecture' : 'en pause'}`);
+  b.title = `${text}\nClic : lecteur · molette : morceau suivant ou précédent`;
+  b.setAttribute('aria-label', `${text}, ${media.playing ? 'en lecture' : 'en pause'} : lecteur`);
+  $('bar-player-title').textContent = media.title;
+  $('bar-player-title').title = media.title;   // titre complet au survol s'il est coupé
+  $('bar-player-artist').textContent = media.artist || 'Spotify';
+  // Égaliseur animé carte ouverte seulement (une animation en boucle tourne même cachée)
+  $('bar-player-eq').classList.toggle('on', media.playing && playerOpen());
+  $('bar-play').classList.toggle('paused', !media.playing);
+  $('bar-play').setAttribute('aria-label', media.playing ? 'Pause' : 'Lecture');
 }
 
 /* Pochette demandée au changement de morceau ; Spotify annonce le titre avant la pochette :
@@ -572,8 +591,10 @@ async function refreshCover() {
 }
 
 function renderCover() {
-  $('bar-music').classList.toggle('has-cover', !!cover.url);
-  $('bar-music').style.backgroundImage = cover.url ? `url("${cover.url}")` : '';
+  for (const id of ['bar-music', 'bar-player-art']) {
+    $(id).classList.toggle('has-cover', !!cover.url);
+    $(id).style.backgroundImage = cover.url ? `url("${cover.url}")` : '';
+  }
 }
 
 async function controlMedia(action: 'toggle' | 'next' | 'previous') {
@@ -581,6 +602,7 @@ async function controlMedia(action: 'toggle' | 'next' | 'previous') {
     media.playing = !media.playing;   // tout de suite, sans attendre Spotify
     renderMedia();
   }
+  mediaRun++;   // une lecture partie avant le clic montrerait l'ancien état
   mediaHold = performance.now() + 450;
   try {
     await host.mediaControl(action);
@@ -588,6 +610,160 @@ async function controlMedia(action: 'toggle' | 'next' | 'previous') {
     console.error(e);
   }
   window.setTimeout(refreshMedia, action === 'toggle' ? 500 : 600);
+}
+
+/* ══ Lecteur (demandé par Funsaiki) : clic sur la tuile de Spotify, la carte de lecture du
+   téléphone au-dessus d'elle, mêmes gestes : précédent, lecture/pause, suivant ; volume de
+   Spotify en marches d'égaliseur (clic ou glisser, 10 % par marche ; molette sur la carte 2 % ;
+   flèches 5 %, Début et Fin), celui de Spotify connecté sinon celui du mélangeur de Windows ;
+   aléatoire et répétition (connecté). Volume et modes relus à l'ouverture puis toutes les 5 s
+   tant qu'elle est ouverte. ══ */
+const SPOTIFY_MS = 5000;
+const STEPS = 10;             // marches de 10 %
+let spotifyVolume: SpotifyVolume | null = null;   // null : pas d'appareil actif ou pas de session audio
+let spotifyModes: { shuffle: ShuffleMode; repeat: RepeatMode } | null = null;
+let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
+let spotifyHold = 0;          // juste après un réglage, Spotify annonce encore l'ancien état
+let spotifyReading = false;   // une lecture à la fois
+let spotifyTimer = 0;
+
+const playerOpen = () => $('bar-player').classList.contains('open');
+
+function togglePlayer(open = !playerOpen()) {
+  closePreview();
+  closeMenu(false);
+  if (open && popOpen()) togglePop(false);
+  if (open && calOpen()) toggleCal(false);
+  $('bar-player').classList.toggle('open', open);
+  $('bar-music').setAttribute('aria-expanded', String(open));
+  clearInterval(spotifyTimer);
+  if (open) {
+    renderMedia();
+    refreshSpotify();
+    spotifyTimer = window.setInterval(refreshSpotify, SPOTIFY_MS);
+    place($('bar-player'), $('bar-music'), $('bar'));
+  } else {
+    $('bar-player-eq').classList.remove('on');
+    autoHide();
+  }
+  reportRects();
+}
+
+async function refreshSpotify() {
+  if (performance.now() < spotifyHold || spotifyReading) return;
+  const run = ++spotifyRun;
+  spotifyReading = true;
+  const now = await host.spotifyState().catch(() => null);
+  spotifyReading = false;
+  if (run !== spotifyRun || !now) return;
+  spotifyVolume = now.volume;
+  spotifyModes = now.shuffle != null && now.repeat ? { shuffle: now.shuffle, repeat: now.repeat } : null;
+  renderSpotify();
+}
+
+const SHUFFLE_LABELS: Record<ShuffleMode, string> = {
+  off: 'Lecture aléatoire : non',
+  on: 'Lecture aléatoire : oui',
+  smart: 'Aléatoire intelligent (activé dans Spotify) : cliquer pour le couper',
+};
+
+const REPEAT_LABELS: Record<RepeatMode, string> = {
+  off: 'Répétition : non',
+  context: 'Répétition : la playlist ou l’album',
+  track: 'Répétition : ce titre',
+};
+
+/* Dix barres de 10 %, celle qui contient le niveau remplie en partie */
+function renderSpotify() {
+  const meter = $('bar-player-volume');
+  const level = spotifyVolume?.volume ?? 0;
+  const off = !spotifyVolume;
+  meter.setAttribute('aria-disabled', String(off));
+  meter.tabIndex = off ? -1 : 0;
+  meter.setAttribute('aria-valuenow', String(level));
+  meter.setAttribute('aria-valuetext', off ? 'indisponible' : `${level} %`);
+  meter.querySelectorAll<HTMLElement>('i').forEach((bar, i) => {
+    const fill = Math.max(0, Math.min(1, (level - i * (100 / STEPS)) / (100 / STEPS)));
+    bar.style.setProperty('--p', fill * 100 + '%');
+  });
+  meter.title = off
+    ? 'Volume de Spotify : indisponible'
+    : spotifyVolume!.source === 'windows'
+      ? `Volume de Spotify (mélangeur de Windows) : ${level} %`
+      : `Volume de Spotify : ${level} %`;
+  const shuffle = $('bar-shuffle');
+  const repeat = $('bar-repeat');
+  shuffle.hidden = repeat.hidden = !spotifyModes;
+  if (!spotifyModes) return;
+  shuffle.setAttribute('aria-pressed', String(spotifyModes.shuffle !== 'off'));
+  shuffle.dataset.mode = spotifyModes.shuffle;
+  shuffle.title = SHUFFLE_LABELS[spotifyModes.shuffle];
+  repeat.setAttribute('aria-pressed', String(spotifyModes.repeat !== 'off'));
+  repeat.dataset.mode = spotifyModes.repeat;
+  repeat.title = REPEAT_LABELS[spotifyModes.repeat];
+}
+
+/* Marche sous le pointeur → niveau ; un clic sur la première quand le niveau y est déjà coupe
+   le son */
+function stepLevel(x: number, y: number, first: boolean): number | null {
+  const bar = document.elementFromPoint(x, y)?.closest<HTMLElement>('#bar-player-volume i');
+  if (!bar) return null;
+  const index = Array.from($('bar-player-volume').children).indexOf(bar);
+  const level = (index + 1) * (100 / STEPS);
+  const now = spotifyVolume?.volume ?? 0;
+  return first && index === 0 && now > 0 && now <= level ? 0 : level;
+}
+
+/* Un envoi à la fois, le dernier niveau gagne (comme le téléphone) ; après chaque envoi,
+   l'attente repart : Spotify met un instant à annoncer le nouveau volume */
+let volumeWanted: number | null = null;
+let volumeSending = false;
+
+async function sendVolume(level: number) {
+  volumeWanted = level;
+  if (volumeSending) return;
+  volumeSending = true;
+  while (volumeWanted !== null) {
+    const next = volumeWanted;
+    volumeWanted = null;
+    const target = spotifyVolume;
+    await (target?.source === 'windows' ? host.setAppVolume(target.key, next) : host.setSpotifyVolume(next))
+      .catch((e) => console.error(e));
+    spotifyHold = performance.now() + 1000;
+  }
+  volumeSending = false;
+}
+
+function setSpotifyVolume(level: number) {
+  if (!spotifyVolume) return;
+  spotifyVolume.volume = Math.max(0, Math.min(100, Math.round(level)));
+  spotifyRun++;
+  spotifyHold = performance.now() + 1500;
+  renderSpotify();
+  sendVolume(spotifyVolume.volume);
+}
+
+/* Change tout de suite ; aléatoire : non ↔ oui, l'aléatoire intelligent ne peut que se couper ;
+   répétition : non → playlist → titre → non */
+async function toggleSpotifyMode(which: 'shuffle' | 'repeat') {
+  if (!spotifyModes) return;
+  spotifyRun++;
+  spotifyHold = performance.now() + 1500;
+  try {
+    if (which === 'shuffle') {
+      spotifyModes.shuffle = spotifyModes.shuffle === 'off' ? 'on' : 'off';
+      renderSpotify();
+      await host.setSpotifyShuffle(spotifyModes.shuffle === 'on');
+    } else {
+      const next: Record<RepeatMode, RepeatMode> = { off: 'context', context: 'track', track: 'off' };
+      spotifyModes.repeat = next[spotifyModes.repeat];
+      renderSpotify();
+      await host.setSpotifyRepeat(spotifyModes.repeat);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  spotifyHold = performance.now() + 1000;
 }
 
 /* ══ Calendrier : clic sur l'heure. Mois précédent ou suivant (flèches, molette), clic sur le
@@ -606,6 +782,7 @@ function toggleCal(open = !calOpen()) {
   closePreview();
   closeMenu(false);
   if (open && popOpen()) togglePop(false);
+  if (open && playerOpen()) togglePlayer(false);
   $('bar-cal').classList.toggle('open', open);
   $('bar-clock').setAttribute('aria-expanded', String(open));
   if (open) {
@@ -674,13 +851,43 @@ function init() {
   $('bar-tray').hidden = !MAIN;
   $('bar-tray').addEventListener('click', () => togglePop());
   $('bar-music').prepend(icon(ICONS.musique, 22, 2.4));
-  $('bar-music').addEventListener('click', () => controlMedia('toggle'));
+  $('bar-music').addEventListener('click', () => togglePlayer());
   $('bar-music').addEventListener('wheel', (e) => {
     e.preventDefault();
     if (!e.deltaY || performance.now() - wheelAt < WHEEL_MS) return;
     wheelAt = performance.now();
     controlMedia(e.deltaY > 0 ? 'next' : 'previous');
   }, { passive: false });
+  $('bar-play').addEventListener('click', () => controlMedia('toggle'));
+  $('bar-previous').addEventListener('click', () => controlMedia('previous'));
+  $('bar-next').addEventListener('click', () => controlMedia('next'));
+  $('bar-shuffle').addEventListener('click', () => toggleSpotifyMode('shuffle'));
+  $('bar-repeat').addEventListener('click', () => toggleSpotifyMode('repeat'));
+  const meter = $('bar-player-volume');
+  meter.addEventListener('pointerdown', (e) => {
+    if (!spotifyVolume || e.button !== 0) return;
+    meter.setPointerCapture(e.pointerId);
+    const level = stepLevel(e.clientX, e.clientY, true);
+    if (level !== null) setSpotifyVolume(level);
+  });
+  meter.addEventListener('pointermove', (e) => {
+    if (!meter.hasPointerCapture(e.pointerId)) return;
+    const level = stepLevel(e.clientX, e.clientY, false);
+    if (level !== null && level !== spotifyVolume?.volume) setSpotifyVolume(level);
+  });
+  meter.addEventListener('keydown', (e) => {
+    if (!spotifyVolume) return;
+    const steps: Record<string, number> = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5 };
+    if (e.key in steps) setSpotifyVolume(spotifyVolume.volume + steps[e.key]);
+    else if (e.key === 'Home' || e.key === 'End') setSpotifyVolume(e.key === 'Home' ? 0 : 100);
+    else return;
+    e.preventDefault();
+  });
+  // Molette sur la carte : volume de Spotify, 2 % par cran comme sur le téléphone
+  $('bar-player').addEventListener('wheel', (e) => {
+    if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;
+    setSpotifyVolume(spotifyVolume.volume + (e.deltaY < 0 ? 2 : -2));
+  }, { passive: true });
   $('bar-clock').addEventListener('click', () => toggleCal());
   $('bar-cal-prev').append(icon(LEFT, 18, 2.6));
   $('bar-cal-next').append(icon(RIGHT, 18, 2.6));
@@ -702,7 +909,13 @@ function init() {
   // Aperçu : la souris peut aller de la tuile à la carte
   $('bar-preview').addEventListener('pointerenter', () => clearTimeout(previewTimer));
   $('bar-preview').addEventListener('pointerleave', leavePreview);
-  new ResizeObserver(reportRects).observe($('bar'));
+  // La pilule change de largeur (fenêtre ouverte ou fermée) : les cartes suivent leur bouton
+  new ResizeObserver(() => {
+    if (popOpen()) place($('bar-pop'), $('bar-tray'), $('bar'));
+    if (calOpen()) place($('bar-cal'), $('bar-clock'), $('bar'));
+    if (playerOpen()) place($('bar-player'), $('bar-music'), $('bar'));
+    reportRects();
+  }).observe($('bar'));
 
   host.onBarReveal(show);
   host.onBarWindows(windowsChanged);
@@ -710,7 +923,7 @@ function init() {
   host.onBarOutside(clickedOutside);
   // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
   if (PREVIEW) {
-    for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-menu', 'bar-preview']) {
+    for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview']) {
       $(id).addEventListener('pointerenter', () => setInside(true));
       $(id).addEventListener('pointerleave', () => setInside(false));
     }
@@ -719,7 +932,7 @@ function init() {
     });
     document.addEventListener('pointerdown', (e) => {
       const target = e.target as Node;
-      if (!['bar', 'bar-pop', 'bar-cal', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
+      if (!['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
     });
   }
   document.addEventListener('keydown', (e) => {
@@ -732,6 +945,9 @@ function init() {
     } else if (calOpen()) {
       toggleCal(false);
       $('bar-clock').focus({ preventScroll: true });
+    } else if (playerOpen()) {
+      togglePlayer(false);
+      $('bar-music').focus({ preventScroll: true });
     }
   });
   // Flèches haut et bas dans les menus, comme le menu d'alimentation

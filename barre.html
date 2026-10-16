@@ -18,7 +18,7 @@
   <span class="bar-sep" aria-hidden="true"></span>
   <div class="bar-windows" id="bar-windows"></div>
   <span class="bar-sep" aria-hidden="true"></span>
-  <button class="bar-tile bar-music tp-press" id="bar-music" hidden>
+  <button class="bar-tile bar-music tp-press" id="bar-music" aria-expanded="false" aria-controls="bar-player" hidden>
     <span class="bar-music-state" aria-hidden="true">
       <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" class="icon-pause"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path></svg>
       <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="icon-play"><path d="M8 5l11 7-11 7z"></path></svg>
@@ -48,6 +48,38 @@
     <span class="bar-cal-today" id="bar-cal-today"></span>
     <button class="bar-cal-notif tp-press" id="bar-cal-notif" title="Centre de notifications de Windows">Notifications</button>
   </div>
+</section>
+
+<!-- Lecteur : clic sur la tuile de Spotify ; la carte de lecture du téléphone -->
+<section class="bar-player" id="bar-player" aria-label="Lecture en cours">
+  <div class="media-art" id="bar-player-art" aria-hidden="true">
+    <span class="tp-eq" id="bar-player-eq"><i></i><i></i><i></i></span>
+  </div>
+  <div class="media-text">
+    <span class="media-title" id="bar-player-title"></span>
+    <span class="media-artist" id="bar-player-artist"></span>
+    <div class="media-controls">
+      <div class="media-volume" id="bar-player-volume" role="slider" tabindex="0" aria-label="Volume de Spotify" aria-valuemin="0" aria-valuemax="100">
+        <i style="--h: 5px"></i><i style="--h: 6px"></i><i style="--h: 7px"></i><i style="--h: 8px"></i><i style="--h: 9px"></i><i style="--h: 10px"></i><i style="--h: 11px"></i><i style="--h: 12px"></i><i style="--h: 13px"></i><i style="--h: 14px"></i>
+      </div>
+      <button class="media-mode" id="bar-shuffle" aria-label="Lecture aléatoire" title="Lecture aléatoire" aria-pressed="false" hidden>
+        <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path><path class="smart-spark" d="M4.5 10v7M1 13.5h7"></path></svg>
+      </button>
+      <button class="media-mode" id="bar-repeat" aria-label="Répétition" title="Répétition" aria-pressed="false" hidden>
+        <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"></path><path class="repeat-one" d="M11 10.5l1.5-1.5v6"></path></svg>
+      </button>
+    </div>
+  </div>
+  <button class="tp-press media-btn" id="bar-previous" aria-label="Précédent">
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M18 5v14L8 12zM6 5v14"></path></svg>
+  </button>
+  <button class="tp-press media-btn media-play" id="bar-play">
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="icon-pause"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path></svg>
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="icon-play"><path d="M8 5l11 7-11 7z"></path></svg>
+  </button>
+  <button class="tp-press media-btn" id="bar-next" aria-label="Suivant">
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 5v14l10-7zM18 5v14"></path></svg>
+  </button>
 </section>
 
 <!-- Aperçu des fenêtres d'un programme au survol de sa tuile : Windows dessine les vignettes en

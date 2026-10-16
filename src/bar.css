@@ -33,6 +33,7 @@ button { font-family: inherit; }
 .tp-press:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink) !important; }
 .tp-press:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink) !important; }
 .tp-press:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+@keyframes tp-eq { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
 @keyframes tp-pop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
 .tp-pop { animation: tp-pop .45s var(--ease) both; }
 
@@ -185,6 +186,68 @@ button { font-family: inherit; }
   box-shadow: 0 3px 0 var(--ink); font-weight: 900; font-size: 12px; cursor: pointer;
 }
 .bar-cal-notif:hover { background: var(--fill); }
+
+/* ── Lecteur : la carte de lecture du téléphone (styles.css, mêmes tailles), au-dessus de la
+   tuile de Spotify comme le calendrier au-dessus de l'heure ── */
+.bar-player {
+  position: fixed; width: 354px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 9px;
+  border-radius: 24px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
+  opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+}
+.bar-player.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
+.bar-player::after {
+  content: ''; position: absolute; bottom: -9px; left: calc(var(--arrow, 50%) - 7px); width: 14px; height: 14px;
+  box-sizing: border-box; border: solid var(--ink); border-width: 0 2.5px 2.5px 0; border-radius: 0 0 3px 0;
+  background: #ffffff; rotate: 45deg;
+}
+.media-art {
+  width: 46px; height: 46px; flex: none; border-radius: 16px; border: 2.5px solid var(--ink);
+  background: linear-gradient(135deg, var(--fill), #f6e2ec); display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+}
+.media-art.has-cover { background-size: cover; background-position: center; }
+.media-art.has-cover .tp-eq { display: none; }
+.tp-eq { display: flex; align-items: flex-end; gap: 3px; height: 18px; }
+.tp-eq i { display: block; width: 3px; height: 100%; border-radius: 2px; background: var(--ink); transform-origin: bottom; transform: scaleY(.3); }
+.tp-eq.on i { animation: tp-eq .8s ease-in-out infinite alternate; }
+.tp-eq i:nth-child(2) { animation-delay: -.27s; }
+.tp-eq i:nth-child(3) { animation-delay: -.54s; }
+.media-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.1; }
+.media-title { font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-artist { font-weight: 700; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-controls { display: flex; align-items: center; gap: 3px; margin-top: 2px; height: 15px; }
+/* Volume de Spotify en marches d'égaliseur : clic ou glisser, 10 % par marche */
+.media-volume { flex: none; display: flex; height: 14px; cursor: pointer; touch-action: none; border-radius: 3px; }
+.media-volume i { flex: none; width: 6px; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.media-volume i::before {
+  content: ''; width: 4px; height: var(--h); border-radius: 2px;
+  background: linear-gradient(0deg, var(--ink) var(--p, 0%), rgba(15, 59, 66, .18) var(--p, 0%));
+}
+.media-volume:hover i::before { box-shadow: 0 0 0 .5px rgba(15, 59, 66, .25); }
+.media-volume:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.media-volume[aria-disabled="true"] { opacity: .4; cursor: default; pointer-events: none; }
+/* Aléatoire et répétition (Spotify connecté) ; « 1 » : répétition du titre ; étincelle et fond
+   rose : aléatoire intelligent */
+.media-mode {
+  width: 15px; height: 15px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
+  color: rgba(15, 59, 66, .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.media-controls .media-mode:first-of-type { margin-left: 3px; }
+.media-mode:hover, .media-mode[aria-pressed="true"] { color: var(--ink); }
+.media-mode[aria-pressed="true"] { background: var(--fill); }
+.media-mode:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.media-mode .repeat-one { display: none; }
+.media-mode[data-mode="track"] .repeat-one { display: inline; }
+.media-mode .smart-spark { display: none; }
+.media-mode[data-mode="smart"] .smart-spark { display: inline; }
+.media-mode[aria-pressed="true"][data-mode="smart"] { background: #f6c6da; }
+.media-btn {
+  width: 34px; height: 34px; flex: none; padding: 0; border-radius: 50%; border: 2.5px solid var(--ink); background: #ffffff;
+  color: var(--ink); box-shadow: 0 2px 0 var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.media-play { width: 40px; height: 40px; background: var(--fill); }
+.media-play .icon-play, .media-play.paused .icon-pause { display: none; }
+.media-play.paused .icon-play { display: block; }
 
 /* ── Aperçu au survol d'une tuile : carte blanche au-dessus d'elle, pointe vers elle ; un cadre
    par fenêtre, à sa proportion, où Windows dessine la vignette en direct (6 px à l'intérieur) ;
