@@ -9,12 +9,12 @@
 use std::sync::Mutex;
 use std::thread::JoinHandle;
 
-use windows::core::BOOL;
+use windows::core::w;
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, EnumWindows, GetClassNameW, GetMessageW, IsWindowVisible, KillTimer, PostThreadMessageW,
+    DispatchMessageW, FindWindowExW, GetClassNameW, GetMessageW, IsWindowVisible, KillTimer, PostThreadMessageW,
     SetTimer, ShowWindow, EVENT_OBJECT_SHOW, MSG, OBJID_WINDOW, SW_HIDE, SW_SHOWNA, WINEVENT_OUTOFCONTEXT,
     WINEVENT_SKIPOWNPROCESS, WM_QUIT,
 };
@@ -81,16 +81,16 @@ fn is_bar(hwnd: HWND) -> bool {
     matches!(String::from_utf16_lossy(&buf[..len]).as_str(), "Shell_TrayWnd" | "Shell_SecondaryTrayWnd")
 }
 
+/// Demandées à Windows par leur classe, sans passer en revue toutes les fenêtres (326 chez
+/// Funsaiki : 0,25 ms à chaque relevé, contre 7 µs)
 fn for_each_bar(mut f: impl FnMut(HWND)) {
-    unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let f = unsafe { &mut *(lparam.0 as *mut &mut dyn FnMut(HWND)) };
-        if is_bar(hwnd) {
-            f(hwnd);
+    for class in [w!("Shell_TrayWnd"), w!("Shell_SecondaryTrayWnd")] {
+        let mut after = None;
+        while let Ok(bar) = unsafe { FindWindowExW(None, after, class, None) } {
+            f(bar);
+            after = Some(bar);
         }
-        true.into()
     }
-    let mut f: &mut dyn FnMut(HWND) = &mut f;
-    let _ = unsafe { EnumWindows(Some(visit), LPARAM(&mut f as *mut &mut dyn FnMut(HWND) as isize)) };
 }
 
 /// Windows réaffiche une barre : recachée avant d'être dessinée

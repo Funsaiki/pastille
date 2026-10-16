@@ -75,13 +75,12 @@ fn cover_cursor_monitor(w: &WebviewWindow) -> tauri::Result<()> {
 }
 
 /// Masqué, WebView2 peut rendre de la mémoire (demande de Funsaiki) ; niveau normal avant chaque
-/// affichage.
-pub fn set_memory_low(app: &AppHandle, low: bool) {
+/// affichage. Le téléphone, et les fenêtres de la barre pastel quand la pilule est rentrée.
+pub fn set_memory_low(w: &WebviewWindow, low: bool) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
     };
     use windows::core::Interface;
-    let Some(w) = window(app) else { return };
     let _ = w.with_webview(move |webview| unsafe {
         let level = if low { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW } else { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL };
         // WebView2 trop ancien (avant la version 1.0.2210) : rien à faire
@@ -96,13 +95,13 @@ pub fn set_memory_low(app: &AppHandle, low: bool) {
 pub fn hide_window(app: AppHandle) {
     if let Some(w) = window(&app) {
         let _ = w.hide();
+        set_memory_low(&w, true);
     }
-    set_memory_low(&app, true);
 }
 
 pub fn show(app: &AppHandle) {
     let Some(w) = window(app) else { return };
-    set_memory_low(app, false);
+    set_memory_low(&w, false);
     // apps.json modifié depuis la dernière ouverture : le front reçoit la nouvelle config avant « shown »
     config::reload_if_changed(app);
     config::refresh_games_if_stale(app);

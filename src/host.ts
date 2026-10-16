@@ -86,7 +86,7 @@ export interface BarWindow {
   title: string;
   app: string;        // nom du programme (« Brave »)
   key: string;        // programme : ses fenêtres partagent une tuile
-  icon: AppIcon | null;
+  icon: AppIcon | null;   // null aussi quand le front l'a déjà (barWindows, known)
   active: boolean;    // au premier plan
   glyph?: string;     // aperçu navigateur seulement : icône à trait (ICONS) à la place de la vraie
 }
@@ -293,10 +293,11 @@ export const host = {
   onBarOutside(fn: () => void) {
     if (!PREVIEW) getCurrentWindow().listen('bar:outside', fn);
   },
-  /* Fenêtres de la barre des tâches de tous les écrans (demande de Funsaiki), sauf celles du lanceur */
-  async barWindows(): Promise<BarWindow[]> {
+  /* Fenêtres de la barre des tâches de tous les écrans (demande de Funsaiki), sauf celles du
+     lanceur ; sans l'icône des programmes de `known` (le front l'a déjà) */
+  async barWindows(known: string[]): Promise<BarWindow[]> {
     if (PREVIEW) return previewBar.map((w) => ({ ...w }));
-    return invoke<BarWindow[]>('bar_windows');
+    return invoke<BarWindow[]>('bar_windows', { known });
   },
   async minimizeWindow(id: string) {
     if (PREVIEW) {

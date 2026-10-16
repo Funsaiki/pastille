@@ -213,6 +213,7 @@ fn create(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
         .visible(false)
         .build()?;
     w.set_ignore_cursor_events(true)?;
+    launcher::set_memory_low(&w, true);   // pilule rentrée
     Ok(w)
 }
 
@@ -276,6 +277,7 @@ fn tick(app: &AppHandle, pressed_before: &mut bool) {
             Action::Reveal(i, monitor) => {
                 let Some(w) = app.get_webview_window(&label(i)) else { continue };
                 place(&w, &monitor);
+                launcher::set_memory_low(&w, false);
                 let _ = w.show();
                 let _ = app.emit_to(label(i), "bar:reveal", ());
             }
@@ -355,7 +357,8 @@ pub async fn bar_rects(window: WebviewWindow, rects: Vec<[f64; 4]>) {
     }
 }
 
-/// Pilule rentrée : la fenêtre est masquée jusqu'à la prochaine sortie
+/// Pilule rentrée : la fenêtre est masquée jusqu'à la prochaine sortie, WebView2 en mémoire basse
+/// comme le téléphone masqué
 #[tauri::command]
 pub async fn bar_hidden(window: WebviewWindow) {
     let Some(i) = index(window.label()) else { return };
@@ -364,6 +367,7 @@ pub async fn bar_hidden(window: WebviewWindow) {
     }
     let _ = window.set_ignore_cursor_events(true);
     let _ = window.hide();
+    launcher::set_memory_low(&window, true);
 }
 
 #[derive(Serialize)]
@@ -375,19 +379,21 @@ pub struct BarWindow {
     app: String,
     /// Ses fenêtres partagent une tuile
     key: String,
+    /// Pas pour les programmes dont le front a déjà l'icône
     icon: Option<crate::icon::Icon>,
     /// Au premier plan
     active: bool,
 }
 
 /// Fenêtres de la barre des tâches, sauf celles du lanceur. Toutes, quel que soit leur écran
-/// (demande de Funsaiki) : chaque pilule les montre toutes.
+/// (demande de Funsaiki) : chaque pilule les montre toutes. Relues chaque seconde : les icônes ne
+/// sont envoyées que pour les programmes que le front n'a pas déjà (`known`, des `key`).
 #[tauri::command]
-pub async fn bar_windows() -> Vec<BarWindow> {
-    crate::com::com_task(|| Ok(list())).await.unwrap_or_default()
+pub async fn bar_windows(known: Vec<String>) -> Vec<BarWindow> {
+    crate::com::com_task(move || Ok(list(&known))).await.unwrap_or_default()
 }
 
-fn list() -> Vec<BarWindow> {
+fn list(known: &[String]) -> Vec<BarWindow> {
     let active = *ACTIVE.lock().unwrap();
     let own = std::process::id();
     switch::app_windows()
@@ -411,12 +417,13 @@ fn list() -> Vec<BarWindow> {
                 })
             };
             let key = if hosted { format!("{lower}|{title}") } else { lower };
+            let icon = if known.contains(&key) { None } else { crate::icon::of(&path) };
             Some(BarWindow {
                 id: (hwnd.0 as isize).to_string(),
                 title,
                 app,
                 key,
-                icon: crate::icon::of(&path),
+                icon,
                 active: hwnd.0 as isize == active,
             })
         })
@@ -498,7 +505,7 @@ mod tests {
                 eprintln!("écran {i} : {},{} -> {},{}", m.left, m.top, m.right, m.bottom);
             }
             let start = std::time::Instant::now();
-            for w in list() {
+            for w in list(&[]) {
                 eprintln!("  {:<28} {:<40} icône : {}", w.app, w.title.chars().take(40).collect::<String>(), w.icon.is_some());
             }
             eprintln!("  durée : {:?}", start.elapsed());

@@ -66,9 +66,17 @@ let windows: BarWindow[] = [];
 let order: string[] = [];        // programmes dans leur ordre d'arrivée : les tuiles ne bougent pas
 let windowsShown = '';           // ce qui est affiché : on ne refait les tuiles que si ça change
 const seen = new Set<string>();  // programmes déjà affichés : seuls les nouveaux apparaissent en sautant
+const icons = new Map<string, AppIcon | null>();  // par programme : Rust ne la renvoie pas chaque seconde
 
 async function refreshWindows() {
-  windows = await host.barWindows().catch(() => windows);
+  const known = [...icons.keys()];
+  const list = await host.barWindows(known).catch(() => null);
+  if (list) {
+    for (const w of list) if (!known.includes(w.key)) icons.set(w.key, w.icon);
+    // Programmes fermés oubliés ; une icône oubliée entre-temps est redemandée au relevé suivant
+    for (const key of icons.keys()) if (!list.some((w) => w.key === key)) icons.delete(key);
+    windows = list.map((w) => ({ ...w, icon: icons.get(w.key) ?? null }));
+  }
   renderWindows();
 }
 

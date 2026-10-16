@@ -63,7 +63,9 @@ pub fn run() {
             let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());
             tray::create(app.handle(), &tooltip)?;
             launcher::disable_key_menu(app.handle());
-            launcher::set_memory_low(app.handle(), true);   // la fenêtre démarre masquée
+            if let Some(w) = app.get_webview_window("main") {
+                launcher::set_memory_low(&w, true);   // la fenêtre démarre masquée
+            }
             bar::init(app.handle());
             Ok(())
         })
