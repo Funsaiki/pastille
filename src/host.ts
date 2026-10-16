@@ -80,7 +80,7 @@ export interface OpenWindow {
   icon: AppIcon | null;
 }
 
-/* Fenêtre de la barre pastel, sur l'écran de la barre */
+/* Fenêtre de la barre pastel, sur l'écran de la barre (bar.rs) */
 export interface BarWindow {
   id: string;
   title: string;
@@ -267,8 +267,33 @@ export const host = {
       await invoke('focus_window', { id });
     }
   },
-  /* ── Barre pastel (maquette : aperçu navigateur seulement) ── */
-  /* Fenêtres de la barre des tâches sur l'écran `screen` (0 : principal) */
+  /* ── Barre pastel (bar.rs) : une fenêtre par écran, « bar-0 » pour le principal ── */
+  /* Écran de la fenêtre ; aperçu : ?ecran=2 pour le second */
+  barScreen(): number {
+    if (PREVIEW) return Math.max(0, Number(new URLSearchParams(location.search).get('ecran') ?? 1) - 1);
+    return Number(getCurrentWindow().label.replace('bar-', '')) || 0;
+  },
+  /* Là où la fenêtre prend la souris (x, y, largeur, hauteur en pixels CSS) ; ailleurs, elle
+     la laisse passer aux fenêtres de dessous */
+  barRects(rects: number[][]) {
+    if (!PREVIEW) invoke('bar_rects', { rects });
+  },
+  /* Pilule rentrée : Rust masque la fenêtre */
+  barHidden() {
+    if (!PREVIEW) invoke('bar_hidden');
+  },
+  /* Envoyés par Rust à la fenêtre de cet écran : souris au bord bas, souris sur la pilule ou
+     non, clic ailleurs */
+  onBarReveal(fn: () => void) {
+    if (!PREVIEW) getCurrentWindow().listen('bar:reveal', fn);
+  },
+  onBarPointer(fn: (inside: boolean) => void) {
+    if (!PREVIEW) getCurrentWindow().listen<boolean>('bar:pointer', (e) => fn(e.payload));
+  },
+  onBarOutside(fn: () => void) {
+    if (!PREVIEW) getCurrentWindow().listen('bar:outside', fn);
+  },
+  /* Fenêtres de la barre des tâches sur l'écran `screen`, sauf celles du lanceur */
   async barWindows(screen: number): Promise<BarWindow[]> {
     if (PREVIEW) return previewBar.filter((w) => w.screen === screen).map((w) => ({ ...w }));
     return invoke<BarWindow[]>('bar_windows', { screen });

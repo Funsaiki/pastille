@@ -1,4 +1,5 @@
 mod audio;
+mod bar;
 mod com;
 mod config;
 mod epic;
@@ -14,11 +15,12 @@ mod spotify;
 mod steam;
 mod switch;
 mod system;
+mod taskbar;
 mod tray;
 mod tray_apps;
 mod usage;
 
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_plugin_global_shortcut::ShortcutState;
 
 /// Hors du fil principal : appels qui peuvent attendre (disque, COM, invite UAC…)
@@ -62,6 +64,7 @@ pub fn run() {
             tray::create(app.handle(), &tooltip)?;
             launcher::disable_key_menu(app.handle());
             launcher::set_memory_low(app.handle(), true);   // la fenêtre démarre masquée
+            bar::init(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -90,9 +93,18 @@ pub fn run() {
             feed::feed,
             feed::open_download,
             tray_apps::tray_apps,
-            tray_apps::tray_app_action
+            tray_apps::tray_app_action,
+            bar::bar_windows,
+            bar::bar_rects,
+            bar::bar_hidden,
+            bar::minimize_window,
+            bar::close_window,
+            bar::new_window,
+            bar::show_launcher
         ])
+        // Fenêtre du lanceur seulement (pas celles de la barre pastel)
         .on_window_event(|window, event| match event {
+            _ if window.label() != "main" => {}
             // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
@@ -101,6 +113,12 @@ pub fn run() {
             WindowEvent::Focused(false) => launcher::on_blur(window.app_handle()),
             _ => {}
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app, event| {
+            // La barre des tâches de Windows revient quand le lanceur quitte
+            if let RunEvent::Exit = event {
+                bar::shutdown();
+            }
+        });
 }

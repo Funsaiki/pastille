@@ -29,16 +29,22 @@ pub async fn open_windows() -> Vec<OpenWindow> {
 /// Ramène la fenêtre au premier plan (restaurée si elle était réduite)
 #[tauri::command]
 pub async fn focus_window(id: String) -> Result<(), String> {
-    let handle: isize = id.parse().map_err(|_| format!("Fenêtre {id} inconnue."))?;
     crate::blocking(move || {
-        let hwnd = HWND(handle as *mut _);
-        // Encore une fenêtre de la barre des tâches, et pas le lanceur : rien d'autre n'est touché
-        if !switch::is_app_window(hwnd) || switch::process_of(hwnd).1 == std::process::id() {
-            return Err("Cette fenêtre n'est plus ouverte.".to_string());
-        }
+        let hwnd = app_window(&id)?;
         if switch::bring(hwnd) { Ok(()) } else { Err("Windows a refusé de passer à cette fenêtre.".into()) }
     })
     .await?
+}
+
+/// Fenêtre envoyée par le front (recherche, barre pastel) : encore une fenêtre de la barre des
+/// tâches, et pas le lanceur. Rien d'autre n'est touché.
+pub(crate) fn app_window(id: &str) -> Result<HWND, String> {
+    let handle: isize = id.parse().map_err(|_| format!("Fenêtre {id} inconnue."))?;
+    let hwnd = HWND(handle as *mut _);
+    if !switch::is_app_window(hwnd) || switch::process_of(hwnd).1 == std::process::id() {
+        return Err("Cette fenêtre n'est plus ouverte.".to_string());
+    }
+    Ok(hwnd)
 }
 
 fn list() -> Vec<OpenWindow> {
@@ -59,7 +65,7 @@ fn list() -> Vec<OpenWindow> {
         .collect()
 }
 
-fn title(hwnd: HWND) -> String {
+pub(crate) fn title(hwnd: HWND) -> String {
     let len = unsafe { GetWindowTextLengthW(hwnd) };
     let mut buf = vec![0u16; len as usize + 1];
     let copied = unsafe { GetWindowTextW(hwnd, &mut buf) };

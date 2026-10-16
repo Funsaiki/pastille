@@ -96,7 +96,7 @@ fn name_of(p: &Program) -> String {
     name
 }
 
-fn is_packaged(path: &str) -> bool {
+pub(crate) fn is_packaged(path: &str) -> bool {
     path.to_lowercase().contains(r"\windowsapps\")
 }
 
@@ -193,7 +193,7 @@ fn open(path: &str) -> Result<(), String> {
 }
 
 /// Identifiant d'application d'un processus du Store (« SpotifyAB.SpotifyMusic_…!Spotify »)
-fn app_id(pid: u32) -> Option<String> {
+pub(crate) fn app_id(pid: u32) -> Option<String> {
     let mut buf = [0u16; 512];
     let mut len = buf.len() as u32;
     unsafe {

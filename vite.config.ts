@@ -27,4 +27,10 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  // Deux pages : le lanceur et la barre pastel (une fenêtre par écran, bar.rs)
+  build: {
+    rolldownOptions: {
+      input: { main: "index.html", barre: "barre.html" },
+    },
+  },
 }));

@@ -3,7 +3,9 @@
    Windows, une pilule flottante centrée en bas de chaque écran, en masquage automatique.
    Applications (fait monter le téléphone), fenêtres ouvertes de l'écran (une tuile par
    programme), applications de la zone de notification derrière ^ (écran principal), heure.
-   Maquette : aperçu navigateur seulement (barre.html ; ?ecran=2 pour le second écran).
+   Une fenêtre transparente par écran (bar.rs) : Rust la montre quand la souris touche le bord
+   bas, dit quand la souris est sur la pilule ou clique ailleurs, et ne prend la souris que sur
+   les rectangles envoyés par `reportRects`. Aperçu navigateur : barre.html (?ecran=2).
    ══════════════════════════════════════════════════════════ */
 import { ICONS, icon } from './icons';
 import { el, iconCanvas } from './dom';
@@ -12,7 +14,7 @@ import { PREVIEW, host, type AppIcon, type BarWindow, type TrayAction, type Tray
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
 /* Écran de la barre, 0 pour le principal */
-const SCREEN = Math.max(0, Number(new URLSearchParams(location.search).get('ecran') ?? 1) - 1);
+const SCREEN = host.barScreen();
 const MAIN = SCREEN === 0;
 
 const PALETTE = ['var(--fill)', '#f6c6da', '#c9d8ff', '#ffe08a'];
@@ -203,6 +205,7 @@ function togglePop(open = !popOpen()) {
   } else {
     autoHide();
   }
+  reportRects();
 }
 
 /* ══ Menus : fond encre, au-dessus de leur tuile, pointe vers elle ══ */
@@ -236,6 +239,7 @@ function openMenu(tile: HTMLElement, name: string, items: HTMLElement[]) {
   place($('bar-menu'), tile);
   $('bar-menu').classList.add('open');
   items[0]?.focus({ preventScroll: true });
+  reportRects();
 }
 
 function closeMenu(refocus = true) {
@@ -249,6 +253,7 @@ function closeMenu(refocus = true) {
   renderWindows();
   renderTray();
   autoHide();
+  reportRects();
 }
 
 /* Au-dessus de `anchor` (ou de `over`, la pilule pour la zone de notification), centré sur lui
@@ -265,28 +270,75 @@ function place(node: HTMLElement, anchor: HTMLElement, over: HTMLElement = ancho
 /* ══ Masquage automatique : la pilule sort quand la souris touche le bas de l'écran et rentre
    0,7 s après l'avoir quittée, pas tant qu'un menu ou la zone de notification est ouvert ══ */
 const HIDE_MS = 700;
+const SINK_MS = 280;      // rentrée de la pilule (.bar.hidden), avant que Rust masque la fenêtre
+const REFRESH_MS = 1000;  // fenêtres relues tant que la pilule est sortie
 let shown = false;
+let inside = false;       // souris sur la pilule, la zone de notification ou un menu
 let hideTimer = 0;
-
-const hovered = () => ['bar', 'bar-pop', 'bar-menu'].some((id) => $(id).matches(':hover'));
+let sinkTimer = 0;
+let refreshTimer = 0;
 
 function show() {
   clearTimeout(hideTimer);
+  clearTimeout(sinkTimer);
   if (shown) return;
   shown = true;
   $('bar').classList.remove('hidden');
   refreshWindows();
+  refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
+  reportRects();
 }
 
-function hide() {
-  if (menu || popOpen() || hovered()) return;
+function hide(force = false) {
+  if (!shown || (!force && (menu || popOpen() || inside))) return;
+  closeMenu(false);
+  if (popOpen()) togglePop(false);
+  clearTimeout(hideTimer);
+  clearInterval(refreshTimer);
   shown = false;
+  inside = false;
   $('bar').classList.add('hidden');
+  reportRects();
+  sinkTimer = window.setTimeout(() => host.barHidden(), SINK_MS);
 }
 
 function autoHide() {
   clearTimeout(hideTimer);
-  hideTimer = window.setTimeout(hide, HIDE_MS);
+  if (shown && !inside) hideTimer = window.setTimeout(hide, HIDE_MS);
+}
+
+/* Rust ne donne la souris à la fenêtre que sur ces rectangles (marge de 8 px) : la pilule
+   jusqu'au bas de la fenêtre (la souris y descend vers le bord de l'écran), la zone de
+   notification et le menu ouverts. Positions de mise en page : sans les animations. */
+let rectsFrame = 0;
+
+function reportRects() {
+  cancelAnimationFrame(rectsFrame);
+  rectsFrame = requestAnimationFrame(() => {
+    const rects: number[][] = [];
+    if (shown) {
+      const bar = $('bar');
+      rects.push([bar.offsetLeft - 8, bar.offsetTop - 8, bar.offsetWidth + 16, innerHeight - bar.offsetTop + 8]);
+      for (const id of ['bar-pop', 'bar-menu']) {
+        const n = $(id);
+        if (n.classList.contains('open')) rects.push([n.offsetLeft - 8, n.offsetTop - 8, n.offsetWidth + 16, n.offsetHeight + 24]);
+      }
+    }
+    host.barRects(rects);
+  });
+}
+
+function setInside(on: boolean) {
+  inside = on;
+  if (on) clearTimeout(hideTimer);
+  else autoHide();
+}
+
+/* Clic ailleurs : menus et zone de notification se referment, la pilule rentre */
+function clickedOutside() {
+  closeMenu(false);
+  if (popOpen()) togglePop(false);
+  autoHide();
 }
 
 /* ── Heure et date, comme le téléphone ── */
@@ -319,34 +371,38 @@ function init() {
     .then(({ config }) => document.documentElement.style.setProperty('--fill', config.accent))
     .catch(() => {});
 
+  host.onConfigChanged(() => {
+    host.getConfig().then(({ config }) => document.documentElement.style.setProperty('--fill', config.accent)).catch(() => {});
+  });
+
   $('bar-apps').append(icon(GRID, 22, 2.4));
+  // Le téléphone monte, la pilule rentre aussitôt
   $('bar-apps').addEventListener('click', () => {
-    clearTimeout(hideTimer);
-    shown = false;
-    $('bar').classList.add('hidden');
+    hide(true);
     host.showLauncher();
   });
   $('bar-tray').append(icon(CHEVRON, 20, 2.6));
   $('bar-tray').hidden = !MAIN;
   $('bar-tray').addEventListener('click', () => togglePop());
+  new ResizeObserver(reportRects).observe($('bar'));
 
-  for (const id of ['bar', 'bar-pop', 'bar-menu']) {
-    $(id).addEventListener('pointerenter', () => clearTimeout(hideTimer));
-    $(id).addEventListener('pointerleave', autoHide);
-  }
-  // Aperçu : le bas de la page tient lieu de bord de l'écran
+  host.onBarReveal(show);
+  host.onBarPointer(setInside);
+  host.onBarOutside(clickedOutside);
+  // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
   if (PREVIEW) {
+    for (const id of ['bar', 'bar-pop', 'bar-menu']) {
+      $(id).addEventListener('pointerenter', () => setInside(true));
+      $(id).addEventListener('pointerleave', () => setInside(false));
+    }
     document.addEventListener('pointermove', (e) => {
       if (e.clientY >= innerHeight - 3) show();
     });
+    document.addEventListener('pointerdown', (e) => {
+      const target = e.target as Node;
+      if (!['bar', 'bar-pop', 'bar-menu'].some((id) => $(id).contains(target))) clickedOutside();
+    });
   }
-  // Clic à côté : menus et zone de notification se referment
-  document.addEventListener('pointerdown', (e) => {
-    const target = e.target as Node;
-    if (['bar', 'bar-pop', 'bar-menu'].some((id) => $(id).contains(target))) return;
-    closeMenu(false);
-    if (popOpen()) togglePop(false);
-  });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (menu) closeMenu();
@@ -371,9 +427,9 @@ function init() {
 
   tickClock();
   refreshTray();
-  // Entrée : la pilule sort du bas de l'écran
+  // Rentrée jusqu'à ce que la souris touche le bas de l'écran ; dans l'aperçu, elle sort tout de suite
   $('bar').classList.add('hidden');
-  requestAnimationFrame(() => requestAnimationFrame(show));
+  if (PREVIEW) requestAnimationFrame(() => requestAnimationFrame(show));
 }
 
 init();
