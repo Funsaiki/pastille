@@ -9,17 +9,11 @@
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
-import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
+import { el, iconCanvas } from './dom';
+import { PREVIEW, host, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
-  const n = document.createElement(tag);
-  if (className) n.className = className;
-  if (text != null) n.textContent = text;
-  return n;
-}
 
 function restartAnimation(node: HTMLElement, className: string) {
   node.classList.remove(className);
@@ -396,16 +390,6 @@ function renderMixer(apps: AppVolume[]) {
 
 /* Ouvert dès le clic (le panneau s'affiche quand la liste arrive) : un second clic, Échap ou
    un clic à côté referment même pendant la lecture de la liste */
-/* Icône d'un programme : pixels RGBA envoyés par Rust (icon.rs), dessinés tels quels */
-function iconCanvas(i: AppIcon) {
-  const canvas = el('canvas');
-  canvas.width = i.width;
-  canvas.height = i.height;
-  const pixels = Uint8ClampedArray.from(atob(i.rgba), (c) => c.charCodeAt(0));
-  canvas.getContext('2d')!.putImageData(new ImageData(pixels, i.width, i.height), 0, 0);
-  return canvas;
-}
-
 const mixerOpen = () => $('mixer-toggle').getAttribute('aria-expanded') === 'true';
 
 let mixerRun = 0;   // change à chaque fermeture : une liste arrivée après est ignorée

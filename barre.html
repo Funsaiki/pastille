@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barre pastel</title>
+<link rel="stylesheet" href="/src/bar.css">
+<script type="module" src="/src/bar.ts"></script>
+</head>
+<body>
+<span class="wallpaper-hint" aria-hidden="true">[ TON FOND D'ÉCRAN ]</span>
+<p class="preview-help" id="preview-help" hidden></p>
+
+<!-- Pilule : Applications, fenêtres de l'écran (une tuile par programme), zone de notification
+     (écran principal seulement), heure -->
+<nav class="bar" id="bar" aria-label="Barre des tâches">
+  <button class="bar-tile bar-apps tp-press" id="bar-apps" title="Applications" aria-label="Applications"></button>
+  <span class="bar-sep" aria-hidden="true"></span>
+  <div class="bar-windows" id="bar-windows"></div>
+  <span class="bar-sep" aria-hidden="true"></span>
+  <button class="bar-round" id="bar-tray" title="Applications en arrière-plan" aria-label="Applications en arrière-plan"
+          aria-expanded="false" aria-controls="bar-pop"></button>
+  <div class="bar-clock" id="bar-clock"><span class="bar-time" id="bar-time"></span><span class="bar-date" id="bar-date"></span></div>
+</nav>
+
+<!-- Zone de notification : les applications de l'onglet Apps du téléphone -->
+<section class="bar-pop" id="bar-pop" aria-label="Applications en arrière-plan">
+  <div class="bar-pop-head">Apps <span class="bar-pop-count" id="bar-pop-count"></span></div>
+  <div class="bar-grid" id="bar-grid"></div>
+  <p class="bar-empty" id="bar-empty" hidden>Aucune app en arrière-plan</p>
+</section>
+
+<!-- Menu du clic droit, et liste des fenêtres d'un programme -->
+<div class="bar-menu" id="bar-menu" role="menu">
+  <div class="bar-menu-name" id="bar-menu-name"></div>
+  <div class="bar-menu-items" id="bar-menu-items"></div>
+</div>
+</body>
+</html>

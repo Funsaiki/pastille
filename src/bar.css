@@ -1,0 +1,144 @@
+/* ══════════════════════════════════════════════════════════
+   Barre pastel (demandée par Funsaiki le 16/10/2026) : à la place de la barre des tâches de
+   Windows, une pilule flottante centrée en bas de chaque écran, en masquage automatique.
+   Mêmes jetons que le téléphone (styles.css) : la pilule et la fenêtre de la zone de
+   notification sont des cartes, les menus ont le fond encre du mélangeur.
+   ══════════════════════════════════════════════════════════ */
+@import '@fontsource/nunito/700.css';
+@import '@fontsource/nunito/800.css';
+@import '@fontsource/nunito/900.css';
+
+:root {
+  --ink: #0f3b42;
+  --ink-deep: #0a2a2f;
+  --fill: #9fe0dc;   /* accent, remplacé par celui de apps.json */
+  --soft: rgba(15, 59, 66, .72);
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --float: 0 3px 0 var(--ink), 0 14px 30px rgba(15, 59, 66, .25);
+}
+
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+body { font-family: 'Nunito', sans-serif; color: var(--ink); }
+body.preview { background: #f4f7f8; }
+button { font-family: inherit; }
+[hidden] { display: none !important; }
+
+/* Aperçu navigateur : la place du fond d'écran, comme pour le téléphone */
+.wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgba(15, 59, 66, .55); }
+.preview .wallpaper-hint { display: block; }
+.preview-help { position: absolute; left: 48px; top: 64px; margin: 0; font-size: 13px; font-weight: 800; color: rgba(15, 59, 66, .55); }
+
+/* ── Survols, comme le téléphone ── */
+.tp-press { transition: transform .12s, box-shadow .12s, background .15s; }
+.tp-press:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink) !important; }
+.tp-press:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink) !important; }
+.tp-press:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+@keyframes tp-pop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+.tp-pop { animation: tp-pop .45s var(--ease) both; }
+
+/* ── Pilule : carte blanche du téléphone, à la largeur de son contenu, 10 px au-dessus du bord
+   de l'écran. Elle sort du bas en dépassant de 4 px (comme l'entrée du téléphone, en plus
+   court) et y redescend quand la souris la quitte. ── */
+.bar {
+  position: fixed; left: 0; right: 0; bottom: 10px; width: fit-content; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px 9px; border-radius: 30px;
+  border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
+  transition: translate .42s cubic-bezier(.3, 1.45, .5, 1);
+}
+.bar.hidden { translate: 0 100px; transition: translate .26s cubic-bezier(.55, 0, .8, .35); }
+
+/* Tuiles de 40 px : celles de l'onglet Apps du téléphone, un peu plus petites */
+.bar-tile {
+  position: relative; width: 40px; height: 40px; flex: none; padding: 0; box-sizing: border-box; border-radius: 13px;
+  border: 2.5px solid var(--ink); background: var(--tile, #ffffff); color: var(--ink); box-shadow: 0 3px 0 var(--ink);
+  display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; cursor: pointer;
+}
+.bar-tile canvas { width: 22px; height: 22px; }
+/* Fenêtre au premier plan, ou tuile dont le menu est ouvert : fond accent */
+.bar-tile.active, .bar-tile.menu-open { background: var(--fill); }
+/* Applications : fond encre comme le bouton Applications du téléphone, quatre carrés accent */
+.bar-tile.bar-apps { background: var(--ink); color: var(--fill); box-shadow: 0 3px 0 var(--ink-deep); }
+/* Plusieurs fenêtres du même programme : leur nombre, comme les groupes de la vue applications */
+.bar-count {
+  position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
+  border-radius: 9px; border: 2px solid var(--ink); background: #ffffff; color: var(--ink);
+  display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px;
+}
+
+.bar-windows { display: flex; gap: 8px; }
+.bar-windows:empty, .bar-windows:empty + .bar-sep { display: none; }
+.bar-sep { width: 2.5px; height: 26px; flex: none; border-radius: 2px; background: rgba(15, 59, 66, .16); }
+
+/* ^ : rond sans bord comme Paramètres et Alimentation, accent au survol et une fois ouvert */
+.bar-round {
+  width: 40px; height: 40px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
+  color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background .15s, translate .12s;
+}
+.bar-round svg { transition: rotate .3s var(--ease); }
+.bar-round:hover, .bar-round[aria-expanded="true"] { background: var(--fill); }
+.bar-round:active { translate: 0 2px; }
+.bar-round[aria-expanded="true"] svg { rotate: 180deg; }
+.bar-round:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+.bar-clock { display: flex; flex-direction: column; align-items: flex-end; padding: 0 8px 0 2px; line-height: 1.15; cursor: default; }
+.bar-time { font-weight: 900; font-size: 15px; }
+.bar-date { font-weight: 800; font-size: 11px; color: var(--soft); }
+
+/* ── Zone de notification : carte au-dessus du ^, pointe vers lui ; mêmes tuiles que
+   l'onglet Apps du téléphone, six par rangée ── */
+.bar-pop {
+  position: fixed; width: 340px; box-sizing: border-box; padding: 12px 14px 14px; border-radius: 24px;
+  border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
+  opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+}
+.bar-pop.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
+.bar-pop::after {
+  content: ''; position: absolute; bottom: -9px; left: calc(var(--arrow, 50%) - 7px); width: 14px; height: 14px;
+  box-sizing: border-box; border: solid var(--ink); border-width: 0 2.5px 2.5px 0; border-radius: 0 0 3px 0;
+  background: #ffffff; rotate: 45deg;
+}
+.bar-pop-head { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-weight: 900; font-size: 14px; }
+.bar-pop-count {
+  min-width: 17px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--ink);
+  color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 11px;
+}
+.bar-grid { display: grid; grid-template-columns: repeat(6, 42px); justify-content: space-between; gap: 12px 0; }
+.bar-grid .bar-tile { width: 42px; height: 42px; border-radius: 14px; }
+.bar-grid .bar-tile canvas { width: 24px; height: 24px; }
+.bar-empty { margin: 0; font-weight: 800; font-size: 13px; color: var(--soft); }
+
+/* ── Menus (clic droit, fenêtres d'un programme) : ceux de l'onglet Apps du téléphone ── */
+.bar-menu {
+  position: fixed; z-index: 2; width: 240px; box-sizing: border-box; padding: 10px 8px 8px; border-radius: 20px;
+  background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgba(15, 59, 66, .25);
+  display: flex; flex-direction: column; gap: 4px;
+  opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+}
+.bar-menu.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
+.bar-menu::after {
+  content: ''; position: absolute; bottom: -7px; left: calc(var(--arrow, 50%) - 7px); width: 14px; height: 14px;
+  border-radius: 0 0 3px 0; background: var(--ink); rotate: 45deg;
+}
+.bar-menu-name {
+  padding: 0 8px 2px; font-weight: 900; font-size: 12px; color: rgba(255, 255, 255, .7);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bar-menu-items { display: flex; flex-direction: column; gap: 2px; }
+.bar-item {
+  height: 38px; padding: 0 10px 0 4px; border-radius: 19px; border: none; background: transparent; color: #ffffff;
+  display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 13px; text-align: left; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.bar-item > span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-item:hover { background: rgba(255, 255, 255, .14); }
+.bar-item:focus-visible { outline: 3px solid #ffffff; outline-offset: -2px; }
+.bar-item.current { background: rgba(255, 255, 255, .14); }
+.bar-dot {
+  width: 28px; height: 28px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid #ffffff;
+  background: var(--tile, #ffffff); color: var(--ink); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px;
+}
+.bar-dot canvas { width: 16px; height: 16px; }
+/* Forcer à quitter : le premier clic demande confirmation, l'élément passe au rose */
+.bar-item.confirm, .bar-item.confirm:hover { background: #f6c6da; color: var(--ink); }
+.bar-item.confirm .bar-dot { border-color: var(--ink); }

@@ -80,6 +80,17 @@ export interface OpenWindow {
   icon: AppIcon | null;
 }
 
+/* Fenêtre de la barre pastel, sur l'écran de la barre */
+export interface BarWindow {
+  id: string;
+  title: string;
+  app: string;        // nom du programme (« Brave »)
+  key: string;        // programme : ses fenêtres partagent une tuile
+  icon: AppIcon | null;
+  active: boolean;    // au premier plan
+  glyph?: string;     // aperçu navigateur seulement : icône à trait (ICONS) à la place de la vraie
+}
+
 /* Application de la zone de notification (tray_apps.rs) */
 export interface TrayApp {
   key: string;        // chemin du programme, renvoyé pour agir (Rust vérifie qu'il est dans la liste)
@@ -118,6 +129,18 @@ let previewRepeat: RepeatMode = 'off';
 /* Aperçu navigateur : applications de la zone de notification, sans leurs icônes */
 let previewTray: TrayApp[] = ['Discord', 'G HUB', 'Lightshot', 'Riot Client', 'Spotify', 'Steam', 'TranslucentTB', 'Wallpaper Engine']
   .map((name) => ({ key: name, name, icon: null, packaged: name === 'Spotify' || name === 'TranslucentTB' }));
+
+/* Aperçu navigateur : fenêtres des deux écrans de Funsaiki, sans leurs icônes */
+let previewBar: (BarWindow & { screen: number })[] = [
+  { screen: 0, id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', glyph: 'code', active: true },
+  { screen: 0, id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
+  { screen: 0, id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
+  { screen: 0, id: 'w4', title: 'Téléchargements', app: 'Explorateur de fichiers', key: 'explorer', glyph: 'fichiers', active: false },
+  { screen: 0, id: 'w5', title: 'PowerShell', app: 'Terminal', key: 'terminal', glyph: 'terminal', active: false },
+  { screen: 1, id: 'w6', title: '#général — Discord', app: 'Discord', key: 'discord', glyph: 'messages', active: false },
+  { screen: 1, id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', glyph: 'musique', active: false },
+  { screen: 1, id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', glyph: 'steam', active: false },
+].map((w) => ({ ...w, icon: null }));
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
@@ -237,8 +260,45 @@ export const host = {
     return invoke<OpenWindow[]>('open_windows');
   },
   async focusWindow(id: string) {
-    if (PREVIEW) console.info('[aperçu] fenêtre :', id);
-    else await invoke('focus_window', { id });
+    if (PREVIEW) {
+      console.info('[aperçu] fenêtre :', id);
+      previewBar.forEach((w) => (w.active = w.id === id));
+    } else {
+      await invoke('focus_window', { id });
+    }
+  },
+  /* ── Barre pastel (maquette : aperçu navigateur seulement) ── */
+  /* Fenêtres de la barre des tâches sur l'écran `screen` (0 : principal) */
+  async barWindows(screen: number): Promise<BarWindow[]> {
+    if (PREVIEW) return previewBar.filter((w) => w.screen === screen).map((w) => ({ ...w }));
+    return invoke<BarWindow[]>('bar_windows', { screen });
+  },
+  async minimizeWindow(id: string) {
+    if (PREVIEW) {
+      console.info('[aperçu] réduire :', id);
+      previewBar.forEach((w) => w.id === id && (w.active = false));
+    } else {
+      await invoke('minimize_window', { id });
+    }
+  },
+  /* Comme le bouton de fermeture : le programme peut demander d'enregistrer */
+  async closeWindow(id: string) {
+    if (PREVIEW) {
+      console.info('[aperçu] fermer :', id);
+      previewBar = previewBar.filter((w) => w.id !== id);
+    } else {
+      await invoke('close_window', { id });
+    }
+  },
+  /* Relance le programme de la fenêtre `id` ; Rust retrouve son chemin */
+  async newWindow(id: string) {
+    if (PREVIEW) console.info('[aperçu] nouvelle fenêtre comme :', id);
+    else await invoke('new_window', { id });
+  },
+  /* Fait monter le téléphone sur l'écran de la barre */
+  async showLauncher() {
+    if (PREVIEW) console.info('[aperçu] ouvrir le lanceur');
+    else await invoke('show_launcher');
   },
   /* Résultat d'un calcul */
   async copy(text: string) {
