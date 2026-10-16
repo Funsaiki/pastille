@@ -1,8 +1,8 @@
 /* ══════════════════════════════════════════════════════════
    Barre pastel (demandée par Funsaiki le 16/10/2026) : à la place de la barre des tâches de
    Windows, une pilule flottante centrée en bas de chaque écran, en masquage automatique.
-   Applications (fait monter le téléphone), fenêtres ouvertes de l'écran (une tuile par
-   programme), applications de la zone de notification derrière ^ (écran principal), heure.
+   Applications (fait monter le téléphone), fenêtres ouvertes de tous les écrans (une tuile
+   par programme), applications de la zone de notification derrière ^ (écran principal), heure.
    Une fenêtre transparente par écran (bar.rs) : Rust la montre quand la souris touche le bord
    bas, dit quand la souris est sur la pilule ou clique ailleurs, et ne prend la souris que sur
    les rectangles envoyés par `reportRects`. Aperçu navigateur : barre.html (?ecran=2).
@@ -55,7 +55,7 @@ async function act(run: () => Promise<unknown>) {
   refreshTray();
 }
 
-/* ══ Fenêtres de l'écran, regroupées par programme ══ */
+/* ══ Fenêtres ouvertes, tous écrans confondus (demande de Funsaiki), regroupées par programme ══ */
 interface Group {
   key: string;
   app: string;
@@ -68,7 +68,7 @@ let windowsShown = '';           // ce qui est affiché : on ne refait les tuile
 const seen = new Set<string>();  // programmes déjà affichés : seuls les nouveaux apparaissent en sautant
 
 async function refreshWindows() {
-  windows = await host.barWindows(SCREEN).catch(() => windows);
+  windows = await host.barWindows().catch(() => windows);
   renderWindows();
 }
 

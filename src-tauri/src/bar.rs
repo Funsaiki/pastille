@@ -24,14 +24,11 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use windows::core::BOOL;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT, WPARAM};
-use windows::Win32::Graphics::Gdi::{
-    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromRect, MonitorFromWindow, HDC, HMONITOR, MONITORINFO,
-    MONITOR_DEFAULTTONEAREST,
-};
+use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowPlacement, GetWindowRect, GetWindowThreadProcessId,
-    IsIconic, IsZoomed, PostMessageW, ShowWindow, MONITORINFOF_PRIMARY, SW_MINIMIZE, WINDOWPLACEMENT, WM_CLOSE,
+    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsZoomed, PostMessageW,
+    ShowWindow, MONITORINFOF_PRIMARY, SW_MINIMIZE, WM_CLOSE,
 };
 
 use crate::{launcher, open_windows, switch, taskbar, tray_apps};
@@ -175,20 +172,6 @@ fn monitor_info(monitor: HMONITOR) -> Option<(bool, RECT)> {
     unsafe { GetMonitorInfoW(monitor, &mut info) }
         .as_bool()
         .then_some((info.dwFlags & MONITORINFOF_PRIMARY != 0, info.rcMonitor))
-}
-
-/// Écran d'une fenêtre ; réduite, celui où elle reviendra
-fn monitor_of(hwnd: HWND) -> Option<RECT> {
-    let monitor = unsafe {
-        if IsIconic(hwnd).as_bool() {
-            let mut placement = WINDOWPLACEMENT { length: size_of::<WINDOWPLACEMENT>() as u32, ..Default::default() };
-            GetWindowPlacement(hwnd, &mut placement).ok()?;
-            MonitorFromRect(&placement.rcNormalPosition, MONITOR_DEFAULTTONEAREST)
-        } else {
-            MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
-        }
-    };
-    monitor_info(monitor).map(|(_, rect)| rect)
 }
 
 /// Une fenêtre par écran ; refait quand un écran est branché ou débranché
@@ -397,22 +380,19 @@ pub struct BarWindow {
     active: bool,
 }
 
-/// Fenêtres de la barre des tâches sur l'écran `screen` (0 : principal), sauf celles du lanceur
+/// Fenêtres de la barre des tâches, sauf celles du lanceur. Toutes, quel que soit leur écran
+/// (demande de Funsaiki) : chaque pilule les montre toutes.
 #[tauri::command]
-pub async fn bar_windows(screen: usize) -> Vec<BarWindow> {
-    crate::com::com_task(move || Ok(windows_on(screen))).await.unwrap_or_default()
+pub async fn bar_windows() -> Vec<BarWindow> {
+    crate::com::com_task(|| Ok(list())).await.unwrap_or_default()
 }
 
-fn windows_on(screen: usize) -> Vec<BarWindow> {
-    let Some(monitor) = monitors().get(screen).copied() else { return Vec::new() };
+fn list() -> Vec<BarWindow> {
     let active = *ACTIVE.lock().unwrap();
     let own = std::process::id();
     switch::app_windows()
         .into_iter()
         .filter_map(|hwnd| {
-            if monitor_of(hwnd) != Some(monitor) {
-                return None;
-            }
             let (path, pid) = switch::process_of(hwnd);
             let path = path?;
             if pid == own {
@@ -516,12 +496,12 @@ mod tests {
         crate::com::with_com(|| {
             for (i, m) in monitors().iter().enumerate() {
                 eprintln!("écran {i} : {},{} -> {},{}", m.left, m.top, m.right, m.bottom);
-                let start = std::time::Instant::now();
-                for w in windows_on(i) {
-                    eprintln!("  {:<28} {:<40} icône : {}", w.app, w.title.chars().take(40).collect::<String>(), w.icon.is_some());
-                }
-                eprintln!("  durée : {:?}", start.elapsed());
             }
+            let start = std::time::Instant::now();
+            for w in list() {
+                eprintln!("  {:<28} {:<40} icône : {}", w.app, w.title.chars().take(40).collect::<String>(), w.icon.is_some());
+            }
+            eprintln!("  durée : {:?}", start.elapsed());
         });
     }
 }

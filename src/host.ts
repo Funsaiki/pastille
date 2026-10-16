@@ -80,7 +80,7 @@ export interface OpenWindow {
   icon: AppIcon | null;
 }
 
-/* Fenêtre de la barre pastel, sur l'écran de la barre (bar.rs) */
+/* Fenêtre ouverte de la barre pastel (bar.rs) */
 export interface BarWindow {
   id: string;
   title: string;
@@ -131,15 +131,15 @@ let previewTray: TrayApp[] = ['Discord', 'G HUB', 'Lightshot', 'Riot Client', 'S
   .map((name) => ({ key: name, name, icon: null, packaged: name === 'Spotify' || name === 'TranslucentTB' }));
 
 /* Aperçu navigateur : fenêtres des deux écrans de Funsaiki, sans leurs icônes */
-let previewBar: (BarWindow & { screen: number })[] = [
-  { screen: 0, id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', glyph: 'code', active: true },
-  { screen: 0, id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
-  { screen: 0, id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
-  { screen: 0, id: 'w4', title: 'Téléchargements', app: 'Explorateur de fichiers', key: 'explorer', glyph: 'fichiers', active: false },
-  { screen: 0, id: 'w5', title: 'PowerShell', app: 'Terminal', key: 'terminal', glyph: 'terminal', active: false },
-  { screen: 1, id: 'w6', title: '#général — Discord', app: 'Discord', key: 'discord', glyph: 'messages', active: false },
-  { screen: 1, id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', glyph: 'musique', active: false },
-  { screen: 1, id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', glyph: 'steam', active: false },
+let previewBar: BarWindow[] = [
+  { id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', glyph: 'code', active: true },
+  { id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
+  { id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
+  { id: 'w4', title: 'Téléchargements', app: 'Explorateur de fichiers', key: 'explorer', glyph: 'fichiers', active: false },
+  { id: 'w5', title: 'PowerShell', app: 'Terminal', key: 'terminal', glyph: 'terminal', active: false },
+  { id: 'w6', title: '#général — Discord', app: 'Discord', key: 'discord', glyph: 'messages', active: false },
+  { id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', glyph: 'musique', active: false },
+  { id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', glyph: 'steam', active: false },
 ].map((w) => ({ ...w, icon: null }));
 
 export const host = {
@@ -293,10 +293,10 @@ export const host = {
   onBarOutside(fn: () => void) {
     if (!PREVIEW) getCurrentWindow().listen('bar:outside', fn);
   },
-  /* Fenêtres de la barre des tâches sur l'écran `screen`, sauf celles du lanceur */
-  async barWindows(screen: number): Promise<BarWindow[]> {
-    if (PREVIEW) return previewBar.filter((w) => w.screen === screen).map((w) => ({ ...w }));
-    return invoke<BarWindow[]>('bar_windows', { screen });
+  /* Fenêtres de la barre des tâches de tous les écrans (demande de Funsaiki), sauf celles du lanceur */
+  async barWindows(): Promise<BarWindow[]> {
+    if (PREVIEW) return previewBar.map((w) => ({ ...w }));
+    return invoke<BarWindow[]>('bar_windows');
   },
   async minimizeWindow(id: string) {
     if (PREVIEW) {
