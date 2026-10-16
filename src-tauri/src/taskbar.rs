@@ -4,14 +4,18 @@
 //! et recachées dès que Windows les réaffiche (crochet `EVENT_OBJECT_SHOW`, plus un relevé toutes
 //! les 250 ms pour un Explorateur relancé). Essai du 16/10/2026 chez Funsaiki : jamais visible.
 //! Rien dans le registre ; elles reviennent à l'arrêt (`restore`), et au démarrage si la barre
-//! pastel est coupée (après un arrêt brutal du lanceur, elles seraient restées masquées).
+//! pastel est coupée. Arrêt brutal du lanceur (plantage, Gestionnaire des tâches) : un processus
+//! de garde les réaffiche (`spawn_guard`, demande de Funsaiki).
 
+use std::os::windows::process::CommandExt;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::sync::Mutex;
 use std::thread::JoinHandle;
 
 use windows::core::w;
-use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-use windows::Win32::System::Threading::GetCurrentThreadId;
+use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, WPARAM};
+use windows::Win32::System::Threading::{GetCurrentThreadId, OpenProcess, WaitForSingleObject, INFINITE, PROCESS_SYNCHRONIZE};
 use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
 use windows::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, FindWindowExW, GetClassNameW, GetMessageW, IsWindowVisible, KillTimer, PostThreadMessageW,
@@ -28,6 +32,7 @@ pub fn hide() {
     if watch.is_some() {
         return;
     }
+    spawn_guard();
     let (sender, receiver) = std::sync::mpsc::channel();
     let thread = std::thread::spawn(move || {
         let _ = sender.send(unsafe { GetCurrentThreadId() });
@@ -66,6 +71,52 @@ pub fn restore() {
     let Some((id, thread)) = WATCH.lock().unwrap().take() else { return };
     let _ = unsafe { PostThreadMessageW(id, WM_QUIT, WPARAM(0), LPARAM(0)) };
     let _ = thread.join();
+}
+
+/// Argument du processus de garde, suivi de l'identifiant du lanceur
+const GUARD: &str = "--garde-barre";
+
+/// Filet de sécurité : un second processus du lanceur (le même exe), qui ne fait qu'attendre la
+/// fin du premier pour réafficher la barre de Windows. Un seul par lanceur, lancé la première
+/// fois que la barre de Windows est masquée.
+fn spawn_guard() {
+    static SPAWNED: AtomicBool = AtomicBool::new(false);
+    if SPAWNED.swap(true, SeqCst) {
+        return;
+    }
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let spawned = std::env::current_exe().and_then(|exe| {
+        Command::new(exe)
+            .args([GUARD, &std::process::id().to_string()])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+    });
+    if let Err(e) = spawned {
+        eprintln!("[lanceur] barre : processus de garde impossible : {e}");
+        SPAWNED.store(false, SeqCst);
+    }
+}
+
+/// Appelé par `run` avant tout : vrai pour le processus de garde, qui attend la fin du lanceur,
+/// réaffiche la barre de Windows (sans effet si le lanceur l'a déjà rendue) et s'arrête
+pub fn guard() -> bool {
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() != Some(GUARD) {
+        return false;
+    }
+    if let Some(pid) = args.next().and_then(|p| p.parse::<u32>().ok()) {
+        if let Ok(process) = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, pid) } {
+            unsafe {
+                WaitForSingleObject(process, INFINITE);
+                let _ = CloseHandle(process);
+            }
+        }
+    }
+    show_all();
+    true
 }
 
 /// Sans effet sur une barre déjà affichée

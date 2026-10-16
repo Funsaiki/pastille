@@ -32,6 +32,10 @@ pub(crate) async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + '
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Processus de garde de la barre pastel (taskbar.rs) : rien d'autre
+    if taskbar::guard() {
+        return;
+    }
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
     // Instance unique (doit être le premier plugin), en production seulement : en développement,
