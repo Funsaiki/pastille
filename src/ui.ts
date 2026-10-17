@@ -10,7 +10,7 @@ import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { EYE, ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
 import { el, iconCanvas, latestOnly } from './dom';
-import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
+import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp, type Welcome } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -628,11 +628,14 @@ interface Notif {
   d: string;
   bg: string;
   open?: () => Promise<void>;   // clic : ouvre le fichier, Steam, Windows Update…
+  stay?: boolean;               // réglage fait sur place : le lanceur reste ouvert
 }
 
 let configProblems: string[] = [];
 let actionError: { title: string; text: string } | null = null;   // dernière action ratée
 let feed: FeedEvent[] = [];
+let welcome: Welcome | null = null;   // premier lancement
+let greeted = false;                  // bienvenue déjà montrée dans l'onglet Notifs
 
 const ALERT = 'M12 7v6M12 17h.01';
 const DOWNLOAD = 'M12 4v11M7 10l5 5 5-5M5 20h14';
@@ -671,7 +674,27 @@ function allNotifs(): Notif[] {
   if (spotifyReconnect) {
     problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: 'Reconnecter pour voir les playlists', d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
+  // Premier lancement (pour les amis de Funsaiki) : le raccourci, et démarrer avec Windows d'un clic
+  if (welcome) {
+    const how = welcome.shortcut ? `${keyLabel(welcome.shortcut)} ouvre et ferme Pastille` : 'Clic sur son icône, près de l’heure, pour l’ouvrir';
+    problems.push({ id: 'welcome', title: 'Bienvenue', when: '', body: how, d: ICONS.applications, bg: CONFIG.accent });
+    if (!welcome.autostart) {
+      problems.push({ id: 'welcome:autostart', title: 'Démarrer avec Windows', when: '', body: 'Cliquer pour l’activer', d: POWER, bg: '#c9d8ff', open: enableAutostart, stay: true });
+    }
+  }
   return [...problems, ...feed.map(feedNotif)];
+}
+
+async function enableAutostart() {
+  await host.enableAutostart();
+  welcome!.autostart = true;
+  renderNotifs();
+}
+
+/* « Alt+Space » (apps.json) → « Alt+Espace » */
+function keyLabel(shortcut: string) {
+  const names: Record<string, string> = { space: 'Espace', shift: 'Maj', control: 'Ctrl', commandorcontrol: 'Ctrl', cmdorctrl: 'Ctrl', super: 'Win', meta: 'Win', escape: 'Échap', enter: 'Entrée' };
+  return shortcut.split('+').map((k) => names[k.toLowerCase()] ?? k.replace(/^(Key|Digit)/, '')).join('+');
 }
 
 /* Notifications effacées : gardées d'une ouverture à l'autre (stockage de la fenêtre) */
@@ -696,7 +719,7 @@ function saveDismissed() {
 
 function notifRow(n: Notif) {
   const row = el(n.open ? 'button' : 'div', 'notif');
-  if (n.open) row.addEventListener('click', () => runAction('Lancement', n.open!));
+  if (n.open) row.addEventListener('click', () => (n.stay ? n.open!().catch((e) => report(n.title, e)) : runAction('Lancement', n.open!)));
   const badge = el('span', 'notif-icon');
   badge.setAttribute('aria-hidden', 'true');
   badge.style.background = n.bg;
@@ -1692,8 +1715,11 @@ function playEntrance() {
   $('phone').classList.remove('leaving');
   closePowerMenu(false);
   closeMixer();
-  // Un problème de config se voit tout de suite ; ferme aussi le menu du clic droit
-  showPane(configProblems.some((p) => !dismissed.has('config:' + p)) ? 'notifs' : savedPane());
+  // Un problème de config se voit tout de suite, la bienvenue à la première ouverture ; ferme
+  // aussi le menu du clic droit
+  const greet = welcome !== null && !greeted;
+  greeted ||= greet;
+  showPane(greet || configProblems.some((p) => !dismissed.has('config:' + p)) ? 'notifs' : savedPane());
   $('strap-swing').style.removeProperty('animation');   // balancement de l'ouverture, pas celui du survol
   state.stack = [];
   state.page = 0;
@@ -1747,8 +1773,9 @@ function hideLauncher() {
 let configLoading: Promise<void> = Promise.resolve();
 
 async function loadConfig() {
-  const { config, problems } = await host.getConfig();
+  const { config, problems, welcome: hello } = await host.getConfig();
   setConfig(config);
+  welcome = hello;
   startIcons.clear();
   startAsked.clear();
   startRun++;

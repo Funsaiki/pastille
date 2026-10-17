@@ -120,6 +120,8 @@ pub struct ConfigState {
     registered: Option<String>,
     /// Date de modification de apps.json à la dernière lecture
     modified: Option<SystemTime>,
+    /// apps.json créé à ce démarrage : premier lancement (bienvenue dans les notifications)
+    first_run: bool,
 }
 
 pub type SharedConfig = Mutex<ConfigState>;
@@ -390,10 +392,14 @@ fn ensure_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// Développement seulement : le premier lancement d'un nouvel utilisateur (l'exemple, la
+/// bienvenue), sans toucher à apps.json ($env:PASTILLE_EXEMPLE = 1 avant npm run tauri dev)
+fn example_mode() -> bool {
+    cfg!(debug_assertions) && std::env::var_os("PASTILLE_EXEMPLE").is_some()
+}
+
 fn load(app: &AppHandle) -> Result<Config, String> {
-    // Développement seulement : la config d'un nouvel utilisateur, sans toucher à apps.json
-    // ($env:PASTILLE_EXEMPLE = 1 avant npm run tauri dev)
-    if cfg!(debug_assertions) && std::env::var_os("PASTILLE_EXEMPLE").is_some() {
+    if example_mode() {
         return parse(EXAMPLE);
     }
     let path = ensure_file(app)?;
@@ -502,6 +508,7 @@ pub fn tooltip(s: &ConfigState) -> String {
 /// en veille, le démarrage ne les attend pas.
 pub fn init(app: &AppHandle) {
     let mut problems = Vec::new();
+    let first_run = example_mode() || path(app).is_ok_and(|path| !path.exists());
     let base = load(app).unwrap_or_else(|msg| {
         problems.push(format!("{msg} Config par défaut utilisée."));
         parse(EXAMPLE).expect("apps.example.json embarqué invalide")
@@ -515,10 +522,16 @@ pub fn init(app: &AppHandle) {
         problems,
         registered: None,
         modified: modified(app),
+        first_run,
     };
     apply_shortcut(app, &mut state);
     app.manage(Mutex::new(state));
     scan_games(app);
+}
+
+/// Premier lancement (apps.json créé à ce démarrage) : le lanceur s'affiche de lui-même
+pub fn first_run(app: &AppHandle) -> bool {
+    app.state::<SharedConfig>().lock().unwrap().first_run
 }
 
 /// « Recharger la config » (ou fichier modifié) : en cas d'erreur, la config précédente reste en place.
@@ -614,6 +627,16 @@ fn scan_games(app: &AppHandle) {
 pub struct ConfigPayload {
     config: Config,
     problems: Vec<String>,
+    /// Premier lancement seulement (pour les amis de Funsaiki) : notifications de bienvenue
+    welcome: Option<Welcome>,
+}
+
+#[derive(Serialize)]
+struct Welcome {
+    /// Raccourci enregistré (« Alt+Space ») ; absent s'il était déjà pris
+    shortcut: Option<String>,
+    /// « Démarrer avec Windows » déjà coché
+    autostart: bool,
 }
 
 #[tauri::command]
@@ -621,7 +644,8 @@ pub fn get_config(app: AppHandle, state: tauri::State<'_, SharedConfig>) -> Conf
     let s = state.lock().unwrap();
     let mut config = s.config.clone();
     annotate(&app, &mut config.apps, &mut HashMap::new());
-    ConfigPayload { config, problems: s.problems.clone() }
+    let welcome = s.first_run.then(|| Welcome { shortcut: s.registered.clone(), autostart: tray::autostart_enabled(&app) });
+    ConfigPayload { config, problems: s.problems.clone(), welcome }
 }
 
 /// Lancements de chaque bouton (usage.json), pour classer la recherche et la rangée Récents ;

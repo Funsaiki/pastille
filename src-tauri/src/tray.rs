@@ -33,6 +33,7 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
         app.autolaunch().is_enabled().unwrap_or(false),
         None::<&str>,
     )?;
+    let _ = AUTOSTART.set(autostart.clone());
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &edit, &reload, &spotify_item, &bar_item, &autostart, &separator, &quit])?;
@@ -102,6 +103,28 @@ pub fn set_tooltip(app: &AppHandle, tooltip: &str) {
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(tooltip));
     }
+}
+
+/// Case « Démarrer avec Windows », remise à jour quand la bienvenue l'active
+static AUTOSTART: OnceLock<CheckMenuItem<Wry>> = OnceLock::new();
+
+pub fn autostart_enabled(app: &AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// Notification de bienvenue (premier lancement, pour les amis de Funsaiki) : « Démarrer avec
+/// Windows » d'un clic, comme la case du menu. Refusé en développement, comme la case : l'entrée
+/// pointerait vers l'exe de debug.
+#[tauri::command]
+pub fn enable_autostart(app: AppHandle) -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        return Err("Seulement dans la version installée.".into());
+    }
+    let result = app.autolaunch().enable().map_err(|e| format!("Démarrage avec Windows impossible : {e}"));
+    if let Some(item) = AUTOSTART.get() {
+        let _ = item.set_checked(autostart_enabled(&app));
+    }
+    result
 }
 
 fn toggle_autostart(app: &AppHandle, item: &CheckMenuItem<tauri::Wry>) {

@@ -13,6 +13,13 @@ export const PREVIEW = !('__TAURI_INTERNALS__' in window);
 export interface ConfigPayload {
   config: Config;
   problems: string[];   // à afficher dans le lanceur (config invalide, raccourci indisponible…)
+  welcome: Welcome | null;   // premier lancement seulement
+}
+
+/* Premier lancement (pour les amis de Funsaiki) : notifications de bienvenue */
+export interface Welcome {
+  shortcut: string | null;   // raccourci enregistré (« Alt+Space ») ; null s'il était déjà pris
+  autostart: boolean;        // « Démarrer avec Windows » déjà coché
 }
 
 export interface Profile {
@@ -212,8 +219,15 @@ let previewPins: Omit<PinnedApp, 'icon'>[] = [
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
-    if (PREVIEW) return { config: previewConfig(), problems: [] };
+    // ?bienvenue : premier lancement
+    const welcome = new URLSearchParams(location.search).has('bienvenue') ? { shortcut: 'Alt+Space', autostart: false } : null;
+    if (PREVIEW) return { config: previewConfig(), problems: [], welcome };
     return invoke<ConfigPayload>('get_config');
+  },
+  /* « Démarrer avec Windows » depuis la bienvenue ; rejette en développement */
+  async enableAutostart() {
+    if (PREVIEW) console.info('[aperçu] démarrer avec Windows');
+    else await invoke('enable_autostart');
   },
   /* Rust retrouve la cible à partir de l'id : le front n'envoie jamais de chemin.
      Rejette avec un message en français si le lancement échoue. */

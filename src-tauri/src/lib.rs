@@ -76,10 +76,15 @@ pub fn run() {
                 launcher::set_memory_low(&w, true);   // la fenêtre démarre masquée
             }
             bar::init(app.handle());
+            // Premier lancement (après l'installation) : le téléphone se montre, avec la bienvenue
+            if config::first_run(app.handle()) {
+                launcher::show(app.handle());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             config::get_config,
+            tray::enable_autostart,
             launcher::hide_window,
             shell::launch,
             shell::open_tool,
