@@ -1,3 +1,4 @@
+mod app_menu;
 mod audio;
 mod bar;
 mod bar_pins;
@@ -121,6 +122,8 @@ pub fn run() {
             bar_pins::bar_open_pin,
             bar_preview::bar_preview,
             start_menu::start_icons,
+            app_menu::app_menu,
+            app_menu::app_action,
             bar_preview::bar_preview_place,
             bar_preview::bar_preview_close
         ])

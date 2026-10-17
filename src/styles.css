@@ -576,6 +576,16 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 }
 .folder span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Clic droit sur une application (demandé par Funsaiki) : le menu de l'onglet Apps, à droite de la
+   tuile (à gauche près du bord, .flip ; au-dessus, il sortirait de la vue), pointe vers l'icône,
+   qui reste soulevée comme au survol */
+.app-menu { translate: -6px 0; }
+.app-menu.flip { translate: 6px 0; }
+.app-menu.open { translate: 0 0; }
+.app-menu::after { bottom: auto; top: calc(var(--arrow, 50%) - 7px); left: -7px; border-radius: 0 0 0 3px; }
+.app-menu.flip::after { left: auto; right: -7px; border-radius: 0 3px 0 0; }
+.app.menu-open .tp-app-ic { transform: translateY(-2px); box-shadow: 0 5px 0 var(--ink) !important; }
+
 /* ══ Menu d'alimentation (demandé par Funsaiki, pas dans la maquette) : l'écran s'assombrit,
    les choix apparaissent au centre. Masqué par visibility pour qu'il se fonde aussi en
    disparaissant ; la vue réglages passe en inert tant qu'il est ouvert (ui.ts). ══ */

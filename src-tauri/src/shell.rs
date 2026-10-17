@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 use serde::Deserialize;
 use tauri::AppHandle;
 use windows::core::{HSTRING, PCWSTR};
+use windows::Win32::Foundation::ERROR_CANCELLED;
 use windows::Win32::System::Com::{
     CoInitializeEx, CoUninitialize, COINIT, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
 };
@@ -84,6 +85,15 @@ pub async fn open_tool(tool: String) -> Result<(), String> {
 
 /// Ouvre `target` avec `args`, après développement des variables d'environnement (%USERPROFILE%…).
 pub fn open(target: &str, args: &[String]) -> Result<(), String> {
+    run(target, args, None)
+}
+
+/// Comme `open`, en administrateur (clic droit dans la vue applications) : l'invite UAC de Windows
+pub fn open_as_admin(target: &str, args: &[String]) -> Result<(), String> {
+    run(target, args, Some("runas"))
+}
+
+fn run(target: &str, args: &[String], verb: Option<&str>) -> Result<(), String> {
     let target = expand_env(target);
     let mut args: Vec<String> = args.iter().map(|a| expand_env(a)).collect();
     let (file, dir) = if is_uri(&target) {
@@ -100,9 +110,12 @@ pub fn open(target: &str, args: &[String]) -> Result<(), String> {
         }
     };
     let params = args.iter().map(|a| quote(a)).collect::<Vec<_>>().join(" ");
-    eprintln!("[lanceur] ouvrir {file} {params}");
-    shell_execute(&file, &params, dir.as_deref())
-        .map_err(|e| format!("{target} : {}", e.message().trim_end()))
+    eprintln!("[lanceur] {} {file} {params}", if verb.is_some() { "ouvrir en administrateur" } else { "ouvrir" });
+    match shell_execute(&file, &params, dir.as_deref(), verb) {
+        // Invite UAC refusée par Funsaiki : rien à signaler
+        Err(e) if e.code() == ERROR_CANCELLED.to_hresult() => Ok(()),
+        result => result.map_err(|e| format!("{target} : {}", e.message().trim_end())),
+    }
 }
 
 /// Recherche sur le web quand rien ne correspond dans le lanceur (demande de Funsaiki) : le front
@@ -134,11 +147,11 @@ pub(crate) fn encode_query(text: &str) -> String {
 /// par PowerShell (les .exe, .bat… se lancent, comme d'un double-clic)
 pub fn open_as_is(path: &str) -> Result<(), String> {
     eprintln!("[lanceur] ouvrir {path}");
-    shell_execute(path, "", working_dir(path).as_deref()).map_err(|e| format!("{path} : {}", e.message().trim_end()))
+    shell_execute(path, "", working_dir(path).as_deref(), None).map_err(|e| format!("{path} : {}", e.message().trim_end()))
 }
 
 /// « steam://… », « spotify: », « ms-settings: »… Un préfixe d'une seule lettre est un lecteur (C:).
-fn is_uri(s: &str) -> bool {
+pub(crate) fn is_uri(s: &str) -> bool {
     match s.find(':') {
         Some(i) if i > 1 => s[..i]
             .chars()
@@ -196,14 +209,17 @@ pub fn expand_env(s: &str) -> String {
     }
 }
 
-fn shell_execute(file: &str, params: &str, dir: Option<&str>) -> windows::core::Result<()> {
+/// `verb` : « runas » pour l'administrateur ; sinon l'action par défaut (ouvrir)
+fn shell_execute(file: &str, params: &str, dir: Option<&str>, verb: Option<&str>) -> windows::core::Result<()> {
     let file = HSTRING::from(file);
     let params = HSTRING::from(params);
     let dir = dir.map(HSTRING::from);
+    let verb = verb.map(HSTRING::from);
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
         // Pas de boîte d'erreur de Windows : le lanceur affiche lui-même le problème
         fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
+        lpVerb: verb.as_ref().map_or(PCWSTR::null(), |v| PCWSTR(v.as_ptr())),
         lpFile: PCWSTR(file.as_ptr()),
         lpParameters: if params.is_empty() { PCWSTR::null() } else { PCWSTR(params.as_ptr()) },
         lpDirectory: dir.as_ref().map_or(PCWSTR::null(), |d| PCWSTR(d.as_ptr())),

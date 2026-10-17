@@ -7,10 +7,10 @@
    et les notifications (alertes du PC, Steam, téléchargements) sont réels.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
-import { ICONS, MIC, MIC_OFF, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { EYE, ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
 import { el, iconCanvas, latestOnly } from './dom';
-import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
+import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -607,9 +607,9 @@ function followMixer(key: string, level: number) {
   renderSpotifyVolume();
 }
 
-/* Applications lançables (feuilles de l'arbre, jeux Steam compris) */
+/* Applications lançables (feuilles de l'arbre, jeux Steam compris), sans les masquées */
 function flattenApps(items: AppItem[]): AppItem[] {
-  return items.flatMap((it) => (it.children ? flattenApps(it.children) : [it]));
+  return items.flatMap((it) => (it.hidden ? [] : it.children ? flattenApps(it.children) : [it]));
 }
 
 function renderAppCount() {
@@ -895,22 +895,28 @@ function openTrayMenu(app: TrayApp, tile: HTMLElement) {
 }
 
 function trayMenuItem(app: TrayApp, item: (typeof TRAY_ITEMS)[number]) {
-  const b = el('button', 'tray-item');
-  b.setAttribute('role', 'menuitem');
-  const dot = el('span', 'tray-dot');
-  dot.style.background = item.bg;
-  dot.append(icon(item.d, 14, 2.4));
-  const label = el('span', '', item.label);
-  b.append(dot, label);
-  b.addEventListener('click', () => {
+  const b = menuItem(item.label, item.d, item.bg, () => {
     // Arrêt forcé : le premier clic demande confirmation
     if (item.action === 'quit' && !b.classList.contains('confirm')) {
       b.classList.add('confirm');
-      label.textContent = 'Vraiment quitter ?';
+      b.lastElementChild!.textContent = 'Vraiment quitter ?';
       return;
     }
     trayAction(app, item.action);
   });
+  return b;
+}
+
+/* Élément d'un menu du clic droit (onglet Apps, vue applications) : pastille de couleur avec
+   l'icône, puis le libellé */
+function menuItem(label: string, d: string, bg: string, onClick: () => void) {
+  const b = el('button', 'tray-item');
+  b.setAttribute('role', 'menuitem');
+  const dot = el('span', 'tray-dot');
+  dot.style.background = bg;
+  dot.append(icon(d, 14, 2.4));
+  b.append(dot, el('span', '', label));
+  b.addEventListener('click', onClick);
   return b;
 }
 
@@ -1062,10 +1068,15 @@ function appButton(item: AppItem, index: number) {
   }
   b.append(ic, el('span', 'app-label', item.label));
   b.addEventListener('click', (e) => activate(item, e.ctrlKey));
+  b.addEventListener('contextmenu', (e) => {
+    e.preventDefault();   // pas le menu de WebView2
+    if (hasAppMenu(item)) openAppMenu(item, b);
+  });
   return b;
 }
 
 function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
+  closeAppMenu(false);   // accroché à une tuile qui va être refaite
   const list = currentList();
   const size = pageSize();
   state.page = Math.min(state.page, pageCount() - 1);
@@ -1182,6 +1193,97 @@ function renderFolders() {
   }));
 }
 
+/* ── Clic droit sur une application (demandé par Funsaiki) : Ouvrir, Exécuter en admin,
+   Emplacement du fichier, Épingler à la pilule (sans l'ouvrir d'abord) et, pour celles du menu
+   Démarrer, Masquer ou Réafficher. Rust dit ce que chacune permet (app_menu.rs). Pas pour un
+   groupe, un calcul, une page des Paramètres ni une fenêtre ouverte. ── */
+let appMenu: { item: AppItem; tile: HTMLElement } | null = null;
+let appMenuRun = 0;   // une réponse de Rust arrivée après une fermeture ou un autre clic droit est ignorée
+
+const APP_ACTION_TITLES: Record<AppAction, string> = {
+  admin: 'Lancement', location: 'Emplacement', pin: 'Épingler', unpin: 'Détacher', hide: 'Masquer', show: 'Réafficher',
+};
+
+function hasAppMenu(item: AppItem) {
+  return !item.children && item.copy == null && !item.window && !SETTINGS.includes(item);
+}
+
+async function openAppMenu(item: AppItem, tile: HTMLElement) {
+  closeAppMenu(false);
+  const run = appMenuRun;
+  let options: AppMenuOptions;
+  try {
+    options = await host.appMenu(item);
+  } catch (e) {
+    report('Menu', e);
+    return;
+  }
+  if (run !== appMenuRun || !tile.isConnected || leaving) return;
+  appMenu = { item, tile };
+  tile.classList.add('menu-open');
+  $('app-menu-name').textContent = item.label;
+  const entries = [menuItem('Ouvrir', OPEN, 'var(--fill)', () => {
+    closeAppMenu(false);
+    launch(item);
+  })];
+  const add = (label: string, d: string, bg: string, action: AppAction) => entries.push(menuItem(label, d, bg, () => appAction(item, action)));
+  if (options.admin) add('Exécuter en admin', ICONS.bouclier, '#ffe08a', 'admin');
+  if (options.location) add('Emplacement du fichier', ICONS.fichiers, '#c9d8ff', 'location');
+  if (options.pinned !== null) add(options.pinned ? 'Détacher de la pilule' : 'Épingler à la pilule', PIN, '#c9d8ff', options.pinned ? 'unpin' : 'pin');
+  if (options.hidden !== null) add(options.hidden ? 'Réafficher' : 'Masquer', options.hidden ? EYE : ICONS.masquees, '#f6c6da', options.hidden ? 'show' : 'hide');
+  $('app-menu-items').replaceChildren(...entries);
+  placeAppMenu(tile);
+  $('app-menu').classList.add('open');
+  entries[0].focus({ preventScroll: true });
+}
+
+/* À droite de l'icône, ou à gauche s'il n'y a pas la place ; au-dessus, il sortirait de la vue.
+   Pointe vers l'icône, sans sortir de la vue. Positions de mise en page : le téléphone est couché. */
+function placeAppMenu(tile: HTMLElement) {
+  const menu = $('app-menu');
+  const view = $('apps');
+  const ic = tile.querySelector<HTMLElement>('.app-icon')!;
+  const at = offsetIn(ic, view);
+  const gap = 12;   // comme le menu de l'onglet Apps au-dessus de son icône
+  const flip = at.x + ic.offsetWidth + gap + menu.offsetWidth > view.clientWidth - 6;
+  const left = flip ? at.x - gap - menu.offsetWidth : at.x + ic.offsetWidth + gap;
+  const center = at.y + ic.offsetHeight / 2;
+  const top = Math.max(6, Math.min(view.clientHeight - menu.offsetHeight - 6, center - menu.offsetHeight / 2));
+  menu.classList.toggle('flip', flip);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  menu.style.setProperty('--arrow', center - top + 'px');
+}
+
+function closeAppMenu(refocus = true) {
+  appMenuRun++;
+  if (!appMenu) return;
+  const { tile } = appMenu;
+  appMenu = null;
+  $('app-menu').classList.remove('open');
+  tile.classList.remove('menu-open');
+  if (refocus && tile.isConnected) tile.focus({ preventScroll: true });
+}
+
+/* Admin et Emplacement masquent le lanceur, comme un lancement ; épingler et masquer le laissent
+   ouvert (une application masquée disparaît : Rust renvoie la config) */
+async function appAction(item: AppItem, action: AppAction) {
+  closeAppMenu();
+  const title = APP_ACTION_TITLES[action];
+  if (action === 'admin' || action === 'location') {
+    await runAction(title, async () => {
+      await host.appAction(item, action);
+      if (action === 'admin') countLaunch(item);
+    });
+    return;
+  }
+  try {
+    await host.appAction(item, action);
+  } catch (e) {
+    report(title, e);
+  }
+}
+
 /* Ctrl+clic (ou Ctrl+Entrée) : nouvelle fenêtre même si l'application est déjà ouverte */
 function activate(item: AppItem, fresh = false) {
   if (item.copy != null) {
@@ -1282,6 +1384,7 @@ function enterSettings(afterTurn: boolean) {
   clearTimeout(settleTimer);
   setSettled(false);   // la 3D revient, sans transition, avant de se relever
   $('stage').classList.remove('landscape');
+  closeAppMenu(false);
   $('apps').hidden = true;
   $('settings').classList.toggle('tp-fade-late', afterTurn);
   $('settings').hidden = false;
@@ -1298,11 +1401,15 @@ function enterSettings(afterTurn: boolean) {
 async function launch(item: AppItem | Favorite, fresh = false) {
   await runAction('Lancement', async () => {
     await host.launch(item, fresh);
-    // Rust a compté le lancement (usage.json) ; la copie du front suit sans recharger la config
-    const it = item as AppItem;
-    it.uses = (it.uses ?? 0) + 1;
-    it.last = Math.floor(Date.now() / 1000);
+    countLaunch(item);
   });
+}
+
+/* Rust a compté le lancement (usage.json) ; la copie du front suit sans recharger la config */
+function countLaunch(item: AppItem | Favorite) {
+  const it = item as AppItem;
+  it.uses = (it.uses ?? 0) + 1;
+  it.last = Math.floor(Date.now() / 1000);
 }
 
 async function runAction(title: string, action: () => Promise<void>) {
@@ -1421,6 +1528,9 @@ function bindEvents() {
     if (!$('tray-menu').contains(e.relatedTarget as Node | null)) closeTrayMenu(false);
   });
   $('tray-grid').addEventListener('scroll', () => closeTrayMenu(false), { passive: true });
+  $('app-menu').addEventListener('focusout', (e) => {
+    if (!$('app-menu').contains(e.relatedTarget as Node | null)) closeAppMenu(false);
+  });
   // Flèches gauche et droite entre les onglets
   $('tabs').addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -1463,6 +1573,7 @@ function bindEvents() {
     const target = e.target as Element;
     if (mixerOpen() && !target.closest('#mixer, #mixer-toggle')) closeMixer();
     if (trayMenu && !target.closest('#tray-menu')) closeTrayMenu(false);
+    if (!target.closest('#app-menu')) closeAppMenu(false);   // aussi un menu encore attendu
     if (!target.closest('.phone-body, .strap')) hideLauncher();
   });
 
@@ -1487,6 +1598,16 @@ function bindEvents() {
         moveFocus($('tray-menu'), e.key === 'ArrowDown' ? 1 : -1);
       }
       return;   // Entrée active l'élément ; pas de recherche derrière le menu
+    }
+    if (appMenu) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAppMenu();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveFocus($('app-menu'), e.key === 'ArrowDown' ? 1 : -1);
+      }
+      return;   // ni recherche ni flèches de la grille derrière le menu
     }
     if (e.key === 'Escape' && mixerOpen()) {
       e.preventDefault();
@@ -1639,14 +1760,16 @@ async function loadConfig() {
   }
 }
 
-/* Groupes ouverts retrouvés dans la nouvelle config (même id, même libellé), sinon la racine.
-   Les ids sont des chemins d'index (« a3.1 ») : un groupe déplacé n'est pas retrouvé. */
+/* Groupes ouverts retrouvés dans la nouvelle config : même id et même libellé, sinon même libellé
+   (les ids sont des chemins d'index, « a3.1 » : le groupe « Masquées » change d'id quand une
+   application est masquée ou réaffichée). Un groupe disparu : on reste dans son parent. */
 function reopenStack(): AppItem[] {
   const stack: AppItem[] = [];
   let items = CONFIG.apps;
   for (const group of state.stack) {
-    const same = items.find((it) => it.children && it.id === group.id && it.label === group.label);
-    if (!same) return [];
+    const groups = items.filter((it) => it.children && it.label === group.label);
+    const same = groups.find((it) => it.id === group.id) ?? groups[0];
+    if (!same) break;
     stack.push(same);
     items = same.children!;
   }

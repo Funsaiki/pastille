@@ -5,18 +5,21 @@
 //! `shell:AppsFolder\<nom>`, comme depuis le menu Démarrer (arguments du raccourci compris).
 //!
 //! Écartés : désinstalleurs, pages web et documents (README, manuels) que des installateurs
-//! ajoutent au menu, et le lanceur lui-même.
+//! ajoutent au menu, et le lanceur lui-même. Funsaiki masque les autres depuis le clic droit
+//! (app_menu.rs) : demarrer.json, à côté de apps.json.
 
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use tauri::AppHandle;
-use windows::core::{w, HSTRING, PWSTR};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager};
+use windows::core::{w, Interface, GUID, HSTRING, PWSTR};
+use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::System::Com::CoTaskMemFree;
 use windows::Win32::UI::Shell::{
-    BHID_EnumItems, IEnumShellItems, IShellItem, SHCreateItemFromParsingName, SIGDN, SIGDN_NORMALDISPLAY,
+    BHID_EnumItems, IEnumShellItems, IShellItem, IShellItem2, SHCreateItemFromParsingName, SIGDN, SIGDN_NORMALDISPLAY,
     SIGDN_PARENTRELATIVEPARSING,
 };
 
@@ -128,6 +131,76 @@ pub fn icon_item(target: &str) -> Option<IShellItem> {
     let file = URL_ICONS.lock().unwrap().as_ref().and_then(|icons| icons.get(url).cloned());
     file.and_then(|file| unsafe { SHCreateItemFromParsingName(&HSTRING::from(file), None) }.ok())
         .or_else(|| item(target))
+}
+
+/// Ce que lance une application du menu Démarrer (clic droit, app_menu.rs)
+pub struct Shortcut {
+    /// Cible du raccourci : un programme (« C:\…\Code.exe »), ou l'adresse d'un jeu Steam
+    pub target: Option<String>,
+    /// Le raccourci passe des arguments (League of Legends : --launch-product=…)
+    pub args: bool,
+    /// App du Store de bureau (Terminal, Spotify) : elle s'exécute en administrateur, au
+    /// contraire d'une app du Store comme la Calculatrice
+    pub packaged_desktop: bool,
+}
+
+/// Propriétés des éléments : System.Link.TargetParsingPath, System.Link.Arguments et
+/// System.AppUserModel.HostEnvironment (0 programme, 1 app du Store, 2 app du Store de bureau)
+const LINK_TARGET: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0xb9b4b3fc_2b51_4a42_b5d8_324146afcf25), pid: 2 };
+const LINK_ARGUMENTS: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0x436f2667_14e2_4feb_b30a_146c53b5b674), pid: 100 };
+const HOST_ENVIRONMENT: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0x9f4c2855_9f79_4b39_a8d0_e1d42de1d5f3), pid: 14 };
+
+/// Avec COM
+pub fn shortcut(target: &str) -> Option<Shortcut> {
+    let item: IShellItem2 = item(target)?.cast().ok()?;
+    let text = |key: &PROPERTYKEY| unsafe {
+        let text = item.GetString(key).ok()?;
+        let value = text.to_string().ok();
+        CoTaskMemFree(Some(text.0 as *const _));
+        value.filter(|v| !v.is_empty())
+    };
+    Some(Shortcut {
+        target: text(&LINK_TARGET),
+        args: text(&LINK_ARGUMENTS).is_some(),
+        packaged_desktop: unsafe { item.GetUInt32(&HOST_ENVIRONMENT) }.is_ok_and(|host| host == 2),
+    })
+}
+
+/* ── Applications masquées (demande de Funsaiki) : demarrer.json, à côté de apps.json (une version
+   plus ancienne refuserait un champ de plus dans apps.json) ; leur nom dans shell:AppsFolder ── */
+
+#[derive(Default, Serialize, Deserialize)]
+struct Settings {
+    #[serde(default)]
+    hidden: Vec<String>,
+}
+
+fn settings_file(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|dir| dir.join("demarrer.json"))
+}
+
+/// Cibles masquées (`PREFIX` + nom). Fichier absent ou illisible : aucune.
+pub fn hidden(app: &AppHandle) -> Vec<String> {
+    settings_file(app)
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<Settings>(text.trim_start_matches('\u{feff}')).ok())
+        .map(|settings| settings.hidden.iter().map(|name| format!("{PREFIX}{name}")).collect())
+        .unwrap_or_default()
+}
+
+/// Masque ou réaffiche `target`. Fichier temporaire puis renommage, comme barre.json.
+pub fn set_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
+    let name = target.strip_prefix(PREFIX).ok_or("Pas une application du menu Démarrer.")?;
+    let path = settings_file(app).ok_or("Dossier de config introuvable.")?;
+    let mut names: Vec<String> = hidden(app).iter().filter_map(|t| t.strip_prefix(PREFIX)).map(String::from).collect();
+    names.retain(|n| n != name);
+    if hide {
+        names.push(name.to_string());
+    }
+    let temp = path.with_extension("json.tmp");
+    fs::write(&temp, serde_json::to_string_pretty(&Settings { hidden: names }).unwrap_or_default())
+        .and_then(|_| fs::rename(&temp, &path))
+        .map_err(|e| format!("{} non enregistré : {e}", path.display()))
 }
 
 /// Raccourcis web (.url) du menu Démarrer : fichier d'icône par adresse. Le menu Démarrer

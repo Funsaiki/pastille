@@ -112,6 +112,17 @@ export interface TrayApp {
 
 export type TrayAction = 'open' | 'location' | 'quit';
 
+/* Clic droit sur une application de la vue applications (app_menu.rs) : ce qu'elle permet en
+   plus d'Ouvrir */
+export interface AppMenuOptions {
+  admin: boolean;
+  location: boolean;
+  pinned: boolean | null;   // null : barre pastel coupée, ou rien à épingler
+  hidden: boolean | null;   // null : pas une application du menu Démarrer
+}
+
+export type AppAction = 'admin' | 'location' | 'pin' | 'unpin' | 'hide' | 'show';
+
 /* Notifications lues par Rust (feed.rs) ; `age` en secondes */
 export type FeedEvent =
   | { kind: 'download'; name: string; age: number }
@@ -129,12 +140,22 @@ function previewConfig(): Config {
   config.apps.slice(0, 3).forEach((app, i) => Object.assign(app, { uses: 3 - i, last: now - i * 600 }));
   // ?demarrer : groupe des applications du menu Démarrer, la Calculatrice lancée en dernier
   if (new URLSearchParams(location.search).has('demarrer')) {
-    const children: AppItem[] = PREVIEW_START.map((label, i) => ({ id: `d${i}`, label, target: `shell:AppsFolder\\${label}`, start: true }));
-    children[3].last = now;
+    const all: AppItem[] = PREVIEW_START.map((label, i) => ({ id: `d${i}`, label, target: `shell:AppsFolder\\${label}`, start: true }));
+    all[3].last = now;
+    // Masquées (clic droit) : dans un groupe à la fin, comme config.rs
+    const children = all.filter((it) => !previewHidden.has(it.label));
+    const hidden = all.filter((it) => previewHidden.has(it.label)).map((it) => ({ ...it, hidden: true }));
+    if (hidden.length) children.push({ label: 'Masquées', icon: 'masquees', hidden: true, children: hidden });
     config.apps.push({ label: 'Toutes les apps', icon: 'applications', auto: 'start', children });
   }
   return config;
 }
+
+/* Aperçu navigateur : applications épinglées depuis le clic droit, applications du menu
+   Démarrer masquées ; la config est refaite quand elles changent */
+const previewPinned = new Set<string>(['Navigateur']);
+const previewHidden = new Set<string>();
+const previewConfigListeners: (() => void)[] = [];
 
 const PREVIEW_START = ['2XKO', 'Battle.net', 'Bloc-notes', 'Calculatrice', 'Caméra', 'Discord', 'Docker Desktop', 'EA',
   'Epic Games Launcher', 'Excel', 'Explorateur de fichiers', 'Firefox', 'GitHub Desktop', 'Google Chrome', 'HoYoPlay',
@@ -298,6 +319,38 @@ export const host = {
       if (action === 'quit') previewTray = previewTray.filter((app) => app.key !== key);
     } else {
       await invoke('tray_app_action', { key, action });
+    }
+  },
+  /* Clic droit sur une application : Rust retrouve sa cible d'après l'id. Aperçu : d'après la
+     cible de l'exemple (la Calculatrice du menu Démarrer : une app du Store) */
+  async appMenu(item: AppItem): Promise<AppMenuOptions> {
+    if (PREVIEW) {
+      const target = item.target ?? '';
+      const store = item.label === 'Calculatrice';
+      const program = item.start ? !store : /\.(exe|bat|cmd|msc)$/i.test(target);
+      const file = item.start ? !store : program && target.includes('/');
+      const pinnable = file && (item.start || (/\.exe$/i.test(target) && !item.args?.length));
+      return {
+        admin: program,
+        location: file,
+        pinned: pinnable ? previewPinned.has(item.label) : null,
+        hidden: item.start ? previewHidden.has(item.label) : null,
+      };
+    }
+    return invoke<AppMenuOptions>('app_menu', { id: item.id });
+  },
+  async appAction(item: AppItem, action: AppAction) {
+    if (!PREVIEW) {
+      await invoke('app_action', { id: item.id, action });
+      return;
+    }
+    console.info('[aperçu] clic droit :', action, item.label);
+    if (action === 'pin') previewPinned.add(item.label);
+    if (action === 'unpin') previewPinned.delete(item.label);
+    if (action === 'hide' || action === 'show') {
+      if (action === 'hide') previewHidden.add(item.label);
+      else previewHidden.delete(item.label);
+      previewConfigListeners.forEach((fn) => fn());
     }
   },
   /* Le nom du fichier seulement : Rust le cherche dans Téléchargements */
@@ -503,6 +556,7 @@ export const host = {
     if (!PREVIEW) listen('launcher:hide', fn);
   },
   onConfigChanged(fn: () => void) {
-    if (!PREVIEW) listen('config:changed', fn);
+    if (PREVIEW) previewConfigListeners.push(fn);
+    else listen('config:changed', fn);
   },
 };

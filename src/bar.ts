@@ -8,7 +8,7 @@
    bas, dit quand la souris est sur la pilule ou clique ailleurs, et ne prend la souris que sur
    les rectangles envoyés par `reportRects`. Aperçu navigateur : barre.html (?ecran=2).
    ══════════════════════════════════════════════════════════ */
-import { ICONS, MIC, MIC_OFF, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
 import {
   PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type PinnedApp, type RepeatMode,
@@ -27,7 +27,6 @@ const CHEVRON = 'M6 15l6-6 6 6';
 const PLUS = 'M12 5v14M5 12h14';
 const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
 const CLOSE = 'M6 6l12 12M18 6L6 18';
-const PIN = 'M8 3h8M10 3v5.5L7 12.5h10L14 8.5V3M12 12.5V21';
 const SCREEN_NEXT = 'M3 5h12v9H3zM6.5 18h5M9 14v4M17 9.5h5M19.5 7l2.5 2.5-2.5 2.5';
 
 /* Vraie icône du programme ; dans l'aperçu, une icône à trait ; à défaut, son initiale sur

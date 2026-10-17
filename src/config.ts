@@ -18,6 +18,7 @@ export interface AppItem {
   uses?: number;          // lancements (usage.json, envoyé par Rust)
   last?: number;          // date du dernier lancement, en secondes depuis 1970
   start?: boolean;        // application du menu Démarrer (groupe auto « start ») : vraie icône demandée à Rust
+  hidden?: boolean;       // masquée (clic droit) et son groupe « Masquées » : ni recherche, ni Récents, ni compte
   /* Résultats de recherche qui ne viennent pas de apps.json (search.ts, ui.ts) */
   copy?: string;          // calcul : texte copié au lieu d'un lancement
   window?: string;        // fenêtre ouverte : son identifiant, pour la ramener

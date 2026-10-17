@@ -50,6 +50,10 @@ pub struct AppItem {
     /// (start_menu::start_icons) ; jamais lu dans apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub start: bool,
+    /// Application du menu Démarrer masquée par Funsaiki, et le groupe « Masquées » qui les
+    /// rassemble : ni recherche, ni Récents, ni compte ; jamais lu dans apps.json
+    #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
+    pub hidden: bool,
 }
 
 fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
@@ -113,6 +117,9 @@ struct Detected {
     epic: Vec<epic::Game>,
     playlists: Vec<spotify::Playlist>,
     start: Vec<start_menu::StartApp>,
+    /// Applications du menu Démarrer masquées (demarrer.json, start_menu.rs) : relues sous le
+    /// verrou de la config, comme elles sont changées (set_start_hidden)
+    hidden: Vec<String>,
 }
 
 /// `previous` : Spotify injoignable, les playlists déjà connues restent. Le menu Démarrer
@@ -123,6 +130,7 @@ fn detect(app: &AppHandle, previous: &Detected, start: bool) -> Detected {
         epic: epic::installed_games(),
         playlists: spotify::playlists(app).unwrap_or_else(|| previous.playlists.clone()),
         start: if start { crate::com::with_com(start_menu::installed_apps) } else { Vec::new() },
+        hidden: Vec::new(),
     }
 }
 
@@ -231,10 +239,26 @@ fn merge(base: &Config, games: &Detected) -> Config {
                         add(children, &p.name, p.uri.clone(), "SPOTIFY", "musique");
                     }
                 }
-                // Sans clé d'icône : le front montre la vraie (start_icons)
+                // Sans clé d'icône : le front montre la vraie (start_icons). Les masquées dans un
+                // groupe à la fin, d'où Funsaiki peut les réafficher.
                 Some("start") => {
+                    let mut hidden = Vec::new();
                     for a in &games.start {
-                        add_item(children, AppItem { start: true, ..found(&a.name, a.target.clone(), "DÉMARRER") });
+                        let item = AppItem { start: true, ..found(&a.name, a.target.clone(), "DÉMARRER") };
+                        if games.hidden.contains(&a.target) {
+                            hidden.push(AppItem { hidden: true, ..item });
+                        } else {
+                            add_item(children, item);
+                        }
+                    }
+                    if !hidden.is_empty() {
+                        children.push(AppItem {
+                            label: "Masquées".into(),
+                            icon: Some("masquees".into()),
+                            children: Some(hidden),
+                            hidden: true,
+                            ..Default::default()
+                        });
                     }
                 }
                 _ => {}
@@ -298,6 +322,36 @@ pub fn target_of(app: &AppHandle, id: &str) -> Option<(String, Vec<String>)> {
     }
     let item = find_item(&s.config.apps, id)?;
     Some((item.target.clone()?, item.args.clone()))
+}
+
+/// Application de la vue applications, pour son clic droit (app_menu.rs)
+pub struct MenuItem {
+    pub target: String,
+    pub args: Vec<String>,
+    /// Du menu Démarrer (groupe `auto: "start"`) : elle peut être masquée
+    pub start: bool,
+    pub hidden: bool,
+}
+
+/// Pas pour un groupe ni un dossier
+pub fn menu_item(app: &AppHandle, id: &str) -> Option<MenuItem> {
+    let state = app.state::<SharedConfig>();
+    let s = state.lock().unwrap();
+    let item = find_item(&s.config.apps, id)?;
+    Some(MenuItem { target: item.target.clone()?, args: item.args.clone(), start: item.start, hidden: item.hidden })
+}
+
+/// Masque ou réaffiche une application du menu Démarrer (demarrer.json) ; le front reçoit la
+/// config refaite. Sous le verrou : une recherche des jeux en cours la relira (scan_games).
+pub fn set_start_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
+    let state = app.state::<SharedConfig>();
+    let mut s = state.lock().unwrap();
+    start_menu::set_hidden(app, target, hide)?;
+    s.games.hidden = start_menu::hidden(app);
+    s.config = merge(&s.base, &s.games);
+    drop(s);
+    let _ = app.emit("config:changed", ());
+    Ok(())
 }
 
 fn find_item<'a>(items: &'a [AppItem], id: &str) -> Option<&'a AppItem> {
@@ -443,9 +497,10 @@ fn scan_games(app: &AppHandle) {
             let s = state.lock().unwrap();
             (s.games.clone(), uses_auto(&s.base.apps, "start"))
         };
-        let games = detect(&app, &previous, start);
+        let mut games = detect(&app, &previous, start);
         let state = app.state::<SharedConfig>();
         let mut s = state.lock().unwrap();
+        games.hidden = start_menu::hidden(&app);
         s.scanning = false;
         s.games_scanned = Instant::now();
         if games != s.games {
@@ -549,6 +604,26 @@ mod tests {
         let json = serde_json::to_string(calc).unwrap();
         assert!(json.contains(r#""start":true"#) && !json.contains("AppsFolder"), "{json}");
         assert!(parse(r#"{ "apps": [ { "label": "X", "target": "x", "start": true } ] }"#).is_err(), "jamais lu dans apps.json");
+    }
+
+    #[test]
+    fn hidden_start_apps_are_grouped_at_the_end() {
+        let base = parse(r#"{ "apps": [ { "label": "Toutes", "auto": "start" } ] }"#).unwrap();
+        let app = |name: &str| start_menu::StartApp { name: name.into(), target: format!(r"shell:AppsFolder\{name}") };
+        let start = vec![app("Calculatrice"), app("Docker"), app("Paint")];
+        let hidden = vec![r"shell:AppsFolder\Docker".to_string()];
+        let config = merge(&base, &Detected { start, hidden, ..Default::default() });
+        let all = config.apps[0].children.as_ref().unwrap();
+        let labels: Vec<&str> = all.iter().map(|it| it.label.as_str()).collect();
+        assert_eq!(labels, ["Calculatrice", "Paint", "Masquées"]);
+        let group = &all[2];
+        let docker = &group.children.as_ref().unwrap()[0];
+        assert!(group.hidden && docker.hidden && docker.start && !all[0].hidden);
+        assert_eq!((group.id.as_str(), docker.id.as_str()), ("a0.2", "a0.2.0"));
+        assert!(serde_json::to_string(&all[0]).unwrap().find("hidden").is_none());
+        // Plus rien de masqué : pas de groupe
+        let config = merge(&base, &Detected { start: vec![app("Paint")], hidden: Vec::new(), ..Default::default() });
+        assert_eq!(config.apps[0].children.as_ref().unwrap().len(), 1);
     }
 
     /// Diagnostic sur l'apps.json de Funsaiki : cargo test real_config -- --ignored --nocapture

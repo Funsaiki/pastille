@@ -207,7 +207,7 @@ pub(crate) fn app_id(pid: u32) -> Option<String> {
 }
 
 /// Explorateur ouvert sur le dossier du programme, le fichier sélectionné
-fn show_in_folder(path: &str) -> Result<(), String> {
+pub(crate) fn show_in_folder(path: &str) -> Result<(), String> {
     unsafe {
         // Le shell attend un appartement monothread, comme pour ShellExecuteEx (shell.rs)
         let com = CoInitializeEx(None, COINIT(COINIT_APARTMENTTHREADED.0 | COINIT_DISABLE_OLE1DDE.0));

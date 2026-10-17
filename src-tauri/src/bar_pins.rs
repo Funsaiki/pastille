@@ -73,31 +73,45 @@ pub async fn bar_pin(app: AppHandle, id: String) -> Result<(), String> {
         if bar::is_hosted(&path) {
             return Err("Cette application ne peut pas être épinglée.".to_string());
         }
-        let exe = exe_of(&path).ok_or("Programme de la fenêtre introuvable.")?;
-        let name = crate::mixer::description(&path).unwrap_or_else(|| {
-            Path::new(&path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| exe.clone())
-        });
         let app_id = if tray_apps::is_packaged(&path) {
             Some(tray_apps::app_id(pid).ok_or("Identifiant de l'application introuvable.")?)
         } else {
             None
         };
-        Ok(Pin { exe, name, path, app_id })
+        program_pin(&path, app_id).ok_or_else(|| "Programme de la fenêtre introuvable.".to_string())
     })
     .await??;
-    bar::update(&app, |settings| {
-        if !settings.pinned.iter().any(|p| p.exe == pin.exe) {
-            settings.pinned.push(pin);
-        }
-    });
-    bar::emit_all(&app, "bar:pins");
+    add(&app, pin);
     Ok(())
 }
 
 #[tauri::command]
 pub fn bar_unpin(app: AppHandle, exe: String) {
-    bar::update(&app, |settings| settings.pinned.retain(|p| p.exe != exe));
-    bar::emit_all(&app, "bar:pins");
+    remove(&app, &exe);
+}
+
+/// Épingle du programme `path`, nommé comme ses fenêtres dans la barre (`follow` les compare)
+pub fn program_pin(path: &str, app_id: Option<String>) -> Option<Pin> {
+    let exe = exe_of(path)?;
+    let name = crate::mixer::description(path).unwrap_or_else(|| {
+        Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| exe.clone())
+    });
+    Some(Pin { exe, name, path: path.to_string(), app_id })
+}
+
+/// À la fin, sauf si ce programme est déjà épinglé ; aussi depuis le clic droit du lanceur (app_menu.rs)
+pub fn add(app: &AppHandle, pin: Pin) {
+    bar::update(app, |settings| {
+        if !settings.pinned.iter().any(|p| p.exe == pin.exe) {
+            settings.pinned.push(pin);
+        }
+    });
+    bar::emit_all(app, "bar:pins");
+}
+
+pub fn remove(app: &AppHandle, exe: &str) {
+    bar::update(app, |settings| settings.pinned.retain(|p| p.exe != exe));
+    bar::emit_all(app, "bar:pins");
 }
 
 /// Lance l'application épinglée `exe` (fermée : ses fenêtres ouvertes passent par leur tuile)

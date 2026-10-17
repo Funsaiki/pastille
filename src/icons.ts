@@ -21,6 +21,8 @@ export const ICONS: Record<string, string> = {
   // Le motif du bouton Applications, pour le groupe des applications du menu Démarrer
   applications: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
   calcul: 'M5 4h14v16H5zM9 10h6M9 14h6',
+  // Groupe des applications du menu Démarrer masquées (clic droit, Masquer)
+  masquees: 'M2.5 12Q12 2 21.5 12Q12 22 2.5 12zM12 9a3 3 0 100 6 3 3 0 000-6zM4 4l16 16',
   /* Jeux et lanceurs de Funsaiki (demande du 15/10/2026) : logos de Steam, Epic, League of Legends
      et Valorant en traits ; pour les gachas, logos choisis par Funsaiki un par un. */
   steam: 'M12 3a9 9 0 100 18 9 9 0 000-18zM15 7a3 3 0 100 6 3 3 0 000-6zM9 13.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6zM10.6 14l2.4-1.8M7.3 14.4l-3.9-1.5',
@@ -38,6 +40,10 @@ export const ICONS: Record<string, string> = {
   // Endfield (choix de Funsaiki) : logo d'Endfield Industries, triangle pointe en bas et vis au milieu
   endfield: 'M2.5 3.5h19L12 21.5zM12 3.5v11M9.8 7.4l4.4-1.6M9.8 11.4l4.4-1.6',
 };
+
+/* Menus du clic droit (téléphone et barre) : épingler à la pilule, masquer et réafficher */
+export const PIN = 'M8 3h8M10 3v5.5L7 12.5h10L14 8.5V3M12 12.5V21';
+export const EYE = 'M2.5 12Q12 2 21.5 12Q12 22 2.5 12zM12 9a3 3 0 100 6 3 3 0 000-6z';
 
 /* Son, pour le téléphone et la barre */
 export const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
