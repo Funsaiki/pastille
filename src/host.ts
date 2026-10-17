@@ -86,10 +86,19 @@ export interface BarWindow {
   title: string;
   app: string;        // nom du programme (« Brave »)
   key: string;        // programme : ses fenêtres partagent une tuile
+  exe: string;        // nom du programme en minuscules (« brave.exe ») : application épinglée ; vide pour une app hébergée
   icon: AppIcon | null;   // null aussi quand le front l'a déjà (barWindows, known)
   active: boolean;    // au premier plan
   attention: boolean; // demande l'attention (clignote dans la barre de Windows)
   glyph?: string;     // aperçu navigateur seulement : icône à trait (ICONS) à la place de la vraie
+}
+
+/* Application épinglée à la barre pastel (bar_pins.rs) : sa tuile reste, même fermée */
+export interface PinnedApp {
+  exe: string;        // nom du programme en minuscules : ses fenêtres
+  name: string;
+  icon: AppIcon | null;   // null aussi quand le front l'a déjà (barPins, known)
+  glyph?: string;     // aperçu navigateur seulement
 }
 
 /* Application de la zone de notification (tray_apps.rs) */
@@ -134,15 +143,21 @@ let previewTray: TrayApp[] = ['Discord', 'G HUB', 'Lightshot', 'Riot Client', 'S
 
 /* Aperçu navigateur : fenêtres des deux écrans de Funsaiki, sans leurs icônes */
 let previewBar: BarWindow[] = [
-  { id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', glyph: 'code', active: true },
-  { id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
-  { id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', glyph: 'navigateur', active: false },
-  { id: 'w4', title: 'Téléchargements', app: 'Explorateur de fichiers', key: 'explorer', glyph: 'fichiers', active: false },
-  { id: 'w5', title: 'PowerShell', app: 'Terminal', key: 'terminal', glyph: 'terminal', active: false },
-  { id: 'w6', title: '#général — Discord', app: 'Discord', key: 'discord', glyph: 'messages', active: false },
-  { id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', glyph: 'musique', active: false },
-  { id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', glyph: 'steam', active: false },
+  { id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', exe: 'code.exe', glyph: 'code', active: true },
+  { id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'navigateur', active: false },
+  { id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'navigateur', active: false },
+  { id: 'w4', title: 'Téléchargements', app: 'Explorateur de fichiers', key: 'explorer', exe: 'explorer.exe', glyph: 'fichiers', active: false },
+  { id: 'w5', title: 'PowerShell', app: 'Terminal', key: 'terminal', exe: 'windowsterminal.exe', glyph: 'terminal', active: false },
+  { id: 'w6', title: '#général — Discord', app: 'Discord', key: 'discord', exe: 'discord.exe', glyph: 'messages', active: false },
+  { id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', exe: 'spotify.exe', glyph: 'musique', active: false },
+  { id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', exe: 'steam.exe', glyph: 'steam', active: false },
 ].map((w) => ({ ...w, icon: null, attention: w.key === 'discord' }));
+
+/* Aperçu navigateur : Brave épinglé et ouvert, le lanceur d'Epic épinglé et fermé */
+let previewPins: Omit<PinnedApp, 'icon'>[] = [
+  { exe: 'brave.exe', name: 'Brave', glyph: 'navigateur' },
+  { exe: 'epicgameslauncher.exe', name: 'Epic Games Launcher', glyph: 'epic' },
+];
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
@@ -353,6 +368,38 @@ export const host = {
   async newWindow(id: string) {
     if (PREVIEW) console.info('[aperçu] nouvelle fenêtre comme :', id);
     else await invoke('new_window', { id });
+  },
+  /* Applications épinglées (bar_pins.rs), dans leur ordre ; sans l'icône de celles de `known` */
+  async barPins(known: string[]): Promise<PinnedApp[]> {
+    if (PREVIEW) return previewPins.map((p) => ({ ...p, icon: null }));
+    return invoke<PinnedApp[]>('bar_pins', { known });
+  },
+  /* Épingle le programme de la fenêtre `id` ; Rust retrouve son chemin */
+  async barPin(id: string) {
+    if (PREVIEW) {
+      const w = previewBar.find((x) => x.id === id);
+      if (w && !previewPins.some((p) => p.exe === w.exe)) previewPins.push({ exe: w.exe, name: w.app, glyph: w.glyph });
+    } else {
+      await invoke('bar_pin', { id });
+    }
+  },
+  async barUnpin(exe: string) {
+    if (PREVIEW) previewPins = previewPins.filter((p) => p.exe !== exe);
+    else await invoke('bar_unpin', { exe });
+  },
+  /* Lance l'application épinglée `exe` */
+  async barOpenPin(exe: string) {
+    if (PREVIEW) {
+      console.info('[aperçu] ouvrir l’application épinglée :', exe);
+      const p = previewPins.find((x) => x.exe === exe);
+      if (p) previewBar.push({ id: `p${Date.now()}`, title: p.name, app: p.name, key: exe, exe, glyph: p.glyph, icon: null, active: false, attention: false });
+    } else {
+      await invoke('bar_open_pin', { exe });
+    }
+  },
+  /* Épingles changées (depuis l'autre écran aussi) */
+  onBarPins(fn: () => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:pins', fn);
   },
   /* Fait monter le téléphone sur l'écran de la barre */
   async showLauncher() {

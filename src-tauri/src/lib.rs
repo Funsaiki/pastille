@@ -1,5 +1,6 @@
 mod audio;
 mod bar;
+mod bar_pins;
 mod bar_preview;
 mod com;
 mod config;
@@ -110,6 +111,10 @@ pub fn run() {
             bar::new_window,
             bar::show_launcher,
             bar::bar_menu,
+            bar_pins::bar_pins,
+            bar_pins::bar_pin,
+            bar_pins::bar_unpin,
+            bar_pins::bar_open_pin,
             bar_preview::bar_preview,
             bar_preview::bar_preview_place,
             bar_preview::bar_preview_close

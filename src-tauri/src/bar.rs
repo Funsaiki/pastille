@@ -16,7 +16,8 @@
 //! fait sortir un instant la pilule de son écran, sa tuile en rose.
 //!
 //! Seulement si Funsaiki coche « Barre pastel » dans le menu de l'icône (barre.json, à côté de
-//! apps.json) ; la barre des tâches de Windows est alors masquée (taskbar.rs).
+//! apps.json, avec les applications épinglées : bar_pins.rs) ; la barre des tâches de Windows
+//! est alors masquée (taskbar.rs).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,6 +39,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PostMessageW, ShowWindowAsync, MONITORINFOF_PRIMARY, SW_MINIMIZE, WM_CLOSE,
 };
 
+use crate::bar_pins::{self, Pin};
 use crate::shell_hook::{self, Event};
 use crate::{bar_preview, launcher, open_windows, switch, taskbar, tray_apps};
 
@@ -50,9 +52,12 @@ const POLL: Duration = Duration::from_millis(50);
 /* ── Réglage : barre.json ── */
 
 #[derive(Default, Serialize, Deserialize)]
-struct Settings {
+pub struct Settings {
     #[serde(default)]
     active: bool,
+    /// Applications épinglées, dans leur ordre (bar_pins.rs)
+    #[serde(default)]
+    pub pinned: Vec<Pin>,
 }
 
 fn file(app: &AppHandle) -> Option<PathBuf> {
@@ -78,8 +83,28 @@ fn save(app: &AppHandle, settings: &Settings) {
     }
 }
 
+/// Lit, modifie et réécrit barre.json, une modification à la fois
+pub fn update(app: &AppHandle, change: impl FnOnce(&mut Settings)) {
+    static WRITING: Mutex<()> = Mutex::new(());
+    let _writing = WRITING.lock().unwrap();
+    let mut current = settings(app);
+    change(&mut current);
+    save(app, &current);
+}
+
 pub fn is_active(app: &AppHandle) -> bool {
     settings(app).active
+}
+
+pub fn pins(app: &AppHandle) -> Vec<Pin> {
+    settings(app).pinned
+}
+
+/// À la page de chaque écran
+pub fn emit_all(app: &AppHandle, event: &str) {
+    for label in app.webview_windows().into_keys().filter(|label| index(label).is_some()) {
+        let _ = app.emit_to(label, event, ());
+    }
 }
 
 /// Au démarrage. Barre coupée : celle de Windows est réaffichée, au cas où un arrêt brutal du
@@ -96,7 +121,7 @@ pub fn init(app: &AppHandle) {
 /// d'après barre.json, qui a pu être modifié à la main)
 pub fn toggle(app: &AppHandle) -> bool {
     let active = !RUNNING.load(SeqCst);
-    save(app, &Settings { active });
+    update(app, |settings| settings.active = active);
     if active { start(app) } else { stop(app) }
     active
 }
@@ -465,9 +490,15 @@ pub struct BarWindow {
     id: String,
     title: String,
     /// Programme (« Brave Browser »)
-    app: String,
+    pub app: String,
     /// Ses fenêtres partagent une tuile
     key: String,
+    /// Nom du programme en minuscules (« brave.exe ») : celui d'une application épinglée.
+    /// Vide pour les apps hébergées, qui ne s'épinglent pas.
+    pub exe: String,
+    /// Chemin du programme (bar_pins::follow), pas envoyé au front
+    #[serde(skip)]
+    pub path: String,
     /// Pas pour les programmes dont le front a déjà l'icône
     icon: Option<crate::icon::Icon>,
     /// Au premier plan
@@ -477,11 +508,13 @@ pub struct BarWindow {
 }
 
 /// Fenêtres de la barre des tâches, sauf celles du lanceur. Toutes, quel que soit leur écran
-/// (demande de Funsaiki) : chaque pilule les montre toutes. Relues chaque seconde : les icônes ne
-/// sont envoyées que pour les programmes que le front n'a pas déjà (`known`, des `key`).
+/// (demande de Funsaiki) : chaque pilule les montre toutes. Relues souvent : les icônes ne sont
+/// envoyées que pour les programmes que le front n'a pas déjà (`known`, des `key`).
 #[tauri::command]
-pub async fn bar_windows(known: Vec<String>) -> Vec<BarWindow> {
-    crate::com::com_task(move || Ok(list(&known))).await.unwrap_or_default()
+pub async fn bar_windows(app: AppHandle, known: Vec<String>) -> Vec<BarWindow> {
+    let windows = crate::com::com_task(move || Ok(list(&known))).await.unwrap_or_default();
+    bar_pins::follow(&app, &windows);
+    windows
 }
 
 fn list(known: &[String]) -> Vec<BarWindow> {
@@ -509,11 +542,14 @@ fn list(known: &[String]) -> Vec<BarWindow> {
             };
             let key = if hosted { format!("{lower}|{title}") } else { lower };
             let icon = if known.contains(&key) { None } else { crate::icon::of(&path) };
+            let exe = if hosted { String::new() } else { bar_pins::exe_of(&path).unwrap_or_default() };
             Some(BarWindow {
                 id: (hwnd.0 as isize).to_string(),
                 title,
                 app,
                 key,
+                exe,
+                path,
                 icon,
                 active: hwnd.0 as isize == active,
                 attention: attention.contains(&(hwnd.0 as isize)),
@@ -603,6 +639,16 @@ mod tests {
         let r = RECT { left: 0, top: 0, right: 10, bottom: 10 };
         assert!(contains(&r, POINT { x: 0, y: 9 }));
         assert!(!contains(&r, POINT { x: 10, y: 5 }), "bord droit exclu");
+    }
+
+    #[test]
+    fn settings_file() {
+        // barre.json d'avant les épingles
+        let old: Settings = serde_json::from_str(r#"{ "active": true }"#).unwrap();
+        assert!(old.active && old.pinned.is_empty());
+        let text = r#"{ "active": false, "pinned": [{ "exe": "discord.exe", "name": "Discord", "path": "C:/Discord.exe" }] }"#;
+        let file: Settings = serde_json::from_str(text).unwrap();
+        assert_eq!(file.pinned[0].exe, "discord.exe");
     }
 
     /// Diagnostic, lecture seule : cargo test real_bar_windows -- --ignored --nocapture

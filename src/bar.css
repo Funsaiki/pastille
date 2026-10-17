@@ -57,6 +57,8 @@ button { font-family: inherit; }
 .bar-tile canvas { width: 22px; height: 22px; }
 /* Fenêtre au premier plan, ou tuile dont le menu est ouvert : fond accent */
 .bar-tile.active, .bar-tile.menu-open { background: var(--fill); }
+/* Application épinglée fermée : à plat, sans ombre ; elle se soulève au survol comme les autres */
+.bar-tile.closed { box-shadow: none; }
 /* Applications : fond encre comme le bouton Applications du téléphone, quatre carrés accent */
 .bar-tile.bar-apps { background: var(--ink); color: var(--fill); box-shadow: 0 3px 0 var(--ink-deep); }
 /* Plusieurs fenêtres du même programme : leur nombre, comme les groupes de la vue applications */

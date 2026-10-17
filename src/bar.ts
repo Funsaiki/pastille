@@ -1,9 +1,9 @@
 /* ══════════════════════════════════════════════════════════
    Barre pastel (demandée par Funsaiki le 16/10/2026) : à la place de la barre des tâches de
    Windows, une pilule flottante centrée en bas de chaque écran, en masquage automatique.
-   Applications (fait monter le téléphone), fenêtres ouvertes de tous les écrans (une tuile
-   par programme), Spotify, son, applications de la zone de notification derrière ^ (écran
-   principal), heure.
+   Applications (fait monter le téléphone), applications épinglées puis fenêtres ouvertes de
+   tous les écrans (une tuile par programme), Spotify, son, applications de la zone de
+   notification derrière ^ (écran principal), heure.
    Une fenêtre transparente par écran (bar.rs) : Rust la montre quand la souris touche le bord
    bas, dit quand la souris est sur la pilule ou clique ailleurs, et ne prend la souris que sur
    les rectangles envoyés par `reportRects`. Aperçu navigateur : barre.html (?ecran=2).
@@ -11,8 +11,8 @@
 import { ICONS, MIC, MIC_OFF, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
 import {
-  PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type RepeatMode, type ShuffleMode,
-  type SpotifyVolume, type TrayAction, type TrayApp,
+  PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type PinnedApp, type RepeatMode,
+  type ShuffleMode, type SpotifyVolume, type TrayAction, type TrayApp,
 } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -27,6 +27,7 @@ const CHEVRON = 'M6 15l6-6 6 6';
 const PLUS = 'M12 5v14M5 12h14';
 const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
 const CLOSE = 'M6 6l12 12M18 6L6 18';
+const PIN = 'M8 3h8M10 3v5.5L7 12.5h10L14 8.5V3M12 12.5V21';
 
 /* Vraie icône du programme ; dans l'aperçu, une icône à trait ; à défaut, son initiale sur
    une couleur de la palette */
@@ -59,11 +60,13 @@ async function act(run: () => Promise<unknown>) {
   refreshTray();
 }
 
-/* ══ Fenêtres ouvertes, tous écrans confondus (demande de Funsaiki), regroupées par programme ══ */
+/* ══ Fenêtres ouvertes, tous écrans confondus (demande de Funsaiki), regroupées par programme ;
+   les applications épinglées d'abord, ouvertes ou non ══ */
 interface Group {
   key: string;
   app: string;
   windows: BarWindow[];
+  pin?: PinnedApp;    // application épinglée : sa tuile reste, même fermée
 }
 
 let windows: BarWindow[] = [];
@@ -91,19 +94,24 @@ async function refreshWindows() {
   updatePreview();
 }
 
+/* Tuile d'une fenêtre : celle de son application épinglée, sinon celle de son programme */
+const groupKey = (w: BarWindow) => (pins.some((p) => p.exe === w.exe) ? `pin:${w.exe}` : w.key);
+
+/* Épinglées dans leur ordre, puis les autres programmes dans leur ordre d'arrivée */
 function groups(): Group[] {
-  const keys = new Set(windows.map((w) => w.key));
+  const pinned = pins.map((pin) => ({ key: `pin:${pin.exe}`, app: pin.name, windows: windows.filter((w) => w.exe === pin.exe), pin }));
+  const keys = new Set(windows.map(groupKey).filter((k) => !k.startsWith('pin:')));
   order = order.filter((k) => keys.has(k));
   for (const k of keys) if (!order.includes(k)) order.push(k);
-  return order.map((key) => {
+  return [...pinned, ...order.map((key) => {
     const list = windows.filter((w) => w.key === key);
     return { key, app: list[0].app, windows: list };
-  });
+  })];
 }
 
 function renderWindows() {
   const list = groups();
-  const shown = JSON.stringify(list.map((g) => g.windows.map((w) => [w.id, w.title, w.active, w.attention])));
+  const shown = JSON.stringify(list.map((g) => [g.key, g.windows.map((w) => [w.id, w.title, w.active, w.attention])]));
   // Pas pendant qu'un menu ou un aperçu est ouvert : il est accroché à sa tuile (refaite à sa
   // fermeture)
   if (menu || preview || shown === windowsShown) return;
@@ -134,7 +142,7 @@ const windowLabel = (w: BarWindow) => (w.title.includes(w.app) ? w.title : `${w.
 /* Fenêtres du programme d'après la dernière liste : la tuile a pu être faite avant (pas refaite
    pendant un aperçu ou un menu) */
 function latest(g: Group): BarWindow[] {
-  const now = windows.filter((w) => w.key === g.key);
+  const now = windows.filter((w) => groupKey(w) === g.key);
   return now.length ? now : g.windows;
 }
 
@@ -142,6 +150,7 @@ function latest(g: Group): BarWindow[] {
    leur liste. Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. Survol :
    aperçu des fenêtres (il remplace l'infobulle). */
 function groupTile(g: Group, i: number) {
+  if (!g.windows.length) return pinTile(g, i);
   const b = el('button', 'bar-tile tp-press');
   const [first] = g.windows;
   const many = g.windows.length > 1;
@@ -177,11 +186,70 @@ function groupTile(g: Group, i: number) {
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();   // pas le menu de WebView2
     const list = latest(g);
-    openMenu(b, g.app, [
-      menuItem('Nouvelle fenêtre', actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(list[0].id))),
-      menuItem(list.length > 1 ? `Fermer les ${list.length} fenêtres` : 'Fermer la fenêtre', actionDot(CLOSE, '#f6c6da'),
-        () => act(() => Promise.all(list.map((w) => host.closeWindow(w.id))))),
-    ]);
+    const items = [menuItem('Nouvelle fenêtre', actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(list[0].id)))];
+    // Pas les apps hébergées (Paramètres, Calculatrice) : elles partagent leur programme
+    if (g.pin) items.push(unpinItem(g.pin));
+    else if (list[0].exe) items.push(menuItem('Épingler à la pilule', actionDot(PIN, '#c9d8ff'), () => act(() => pinWindow(list[0].id))));
+    items.push(menuItem(list.length > 1 ? `Fermer les ${list.length} fenêtres` : 'Fermer la fenêtre', actionDot(CLOSE, '#f6c6da'),
+      () => act(() => Promise.all(list.map((w) => host.closeWindow(w.id))))));
+    openMenu(b, g.app, items);
+  });
+  return b;
+}
+
+/* ══ Applications épinglées (bar_pins.rs, demande de Funsaiki) : épinglées par le clic droit d'une
+   tuile de fenêtre, gardées dans barre.json. Fermée, sa tuile est à plat (sans ombre) et se
+   soulève au survol ; clic ou clic du milieu : la lancer. Ouverte, ses fenêtres prennent sa
+   tuile. ══ */
+let pins: PinnedApp[] = [];
+const pinIcons = new Map<string, AppIcon | null>();   // par programme : Rust ne la renvoie pas à chaque fois
+
+async function refreshPins() {
+  const known = [...pinIcons.keys()];
+  const list = await host.barPins(known).catch(() => null);
+  if (!list) return;
+  for (const p of list) if (!known.includes(p.exe)) pinIcons.set(p.exe, p.icon);
+  for (const exe of pinIcons.keys()) if (!list.some((p) => p.exe === exe)) pinIcons.delete(exe);
+  pins = list.map((p) => ({ ...p, icon: pinIcons.get(p.exe) ?? null }));
+  renderWindows();
+}
+
+async function pinWindow(id: string) {
+  await host.barPin(id);
+  await refreshPins();
+}
+
+function unpinItem(pin: PinnedApp) {
+  return menuItem('Détacher de la pilule', actionDot(PIN, '#c9d8ff'), () => act(async () => {
+    await host.barUnpin(pin.exe);
+    await refreshPins();
+  }));
+}
+
+function pinTile(g: Group, i: number) {
+  const pin = g.pin!;
+  const b = el('button', 'bar-tile tp-press closed');
+  b.title = pin.name;
+  b.setAttribute('aria-label', `${pin.name} (épinglée)`);
+  fillTile(b, pin.name, pin.icon, pin.glyph, i, 22);
+  const launch = () => {
+    closePreview();
+    act(() => host.barOpenPin(pin.exe));
+  };
+  // L'aperçu d'une autre tuile se ferme (une tuile fermée n'en a pas)
+  b.addEventListener('pointerenter', leavePreview);
+  b.addEventListener('click', launch);
+  b.addEventListener('mousedown', (e) => {
+    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+  });
+  b.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    launch();
+  });
+  b.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openMenu(b, pin.name, [menuItem('Ouvrir', actionDot(OPEN, 'var(--fill)'), launch), unpinItem(pin)]);
   });
   return b;
 }
@@ -242,7 +310,7 @@ async function openPreview(g: Group, tile: HTMLElement) {
 function updatePreview() {
   if (!preview) return;
   const { tile, group } = preview;
-  const now = windows.filter((w) => w.key === group.key);
+  const now = windows.filter((w) => groupKey(w) === group.key);
   if (now.map((w) => w.id).join() === group.windows.map((w) => w.id).join()) return;
   if (now.length) openPreview({ ...group, windows: now }, tile);
   else closePreview();
@@ -1100,6 +1168,7 @@ function init() {
     host.onBarPointer(setInside),
     host.onBarOutside(clickedOutside),
     host.onBarReset(() => hide(true)),
+    host.onBarPins(refreshPins),
   ]).then(() => {
     if (!shown) host.barHidden();
   });
@@ -1151,6 +1220,7 @@ function init() {
 
   tickClock();
   renderSound();    // icône du haut-parleur avant la première lecture
+  refreshPins();
   refreshTray();
   refreshMedia();   // la tuile est là avant la première sortie : la pilule ne change pas de taille en sortant
   // Rentrée jusqu'à ce que la souris touche le bas de l'écran ; dans l'aperçu, elle sort tout de suite
