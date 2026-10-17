@@ -124,6 +124,7 @@ function previewConfig(): Config {
 const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };
 
 /* Aperçu navigateur : aléatoire et répétition de Spotify */
+const previewSound: AudioState = { volume: 62, muted: false, mic_muted: true };
 let previewShuffle: ShuffleMode = 'smart';
 let previewRepeat: RepeatMode = 'off';
 
@@ -176,16 +177,25 @@ export const host = {
   },
   /* Sortie et micro par défaut des réglages Son de Windows */
   async audio(): Promise<AudioState> {
-    if (PREVIEW) return { volume: 62, muted: false, mic_muted: true };
+    if (PREVIEW) return { ...previewSound };
     return invoke<AudioState>('audio');
   },
   async setVolume(level: number) {
-    if (PREVIEW) console.info('[aperçu] volume :', level);
-    else await invoke('set_volume', { level });
+    if (PREVIEW) {
+      console.info('[aperçu] volume :', level);
+      previewSound.volume = level;
+      if (level > 0) previewSound.muted = false;
+    } else {
+      await invoke('set_volume', { level });
+    }
   },
   async setMicMuted(muted: boolean) {
-    if (PREVIEW) console.info('[aperçu] micro coupé :', muted);
-    else await invoke('set_mic_muted', { muted });
+    if (PREVIEW) {
+      console.info('[aperçu] micro coupé :', muted);
+      previewSound.mic_muted = muted;
+    } else {
+      await invoke('set_mic_muted', { muted });
+    }
   },
   /* Applications qui utilisent la sortie par défaut, celles qui jouent du son d'abord */
   async mixer(): Promise<AppVolume[]> {

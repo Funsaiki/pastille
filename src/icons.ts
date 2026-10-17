@@ -37,6 +37,12 @@ export const ICONS: Record<string, string> = {
   endfield: 'M2.5 3.5h19L12 21.5zM12 3.5v11M9.8 7.4l4.4-1.6M9.8 11.4l4.4-1.6',
 };
 
+/* Son, pour le téléphone et la barre */
+export const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
+export const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
+export const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
+export const MIC_OFF = MIC + 'M3 3l18 18';
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /* Icône à trait (fill: 'none') ; `fill` sert au dossier coloré de la rangée Dossiers.

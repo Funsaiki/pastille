@@ -11,7 +11,7 @@
 <span class="wallpaper-hint" aria-hidden="true">[ TON FOND D'ÉCRAN ]</span>
 <p class="preview-help" id="preview-help" hidden></p>
 
-<!-- Pilule : Applications, fenêtres ouvertes (une tuile par programme), Spotify, zone de
+<!-- Pilule : Applications, fenêtres ouvertes (une tuile par programme), Spotify, son, zone de
      notification (écran principal seulement), heure -->
 <nav class="bar" id="bar" aria-label="Barre des tâches">
   <button class="bar-tile bar-apps tp-press" id="bar-apps" title="Applications (clic droit : menu du lanceur)" aria-label="Applications"></button>
@@ -24,6 +24,10 @@
       <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="icon-play"><path d="M8 5l11 7-11 7z"></path></svg>
     </span>
   </button>
+  <button class="bar-round" id="bar-sound" aria-expanded="false" aria-controls="bar-volume">
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path id="bar-sound-icon"></path></svg>
+    <span class="bar-level" id="bar-level" aria-hidden="true"></span>
+  </button>
   <button class="bar-round" id="bar-tray" title="Applications en arrière-plan" aria-label="Applications en arrière-plan"
           aria-expanded="false" aria-controls="bar-pop"></button>
   <button class="bar-clock" id="bar-clock" aria-expanded="false" aria-controls="bar-cal"><span class="bar-time" id="bar-time"></span><span class="bar-date" id="bar-date"></span></button>
@@ -34,6 +38,27 @@
   <div class="bar-pop-head">Apps <span class="bar-pop-count" id="bar-pop-count"></span></div>
   <div class="bar-grid" id="bar-grid"></div>
   <p class="bar-empty" id="bar-empty" hidden>Aucune app en arrière-plan</p>
+</section>
+
+<!-- Son : clic sur le haut-parleur ; le volume et le micro du téléphone -->
+<section class="bar-card bar-vol" id="bar-volume" aria-label="Son">
+  <div class="slider">
+    <span class="slider-head">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path id="bar-volume-icon"></path></svg>
+      <span>Volume</span>
+      <span class="slider-value" id="bar-volume-text"></span>
+    </span>
+    <input class="tp-range" id="bar-volume-range" type="range" min="0" max="100" aria-label="Volume">
+  </div>
+  <button class="tp-press qtile" id="bar-mic" aria-pressed="false">
+    <span class="qtile-dot">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path id="bar-mic-icon"></path></svg>
+    </span>
+    <span class="qtile-text">
+      <span class="qtile-label">Micro</span>
+      <span class="qtile-sub" id="bar-mic-sub"></span>
+    </span>
+  </button>
 </section>
 
 <!-- Calendrier : clic sur l'heure -->

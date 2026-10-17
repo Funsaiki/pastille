@@ -2,16 +2,17 @@
    Barre pastel (demandée par Funsaiki le 16/10/2026) : à la place de la barre des tâches de
    Windows, une pilule flottante centrée en bas de chaque écran, en masquage automatique.
    Applications (fait monter le téléphone), fenêtres ouvertes de tous les écrans (une tuile
-   par programme), applications de la zone de notification derrière ^ (écran principal), heure.
+   par programme), Spotify, son, applications de la zone de notification derrière ^ (écran
+   principal), heure.
    Une fenêtre transparente par écran (bar.rs) : Rust la montre quand la souris touche le bord
    bas, dit quand la souris est sur la pilule ou clique ailleurs, et ne prend la souris que sur
    les rectangles envoyés par `reportRects`. Aperçu navigateur : barre.html (?ecran=2).
    ══════════════════════════════════════════════════════════ */
-import { ICONS, icon } from './icons';
-import { el, iconCanvas } from './dom';
+import { ICONS, MIC, MIC_OFF, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { el, iconCanvas, latestOnly } from './dom';
 import {
-  PREVIEW, host, type AppIcon, type BarWindow, type NowPlaying, type RepeatMode, type ShuffleMode, type SpotifyVolume,
-  type TrayAction, type TrayApp,
+  PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type RepeatMode, type ShuffleMode,
+  type SpotifyVolume, type TrayAction, type TrayApp,
 } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -359,9 +360,10 @@ const popOpen = () => $('bar-pop').classList.contains('open');
 function togglePop(open = !popOpen()) {
   closePreview();
   closeMenu(false);
-  if (open && calOpen()) toggleCal(false);
-  if (open && playerOpen()) togglePlayer(false);
-  if (open && !popOpen()) placeCard($('bar-pop'), $('bar-tray'));
+  if (open && !popOpen()) {
+    closeCards();
+    placeCard($('bar-pop'), $('bar-tray'));
+  }
   $('bar-pop').classList.toggle('open', open);
   $('bar-tray').setAttribute('aria-expanded', String(open));
   if (open) {
@@ -448,12 +450,13 @@ function placeCard(card: HTMLElement, button: HTMLElement) {
   void card.offsetWidth;
 }
 
-const cardOpen = () => popOpen() || calOpen() || playerOpen();
+const cardOpen = () => popOpen() || calOpen() || playerOpen() || soundOpen();
 
 function closeCards() {
   if (popOpen()) togglePop(false);
   if (calOpen()) toggleCal(false);
   if (playerOpen()) togglePlayer(false);
+  if (soundOpen()) toggleSound(false);
 }
 
 /* ══ Masquage automatique : la pilule sort quand la souris touche le bas de l'écran et rentre
@@ -482,6 +485,7 @@ function show(peek = false) {
     inside = false;
     $('bar').classList.remove('hidden');
     refreshWindows();
+    refreshAudio();
     refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
     refreshMedia();
     mediaTimer = window.setInterval(refreshMedia, MEDIA_MS);
@@ -534,7 +538,7 @@ function reportRects() {
     if (shown) {
       const bar = $('bar');
       rects.push([bar.offsetLeft - 8, bar.offsetTop - 8, bar.offsetWidth + 16, innerHeight - bar.offsetTop + 8]);
-      for (const id of ['bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview']) {
+      for (const id of ['bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) {
         const n = $(id);
         if (n.classList.contains('open')) rects.push([n.offsetLeft - 8, n.offsetTop - 8, n.offsetWidth + 16, n.offsetHeight + 24]);
       }
@@ -677,9 +681,10 @@ const playerOpen = () => $('bar-player').classList.contains('open');
 function togglePlayer(open = !playerOpen()) {
   closePreview();
   closeMenu(false);
-  if (open && popOpen()) togglePop(false);
-  if (open && calOpen()) toggleCal(false);
-  if (open && !playerOpen()) placeCard($('bar-player'), $('bar-music'));
+  if (open && !playerOpen()) {
+    closeCards();
+    placeCard($('bar-player'), $('bar-music'));
+  }
   $('bar-player').classList.toggle('open', open);
   $('bar-music').setAttribute('aria-expanded', String(open));
   clearInterval(spotifyTimer);
@@ -761,23 +766,12 @@ function stepLevel(x: number, y: number, first: boolean): number | null {
 
 /* Un envoi à la fois, le dernier niveau gagne (comme le téléphone) ; après chaque envoi,
    l'attente repart : Spotify met un instant à annoncer le nouveau volume */
-let volumeWanted: number | null = null;
-let volumeSending = false;
-
-async function sendVolume(level: number) {
-  volumeWanted = level;
-  if (volumeSending) return;
-  volumeSending = true;
-  while (volumeWanted !== null) {
-    const next = volumeWanted;
-    volumeWanted = null;
-    const target = spotifyVolume;
-    await (target?.source === 'windows' ? host.setAppVolume(target.key, next) : host.setSpotifyVolume(next))
-      .catch((e) => console.error(e));
-    spotifyHold = performance.now() + 1000;
-  }
-  volumeSending = false;
-}
+const sendSpotify = latestOnly(async (level) => {
+  const target = spotifyVolume;
+  await (target?.source === 'windows' ? host.setAppVolume(target.key, level) : host.setSpotifyVolume(level))
+    .catch((e) => console.error(e));
+  spotifyHold = performance.now() + 1000;
+});
 
 function setSpotifyVolume(level: number) {
   if (!spotifyVolume) return;
@@ -785,7 +779,7 @@ function setSpotifyVolume(level: number) {
   spotifyRun++;
   spotifyHold = performance.now() + 1500;
   renderSpotify();
-  sendVolume(spotifyVolume.volume);
+  sendSpotify(spotifyVolume.volume);
 }
 
 /* Change tout de suite ; aléatoire : non ↔ oui, l'aléatoire intelligent ne peut que se couper ;
@@ -811,6 +805,97 @@ async function toggleSpotifyMode(which: 'shuffle' | 'repeat') {
   spotifyHold = performance.now() + 1000;
 }
 
+/* ══ Son (demandé par Funsaiki) : un rond haut-parleur à côté du ^, sur chaque écran (audio.rs,
+   comme le téléphone). Molette : 2 % par cran, le niveau en pastille un instant ; clic : carte
+   en bulle avec le curseur du volume et la tuile Micro du téléphone. Relu à la sortie de la
+   pilule et à l'ouverture de la carte. ══ */
+const LEVEL_MS = 1200;    // pastille du niveau après le dernier cran de molette
+let sound: AudioState = { volume: null, muted: false, mic_muted: null };
+let audioRun = 0;         // change à chaque réglage : une lecture plus ancienne est ignorée
+let levelTimer = 0;
+
+const soundOpen = () => $('bar-volume').classList.contains('open');
+
+function toggleSound(open = !soundOpen()) {
+  closePreview();
+  closeMenu(false);
+  if (open && !soundOpen()) {
+    closeCards();
+    placeCard($('bar-volume'), $('bar-sound'));
+  }
+  $('bar-volume').classList.toggle('open', open);
+  $('bar-sound').setAttribute('aria-expanded', String(open));
+  if (open) refreshAudio();
+  else autoHide();
+  reportRects();
+}
+
+async function refreshAudio() {
+  const run = ++audioRun;
+  const now = await host.audio().catch(() => null);
+  if (run !== audioRun || !now) return;
+  sound = now;
+  renderSound();
+}
+
+function renderSound() {
+  const level = sound.volume ?? 0;
+  const text = sound.volume === null ? 'Aucune sortie' : level + ' %';
+  const speaker = level === 0 || sound.muted ? SPEAKER_OFF : SPEAKER;
+  const button = $('bar-sound');
+  button.title = `Volume : ${text}\nClic : volume et micro · molette : 2 % par cran`;
+  button.setAttribute('aria-label', `Volume : ${text}`);
+  $('bar-sound-icon').setAttribute('d', speaker);
+  $('bar-level').textContent = String(level);
+  const input = $('bar-volume-range') as HTMLInputElement;
+  input.disabled = sound.volume === null;
+  input.value = String(level);
+  input.style.setProperty('--pct', level + '%');
+  $('bar-volume-text').textContent = text;
+  $('bar-volume-icon').setAttribute('d', speaker);
+  $('bar-mic').setAttribute('aria-pressed', String(sound.mic_muted === false));
+  $('bar-mic-sub').textContent = sound.mic_muted === null ? 'Aucun micro' : sound.mic_muted ? 'Coupé' : 'Actif';
+  $('bar-mic-icon').setAttribute('d', sound.mic_muted === false ? MIC : MIC_OFF);
+}
+
+const sendVolume = latestOnly((level) => host.setVolume(level).catch((e) => console.error(e)));
+
+function setVolume(level: number) {
+  if (sound.volume === null) return;
+  level = Math.max(0, Math.min(100, Math.round(level)));
+  sound.volume = level;
+  if (level > 0) sound.muted = false;   // Windows rétablit le son (audio.rs)
+  audioRun++;
+  renderSound();
+  sendVolume(level);
+}
+
+/* Un cran de molette : 2 %, vers le haut pour monter ; sur le haut-parleur, le niveau s'affiche
+   en pastille le temps de la molette */
+function wheelVolume(e: WheelEvent, badge: boolean) {
+  if (sound.volume === null || Math.abs(e.deltaY) < 4) return;
+  setVolume(sound.volume + (e.deltaY < 0 ? 2 : -2));
+  if (!badge) return;
+  $('bar-sound').classList.add('leveling');
+  clearTimeout(levelTimer);
+  levelTimer = window.setTimeout(() => $('bar-sound').classList.remove('leveling'), LEVEL_MS);
+}
+
+async function toggleMic() {
+  if (sound.mic_muted === null) return;
+  const muted = !sound.mic_muted;
+  sound.mic_muted = muted;
+  audioRun++;
+  renderSound();
+  try {
+    await host.setMicMuted(muted);
+  } catch (e) {
+    sound.mic_muted = !muted;
+    renderSound();
+    console.error(e);
+  }
+}
+
 /* ══ Calendrier : clic sur l'heure. Mois précédent ou suivant (flèches, molette), clic sur le
    mois : aujourd'hui ; Notifications : le centre de notifications de Windows ══ */
 const fmtMonthYear = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
@@ -828,9 +913,8 @@ const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 function toggleCal(open = !calOpen()) {
   closePreview();
   closeMenu(false);
-  if (open && popOpen()) togglePop(false);
-  if (open && playerOpen()) togglePlayer(false);
   if (open && !calOpen()) {
+    closeCards();
     const now = new Date();
     calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     renderCal();
@@ -936,6 +1020,17 @@ function init() {
     if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;
     setSpotifyVolume(spotifyVolume.volume + (e.deltaY < 0 ? 2 : -2));
   }, { passive: true });
+  $('bar-sound').addEventListener('click', () => toggleSound());
+  $('bar-sound').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    wheelVolume(e, true);
+  }, { passive: false });
+  $('bar-volume').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    wheelVolume(e, false);
+  }, { passive: false });
+  $('bar-volume-range').addEventListener('input', () => setVolume(Number(($('bar-volume-range') as HTMLInputElement).value)));
+  $('bar-mic').addEventListener('click', () => toggleMic());
   $('bar-clock').addEventListener('click', () => toggleCal());
   $('bar-cal-prev').append(icon(LEFT, 18, 2.6));
   $('bar-cal-next').append(icon(RIGHT, 18, 2.6));
@@ -966,9 +1061,10 @@ function init() {
     if (popOpen()) place($('bar-pop'), $('bar-tray'), $('bar'));
     if (calOpen()) place($('bar-cal'), $('bar-clock'), $('bar'));
     if (playerOpen()) place($('bar-player'), $('bar-music'), $('bar'));
+    if (soundOpen()) place($('bar-volume'), $('bar-sound'), $('bar'));
     reportRects();
   });
-  for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview']) resized.observe($(id));
+  for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) resized.observe($(id));
 
   // Rust a pu faire sortir la pilule avant que la page écoute (fenêtre juste créée) : sans
   // réponse, elle ne serait plus jamais ressortie sur cet écran. Son état est remis à zéro.
@@ -983,7 +1079,7 @@ function init() {
   });
   // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
   if (PREVIEW) {
-    for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview']) {
+    for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) {
       $(id).addEventListener('pointerenter', () => setInside(true));
       $(id).addEventListener('pointerleave', () => setInside(false));
     }
@@ -992,7 +1088,7 @@ function init() {
     });
     document.addEventListener('pointerdown', (e) => {
       const target = e.target as Node;
-      if (!['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
+      if (!['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
     });
   }
   document.addEventListener('keydown', (e) => {
@@ -1008,6 +1104,9 @@ function init() {
     } else if (playerOpen()) {
       togglePlayer(false);
       $('bar-music').focus({ preventScroll: true });
+    } else if (soundOpen()) {
+      toggleSound(false);
+      $('bar-sound').focus({ preventScroll: true });
     }
   });
   // Flèches haut et bas dans les menus, comme le menu d'alimentation
@@ -1025,6 +1124,7 @@ function init() {
   });
 
   tickClock();
+  renderSound();    // icône du haut-parleur avant la première lecture
   refreshTray();
   refreshMedia();   // la tuile est là avant la première sortie : la pilule ne change pas de taille en sortant
   // Rentrée jusqu'à ce que la souris touche le bas de l'écran ; dans l'aperçu, elle sort tout de suite

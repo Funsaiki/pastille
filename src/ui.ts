@@ -7,9 +7,9 @@
    et les notifications (alertes du PC, Steam, téléchargements) sont réels.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
-import { ICONS, icon } from './icons';
+import { ICONS, MIC, MIC_OFF, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
-import { el, iconCanvas } from './dom';
+import { el, iconCanvas, latestOnly } from './dom';
 import { PREVIEW, host, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -60,10 +60,6 @@ let stats: Stats | null = null;
 let media: NowPlaying | null = null;
 
 /* ══ Vue réglages ══ */
-const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
-const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
-const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
-
 const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
 const RESTART = 'M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5';
 
@@ -101,7 +97,7 @@ const TILES: Tile[] = [
   {
     label: () => 'Micro',
     sub: () => (sound.mic_muted === null ? 'Aucun micro' : sound.mic_muted ? 'Coupé' : 'Actif'),
-    d: () => (sound.mic_muted === false ? MIC : MIC + 'M3 3l18 18'),
+    d: () => (sound.mic_muted === false ? MIC : MIC_OFF),
     pressed: () => sound.mic_muted === false,
     click: () => toggleMic(),
   },
@@ -292,24 +288,6 @@ function renderVolume() {
   input.style.setProperty('--pct', level + '%');
   $('volume-text').textContent = sound.volume === null ? 'Aucune sortie' : level + ' %';
   $('volume-icon').setAttribute('d', level === 0 || sound.muted ? SPEAKER_OFF : SPEAKER);
-}
-
-/* Un envoi à la fois, le dernier niveau demandé gagne : les commandes de Tauri peuvent
-   s'exécuter dans le désordre pendant qu'on fait glisser un curseur */
-function latestOnly(send: (level: number) => Promise<void>) {
-  let wanted: number | null = null;
-  let sending = false;
-  return async (level: number) => {
-    wanted = level;
-    if (sending) return;
-    sending = true;
-    while (wanted !== null) {
-      const next = wanted;
-      wanted = null;
-      await send(next);
-    }
-    sending = false;
-  };
 }
 
 const sendVolume = latestOnly((level) => host.setVolume(level).catch((e) => report('Volume', e)));

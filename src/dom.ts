@@ -8,6 +8,24 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: st
   return n;
 }
 
+/* Un envoi à la fois, le dernier niveau demandé gagne : les commandes de Tauri peuvent
+   s'exécuter dans le désordre pendant qu'on fait glisser un curseur */
+export function latestOnly(send: (level: number) => Promise<void>) {
+  let wanted: number | null = null;
+  let sending = false;
+  return async (level: number) => {
+    wanted = level;
+    if (sending) return;
+    sending = true;
+    while (wanted !== null) {
+      const next = wanted;
+      wanted = null;
+      await send(next);
+    }
+    sending = false;
+  };
+}
+
 /* Icône d'un programme : pixels RGBA envoyés par Rust (icon.rs), dessinés tels quels */
 export function iconCanvas(i: AppIcon) {
   const canvas = el('canvas');
