@@ -2,8 +2,8 @@
   "accent": "#9fe0dc",
   "shortcut": "Alt+Space",
   "apps": [
-    { "label": "Code", "icon": "code", "target": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe", "args": [] },
-    { "label": "Navigateur", "icon": "navigateur", "target": "C:/Program Files/Google/Chrome/Application/chrome.exe" },
+    { "label": "Code", "icon": "code", "app": "Visual Studio Code" },
+    { "label": "Navigateur", "icon": "navigateur", "default": "https" },
     { "label": "Fichiers", "icon": "fichiers", "target": "%USERPROFILE%" },
     {
       "label": "Jeux",
@@ -14,7 +14,7 @@
           "icon": "steam",
           "auto": "steam",
           "children": [
-            { "label": "Steam", "icon": "steam", "source": "LANCEUR", "target": "steam://open/main" }
+            { "label": "Steam", "icon": "steam", "source": "LANCEUR", "app": "Steam" }
           ]
         },
         {
@@ -22,20 +22,22 @@
           "icon": "epic",
           "auto": "epic",
           "children": [
-            { "label": "Epic Games", "icon": "epic", "source": "LANCEUR", "target": "com.epicgames.launcher://" }
+            { "label": "Epic Games", "icon": "epic", "source": "LANCEUR", "app": "Epic Games Launcher" }
           ]
-        }
+        },
+        { "label": "League of Legends", "icon": "lol", "keywords": "lol riot", "app": "League of Legends" },
+        { "label": "Valorant", "icon": "valorant", "keywords": "valo riot", "app": "VALORANT" }
       ]
     },
-    { "label": "Messages", "icon": "messages", "target": "discord://" },
-    { "label": "Musique", "icon": "musique", "target": "spotify:" },
+    { "label": "Messages", "icon": "messages", "keywords": "discord", "app": "Discord" },
+    { "label": "Musique", "icon": "musique", "keywords": "spotify", "app": "Spotify" },
     { "label": "Terminal", "icon": "terminal", "target": "wt.exe" },
-    { "label": "Paramètres", "icon": "parametres", "target": "ms-settings:" }
+    { "label": "Toutes", "icon": "applications", "auto": "start" }
   ],
   "favorites": [
-    { "label": "Projets", "target": "%USERPROFILE%/Projets" },
-    { "label": "Téléchargements", "target": "%USERPROFILE%/Downloads" },
-    { "label": "Captures", "target": "%USERPROFILE%/Pictures/Screenshots" },
-    { "label": "Documents", "target": "%USERPROFILE%/Documents" }
+    { "label": "Bureau", "target": "shell:Desktop" },
+    { "label": "Téléchargements", "target": "shell:Downloads" },
+    { "label": "Captures", "target": "shell:Screenshots" },
+    { "label": "Documents", "target": "shell:Personal" }
   ]
 }

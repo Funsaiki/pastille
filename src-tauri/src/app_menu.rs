@@ -39,9 +39,10 @@ struct Program {
 }
 
 impl Program {
-    /// Avec COM (propriétés des raccourcis du menu Démarrer)
+    /// Avec COM (propriétés des raccourcis du menu Démarrer : groupe `auto: "start"` et tuiles
+    /// `app`)
     fn of(item: &MenuItem) -> Program {
-        if item.start {
+        if item.target.starts_with(start_menu::PREFIX) {
             let Some(shortcut) = start_menu::shortcut(&item.target) else { return Program::none() };
             let file = shortcut.target.filter(|t| Path::new(t).is_file());
             return Program {
@@ -98,7 +99,7 @@ pub async fn app_menu(app: AppHandle, id: String) -> Result<AppMenu, String> {
         admin: program.admin,
         location: program.file.is_some(),
         pinned: pin_state(&app, program.pin.as_ref()),
-        hidden: item.start.then_some(item.hidden),
+        hidden: item.hideable.then_some(item.hidden),
     })
 }
 
@@ -139,7 +140,7 @@ pub async fn app_action(app: AppHandle, id: String, action: String) -> Result<()
             }
             Ok(())
         }
-        "hide" | "show" if item.start => config::set_start_hidden(&app, &item.target, action == "hide"),
+        "hide" | "show" if item.hideable => config::set_start_hidden(&app, &item.target, action == "hide"),
         _ => Err(format!("Action « {action} » impossible pour cette application.")),
     }
 }
@@ -149,7 +150,7 @@ mod tests {
     use super::*;
 
     fn item(target: &str, args: &[&str]) -> MenuItem {
-        MenuItem { target: target.into(), args: args.iter().map(|a| a.to_string()).collect(), start: false, hidden: false }
+        MenuItem { target: target.into(), args: args.iter().map(|a| a.to_string()).collect(), hideable: false, hidden: false }
     }
 
     #[test]
@@ -182,7 +183,7 @@ mod tests {
             let started = std::time::Instant::now();
             let apps = start_menu::installed_apps();
             for a in &apps {
-                let p = Program::of(&MenuItem { target: a.target.clone(), args: Vec::new(), start: true, hidden: false });
+                let p = Program::of(&MenuItem { target: a.target.clone(), args: Vec::new(), hideable: true, hidden: false });
                 let pin = p.pin.map(|p| format!("{} ({})", p.exe, p.name));
                 eprintln!("{:<34} admin {:<5} emplacement {:<5} épingle {pin:?}", a.name, p.admin, p.file.is_some());
             }

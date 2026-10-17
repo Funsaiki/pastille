@@ -3,6 +3,7 @@
 //! conservée et le problème s'affiche dans les notifications du lanceur.
 
 use std::{
+    collections::{hash_map::Entry, HashMap},
     fs,
     path::PathBuf,
     str::FromStr,
@@ -15,7 +16,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-use crate::{epic, spotify, start_menu, steam, tray, usage};
+use crate::steam::normalize;
+use crate::{epic, shell, spotify, start_menu, steam, tray, usage};
 
 const EXAMPLE: &str = include_str!("../../apps.example.json");
 
@@ -32,6 +34,15 @@ pub struct AppItem {
     pub target: Option<String>,
     #[serde(default, skip_serializing)]
     pub args: Vec<String>,
+    /// À la place de `target` (pour les amis de Funsaiki, dont les chemins diffèrent) : le nom
+    /// d'une application du menu Démarrer (« Visual Studio Code »), retrouvée sur chaque PC ;
+    /// tuile absente si elle n'y est pas
+    #[serde(default, skip_serializing)]
+    pub app: Option<String>,
+    /// Ou le programme par défaut de Windows pour un protocole (« https » : le navigateur) ou
+    /// une extension (« .pdf ») ; tuile absente s'il n'y en a pas
+    #[serde(default, rename = "default", skip_serializing)]
+    pub default_for: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -46,14 +57,19 @@ pub struct AppItem {
     pub uses: u32,
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub last: u64,
-    /// Application du menu Démarrer (groupe `auto: "start"`) : le front demande sa vraie icône
-    /// (start_menu::start_icons) ; jamais lu dans apps.json
+    /// Application du menu Démarrer (groupe `auto: "start"`, tuile `app` sans icône) : le front
+    /// demande sa vraie icône (start_menu::start_icons) ; jamais lu dans apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub start: bool,
     /// Application du menu Démarrer masquée par Funsaiki, et le groupe « Masquées » qui les
     /// rassemble : ni recherche, ni Récents, ni compte ; jamais lu dans apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub hidden: bool,
+    /// Même cible qu'un bouton précédent, dont c'est l'id (une tuile `app` et la même
+    /// application dans le groupe du menu Démarrer) : une seule fois dans Récents, la recherche
+    /// et le compte ; jamais lu dans apps.json
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub same: Option<String>,
 }
 
 fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
@@ -110,7 +126,7 @@ pub type SharedConfig = Mutex<ConfigState>;
 
 /// Jeux détectés, ajoutés aux groupes `auto: "steam"` et `auto: "epic"`, playlists de
 /// Spotify, ajoutées aux groupes `auto: "spotify"`, et applications du menu Démarrer, ajoutées
-/// aux groupes `auto: "start"` (demandes de Funsaiki)
+/// aux groupes `auto: "start"` (demandes de Funsaiki) ; cibles des tuiles `app` et `default`
 #[derive(Clone, Default, PartialEq)]
 struct Detected {
     steam: Vec<steam::Game>,
@@ -120,23 +136,55 @@ struct Detected {
     /// Applications du menu Démarrer masquées (demarrer.json, start_menu.rs) : relues sous le
     /// verrou de la config, comme elles sont changées (set_start_hidden)
     hidden: Vec<String>,
+    /// (valeur de `default`, programme) : (« https », « C:\…\brave.exe »)
+    defaults: Vec<(String, String)>,
 }
 
 /// `previous` : Spotify injoignable, les playlists déjà connues restent. Le menu Démarrer
-/// (~1 s) n'est lu que si apps.json a un groupe `auto: "start"`.
-fn detect(app: &AppHandle, previous: &Detected, start: bool) -> Detected {
+/// (~1 s) n'est lu que si apps.json en a besoin (`items`).
+fn detect(app: &AppHandle, previous: &Detected, items: &[AppItem]) -> Detected {
     Detected {
         steam: steam::installed_games(),
         epic: epic::installed_games(),
         playlists: spotify::playlists(app).unwrap_or_else(|| previous.playlists.clone()),
-        start: if start { crate::com::with_com(start_menu::installed_apps) } else { Vec::new() },
+        start: if needs_start_menu(items) { crate::com::with_com(start_menu::installed_apps) } else { Vec::new() },
         hidden: Vec::new(),
+        defaults: wanted_defaults(items)
+            .into_iter()
+            .filter_map(|kind| shell::default_program(&kind).map(|program| (kind, program)))
+            .collect(),
     }
 }
 
-/// Un groupe `auto: kind`, à n'importe quelle profondeur
-fn uses_auto(items: &[AppItem], kind: &str) -> bool {
-    items.iter().any(|it| it.auto.as_deref() == Some(kind) || it.children.as_deref().is_some_and(|c| uses_auto(c, kind)))
+/// Un groupe `auto: "start"` ou une tuile `app`, à n'importe quelle profondeur
+fn needs_start_menu(items: &[AppItem]) -> bool {
+    items.iter().any(|it| {
+        it.auto.as_deref() == Some("start") || it.app.is_some() || it.children.as_deref().is_some_and(needs_start_menu)
+    })
+}
+
+/// Valeurs des tuiles `default` (« https »), une fois chacune
+fn wanted_defaults(items: &[AppItem]) -> Vec<String> {
+    fn walk(items: &[AppItem], found: &mut Vec<String>) {
+        for it in items {
+            if let Some(kind) = &it.default_for
+                && !found.contains(kind)
+            {
+                found.push(kind.clone());
+            }
+            walk(it.children.as_deref().unwrap_or_default(), found);
+        }
+    }
+    let mut found = Vec::new();
+    walk(items, &mut found);
+    found
+}
+
+/// apps.json demande ce que la dernière recherche n'a pas lu (groupe `auto: "start"`, tuile
+/// `app` ou `default` ajoutés depuis)
+fn scan_needed(items: &[AppItem], games: &Detected) -> bool {
+    needs_start_menu(items) && games.start.is_empty()
+        || wanted_defaults(items).iter().any(|kind| !games.defaults.iter().any(|(k, _)| k == kind))
 }
 
 /* ── Lecture et validation ── */
@@ -182,7 +230,8 @@ fn describe(e: &serde_json::Error) -> String {
     format!("Ligne {}, col. {} : {what}.", e.line(), e.column())
 }
 
-/// Chaque bouton lance quelque chose (`target`) ou ouvre un groupe (`children` ou `auto`).
+/// Chaque bouton lance quelque chose (`target`, `app` ou `default`, un seul) ou ouvre un
+/// groupe (`children` ou `auto`).
 fn validate(items: &mut [AppItem]) -> Result<(), String> {
     for it in items {
         if let Some(auto) = &it.auto {
@@ -191,10 +240,18 @@ fn validate(items: &mut [AppItem]) -> Result<(), String> {
             }
             it.children.get_or_insert_with(Vec::new);
         }
-        match (&mut it.children, &it.target) {
-            (Some(children), _) => validate(children)?,
-            (None, Some(_)) => {}
-            (None, None) => return Err(format!("« {} » : il manque target ou children.", it.label)),
+        let launches = [it.target.is_some(), it.app.is_some(), it.default_for.is_some()].into_iter().filter(|&x| x).count();
+        if launches > 1 {
+            return Err(format!("« {} » : un seul de target, app ou default.", it.label));
+        }
+        // Une application du menu Démarrer se lance par son raccourci, qui a ses propres arguments
+        if !it.args.is_empty() && it.target.is_none() {
+            return Err(format!("« {} » : args seulement avec target.", it.label));
+        }
+        match &mut it.children {
+            Some(children) => validate(children)?,
+            None if launches == 1 => {}
+            None => return Err(format!("« {} » : il manque target, app, default ou children.", it.label)),
         }
     }
     Ok(())
@@ -207,7 +264,9 @@ fn is_hex_color(s: &str) -> bool {
 }
 
 /// Complète les groupes `auto` avec les jeux détectés (sauf ceux déjà présents à la main),
-/// puis attribue les identifiants.
+/// trouve les cibles des tuiles `app` et `default`, attribue les identifiants, puis retire les
+/// tuiles introuvables sur ce PC et les groupes restés vides (Epic pas installé…). Les
+/// identifiants sont attribués avant : ils ne changent pas quand une application apparaît.
 fn merge(base: &Config, games: &Detected) -> Config {
     fn add(children: &mut Vec<AppItem>, label: &str, target: String, source: &str, icon: &str) {
         add_item(children, AppItem { icon: Some(icon.into()), ..found(label, target, source) });
@@ -266,9 +325,37 @@ fn merge(base: &Config, games: &Detected) -> Config {
             fill(children, games);
         }
     }
+    fn resolve(items: &mut [AppItem], games: &Detected, names: &[String]) {
+        for it in items {
+            if let Some(app) = &it.app {
+                let wanted = normalize(app);
+                if let Some(found) = names.iter().position(|name| *name == wanted) {
+                    it.target = Some(games.start[found].target.clone());
+                    // Sans clé d'icône : sa vraie icône, comme dans le groupe du menu Démarrer
+                    it.start = it.icon.is_none();
+                }
+            }
+            if let Some(kind) = &it.default_for {
+                it.target = games.defaults.iter().find(|(k, _)| k == kind).map(|(_, program)| program.clone());
+            }
+            resolve(it.children.as_deref_mut().unwrap_or_default(), games, names);
+        }
+    }
+    fn prune(items: &mut Vec<AppItem>) {
+        items.retain_mut(|it| match &mut it.children {
+            Some(children) => {
+                prune(children);
+                !children.is_empty()
+            }
+            None => it.target.is_some(),
+        });
+    }
     let mut config = base.clone();
     fill(&mut config.apps, games);
+    let names: Vec<String> = games.start.iter().map(|a| normalize(&a.name)).collect();
+    resolve(&mut config.apps, games, &names);
     assign_ids(&mut config.apps, "a");
+    prune(&mut config.apps);
     config
 }
 
@@ -304,6 +391,11 @@ fn ensure_file(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn load(app: &AppHandle) -> Result<Config, String> {
+    // Développement seulement : la config d'un nouvel utilisateur, sans toucher à apps.json
+    // ($env:PASTILLE_EXEMPLE = 1 avant npm run tauri dev)
+    if cfg!(debug_assertions) && std::env::var_os("PASTILLE_EXEMPLE").is_some() {
+        return parse(EXAMPLE);
+    }
     let path = ensure_file(app)?;
     let text = fs::read_to_string(&path).map_err(|e| format!("Lecture de apps.json impossible : {e}."))?;
     parse(&text)
@@ -328,8 +420,8 @@ pub fn target_of(app: &AppHandle, id: &str) -> Option<(String, Vec<String>)> {
 pub struct MenuItem {
     pub target: String,
     pub args: Vec<String>,
-    /// Du menu Démarrer (groupe `auto: "start"`) : elle peut être masquée
-    pub start: bool,
+    /// Du groupe du menu Démarrer (`auto: "start"`) : elle peut être masquée
+    pub hideable: bool,
     pub hidden: bool,
 }
 
@@ -338,7 +430,13 @@ pub fn menu_item(app: &AppHandle, id: &str) -> Option<MenuItem> {
     let state = app.state::<SharedConfig>();
     let s = state.lock().unwrap();
     let item = find_item(&s.config.apps, id)?;
-    Some(MenuItem { target: item.target.clone()?, args: item.args.clone(), start: item.start, hidden: item.hidden })
+    Some(MenuItem {
+        target: item.target.clone()?,
+        args: item.args.clone(),
+        // Une tuile `app` sans icône a aussi `start` (sa vraie icône) ; elle reste à sa place
+        hideable: item.start && item.app.is_none(),
+        hidden: item.hidden,
+    })
 }
 
 /// Masque ou réaffiche une application du menu Démarrer (demarrer.json) ; le front reçoit la
@@ -441,12 +539,12 @@ pub fn reload(app: &AppHandle) {
     }
     apply_shortcut(app, &mut s);
     let tooltip = tooltip(&s);
-    // Groupe « start » ajouté à apps.json : le menu Démarrer est lu tout de suite
-    let start_missing = uses_auto(&s.base.apps, "start") && s.games.start.is_empty();
+    // Groupe « start », tuile `app` ou `default` ajoutés à apps.json : lus tout de suite
+    let missing = scan_needed(&s.base.apps, &s.games);
     drop(s);
     tray::set_tooltip(app, &tooltip);
     let _ = app.emit("config:changed", ());
-    if start_missing {
+    if missing {
         rescan(app);
     }
 }
@@ -474,7 +572,7 @@ pub fn refresh_games_if_stale(app: &AppHandle) {
 }
 
 /// Juste après la connexion à Spotify (ses playlists peuvent maintenant être lues), ou un
-/// groupe `auto: "start"` ajouté à apps.json
+/// groupe `auto: "start"`, une tuile `app` ou `default` ajoutés à apps.json
 pub fn rescan(app: &AppHandle) {
     {
         let state = app.state::<SharedConfig>();
@@ -492,12 +590,12 @@ pub fn rescan(app: &AppHandle) {
 fn scan_games(app: &AppHandle) {
     let app = app.clone();
     thread::spawn(move || {
-        let (previous, start) = {
+        let (previous, items) = {
             let state = app.state::<SharedConfig>();
             let s = state.lock().unwrap();
-            (s.games.clone(), uses_auto(&s.base.apps, "start"))
+            (s.games.clone(), s.base.apps.clone())
         };
-        let mut games = detect(&app, &previous, start);
+        let mut games = detect(&app, &previous, &items);
         let state = app.state::<SharedConfig>();
         let mut s = state.lock().unwrap();
         games.hidden = start_menu::hidden(&app);
@@ -522,19 +620,31 @@ pub struct ConfigPayload {
 pub fn get_config(app: AppHandle, state: tauri::State<'_, SharedConfig>) -> ConfigPayload {
     let s = state.lock().unwrap();
     let mut config = s.config.clone();
-    annotate(&app, &mut config.apps);
+    annotate(&app, &mut config.apps, &mut HashMap::new());
     ConfigPayload { config, problems: s.problems.clone() }
 }
 
-/// Lancements de chaque bouton (usage.json), pour classer la recherche et la rangée Récents
-fn annotate(app: &AppHandle, items: &mut [AppItem]) {
+/// Lancements de chaque bouton (usage.json), pour classer la recherche et la rangée Récents ;
+/// `same` pour une cible déjà vue (`seen` : clé d'usage → id du premier bouton, pas masqué)
+fn annotate(app: &AppHandle, items: &mut [AppItem], seen: &mut HashMap<String, String>) {
     for it in items {
-        if let Some(entry) = it.target.as_ref().and_then(|t| usage::get(app, &usage::key(t, &it.args))) {
-            it.uses = entry.count;
-            it.last = entry.last;
+        if let Some(target) = &it.target {
+            let key = usage::key(target, &it.args);
+            if let Some(entry) = usage::get(app, &key) {
+                it.uses = entry.count;
+                it.last = entry.last;
+            }
+            if !it.hidden {
+                match seen.entry(key) {
+                    Entry::Occupied(first) => it.same = Some(first.get().clone()),
+                    Entry::Vacant(slot) => {
+                        slot.insert(it.id.clone());
+                    }
+                }
+            }
         }
         if let Some(children) = &mut it.children {
-            annotate(app, children);
+            annotate(app, children, seen);
         }
     }
 }
@@ -551,6 +661,15 @@ mod tests {
         assert_eq!(jeux[0].auto.as_deref(), Some("steam"), "dossier Steam dans Jeux");
         assert_eq!(jeux[1].id, "a3.1");
         assert_eq!(config.favorites[2].id, "f2");
+        // Chez un ami sans rien d'installé (rien trouvé) : ce qui ne dépend pas du PC
+        let bare = merge(&config, &Detected::default());
+        let labels: Vec<&str> = bare.apps.iter().map(|it| it.label.as_str()).collect();
+        assert_eq!(labels, ["Fichiers", "Terminal"]);
+        // Steam seulement : Jeux ne montre que lui
+        let steam = merge(&config, &Detected { start: vec![start_app("Steam")], ..Default::default() });
+        let jeux = steam.apps[1].children.as_ref().unwrap();
+        assert_eq!((steam.apps[1].label.as_str(), jeux.len(), jeux[0].label.as_str()), ("Jeux", 1, "Steam"));
+        assert_eq!(steam.apps.last().unwrap().label, "Toutes");
     }
 
     #[test]
@@ -596,7 +715,8 @@ mod tests {
     fn start_menu_completes_start_groups() {
         let base = parse(r#"{ "apps": [ { "label": "Code", "target": "code.exe" },
             { "label": "Outils", "children": [ { "label": "Toutes les apps", "auto": "start" } ] } ] }"#).unwrap();
-        assert!(uses_auto(&base.apps, "start") && !uses_auto(&base.apps, "steam"));
+        assert!(needs_start_menu(&base.apps));
+        assert!(!needs_start_menu(&parse(r#"{ "apps": [ { "label": "Jeux", "auto": "steam" } ] }"#).unwrap().apps));
         let start = vec![start_menu::StartApp { name: "Calculatrice".into(), target: r"shell:AppsFolder\Calc!App".into() }];
         let config = merge(&base, &Detected { start, ..Default::default() });
         let calc = &config.apps[1].children.as_ref().unwrap()[0].children.as_ref().unwrap()[0];
@@ -609,7 +729,7 @@ mod tests {
     #[test]
     fn hidden_start_apps_are_grouped_at_the_end() {
         let base = parse(r#"{ "apps": [ { "label": "Toutes", "auto": "start" } ] }"#).unwrap();
-        let app = |name: &str| start_menu::StartApp { name: name.into(), target: format!(r"shell:AppsFolder\{name}") };
+        let app = start_app;
         let start = vec![app("Calculatrice"), app("Docker"), app("Paint")];
         let hidden = vec![r"shell:AppsFolder\Docker".to_string()];
         let config = merge(&base, &Detected { start, hidden, ..Default::default() });
@@ -626,6 +746,56 @@ mod tests {
         assert_eq!(config.apps[0].children.as_ref().unwrap().len(), 1);
     }
 
+    fn start_app(name: &str) -> start_menu::StartApp {
+        start_menu::StartApp { name: name.into(), target: format!(r"shell:AppsFolder\{name}") }
+    }
+
+    #[test]
+    fn apps_are_found_by_name_or_hidden() {
+        let base = parse(r#"{ "apps": [
+            { "label": "Code", "icon": "code", "app": "visual studio code" },
+            { "label": "Navigateur", "default": "https" },
+            { "label": "Fichiers", "target": "%USERPROFILE%" },
+            { "label": "Jeux", "children": [
+                { "label": "Epic", "auto": "epic", "children": [ { "label": "Epic", "app": "Epic Games Launcher" } ] } ] },
+            { "label": "Discord", "app": "Discord" },
+            { "label": "Vide", "children": [] } ] }"#).unwrap();
+        assert!(needs_start_menu(&base.apps));
+        assert_eq!(wanted_defaults(&base.apps), ["https"]);
+        // Rien de trouvé : seulement ce qui ne dépend pas du PC, groupes vides compris retirés
+        let config = merge(&base, &Detected::default());
+        let labels: Vec<&str> = config.apps.iter().map(|it| it.label.as_str()).collect();
+        assert_eq!(labels, ["Fichiers"]);
+        assert_eq!(config.apps[0].id, "a2", "les identifiants ne bougent pas");
+        assert!(scan_needed(&base.apps, &Detected::default()));
+        // Trouvés : par nom, sans majuscules ; la vraie icône sans clé d'icône
+        let games = Detected {
+            start: vec![start_app("Discord"), start_app("Visual Studio Code")],
+            defaults: vec![("https".into(), r"C:\Brave\brave.exe".into())],
+            ..Default::default()
+        };
+        let config = merge(&base, &games);
+        let labels: Vec<&str> = config.apps.iter().map(|it| it.label.as_str()).collect();
+        assert_eq!(labels, ["Code", "Navigateur", "Fichiers", "Discord"]);
+        let (code, discord) = (&config.apps[0], &config.apps[3]);
+        assert_eq!(code.target.as_deref(), Some(r"shell:AppsFolder\Visual Studio Code"));
+        assert!(!code.start && discord.start, "vraie icône seulement sans clé d'icône");
+        assert_eq!(config.apps[1].target.as_deref(), Some(r"C:\Brave\brave.exe"));
+        assert_eq!(discord.id, "a4");
+        assert!(!scan_needed(&base.apps, &games));
+        let json = serde_json::to_string(code).unwrap();
+        assert!(!json.contains("app\"") && !json.contains("AppsFolder"), "{json}");
+    }
+
+    #[test]
+    fn launch_fields_are_checked() {
+        let err = |json: &str| parse(json).unwrap_err();
+        assert!(err(r#"{ "apps": [ { "label": "A", "app": "X", "target": "x.exe" } ] }"#).contains("un seul"));
+        assert!(err(r#"{ "apps": [ { "label": "A", "app": "X", "args": ["--y"] } ] }"#).contains("args seulement"));
+        assert!(err(r#"{ "apps": [ { "label": "A" } ] }"#).contains("il manque target, app, default ou children"));
+        assert!(parse(r#"{ "apps": [ { "label": "A", "default": ".pdf" }, { "label": "B", "app": "B", "args": [] } ] }"#).is_ok());
+    }
+
     /// Diagnostic sur l'apps.json de Funsaiki : cargo test real_config -- --ignored --nocapture
     #[test]
     #[ignore]
@@ -640,6 +810,29 @@ mod tests {
             }
         }
         show(&config.apps, 0);
+    }
+
+    /// Diagnostic : l'exemple (la config d'un nouvel utilisateur) sur ce PC, avec le programme
+    /// dont la fenêtre serait ramenée (lecture seule, rien n'est lancé) :
+    /// cargo test real_example -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn real_example() {
+        let base = parse(EXAMPLE).unwrap();
+        let games = Detected {
+            start: crate::com::with_com(start_menu::installed_apps),
+            defaults: wanted_defaults(&base.apps).into_iter().filter_map(|k| Some((k.clone(), shell::default_program(&k)?))).collect(),
+            ..Default::default()
+        };
+        fn show(items: &[AppItem], depth: usize) {
+            for it in items.iter().filter(|it| it.auto.as_deref() != Some("start")) {
+                let target = it.target.as_deref().unwrap_or_default();
+                let program = crate::com::with_com(|| start_menu::program(target));
+                eprintln!("{}{} {} → {target} {program:?}", "  ".repeat(depth), it.id, it.label);
+                show(it.children.as_deref().unwrap_or_default(), depth + 1);
+            }
+        }
+        show(&merge(&base, &games).apps, 0);
     }
 
     #[test]

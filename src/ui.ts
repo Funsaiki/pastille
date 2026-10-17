@@ -613,7 +613,7 @@ function flattenApps(items: AppItem[]): AppItem[] {
 }
 
 function renderAppCount() {
-  $('app-count').textContent = `${flattenApps(CONFIG.apps).length} raccourcis`;
+  $('app-count').textContent = `${flattenApps(CONFIG.apps).filter((it) => !it.same).length} raccourcis`;
 }
 
 /* ── Notifications (choix de Funsaiki) : problèmes du lanceur, alertes du PC (redémarrage,
@@ -995,14 +995,16 @@ function currentList(): AppItem[] {
     // Puis (demandés par Funsaiki) : le résultat d'un calcul en tête, les pages des Paramètres
     // et les fenêtres ouvertes (titre ou programme) après les applications
     const calc = calcResult(state.query);
-    // Un même nom une fois : un jeu Steam ou une app de apps.json est aussi dans le menu Démarrer
+    // Un même nom une fois : un jeu Steam ou une app de apps.json est aussi dans le menu Démarrer ;
+    // de même une tuile `app` et son application dans « Toutes » (`same`), sous deux noms
     const names = new Set<string>();
-    const apps = flattenApps(CONFIG.apps)
-      .filter(match)
+    const found = flattenApps(CONFIG.apps).filter(match);
+    const ids = new Set(found.map((it) => it.id));
+    const apps = found
       .sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0))
       .filter((it) => {
         const name = norm(it.label);
-        if (names.has(name)) return false;
+        if (names.has(name) || (it.same && ids.has(it.same))) return false;
         names.add(name);
         return true;
       });
@@ -1150,7 +1152,7 @@ const MAX_RECENTS = 4;
 
 function recentItems(): AppItem[] {
   return flattenApps(CONFIG.apps)
-    .filter((it) => it.last)
+    .filter((it) => it.last && !it.same)
     .sort((a, b) => b.last! - a.last!)
     .slice(0, MAX_RECENTS);
 }
@@ -1405,11 +1407,16 @@ async function launch(item: AppItem | Favorite, fresh = false) {
   });
 }
 
-/* Rust a compté le lancement (usage.json) ; la copie du front suit sans recharger la config */
+/* Rust a compté le lancement (usage.json) ; la copie du front suit sans recharger la config,
+   boutons de même cible compris (`same`) */
 function countLaunch(item: AppItem | Favorite) {
   const it = item as AppItem;
-  it.uses = (it.uses ?? 0) + 1;
-  it.last = Math.floor(Date.now() / 1000);
+  const first = it.same ?? it.id;
+  const same = first ? flattenApps(CONFIG.apps).filter((x) => x !== it && (x.id === first || x.same === first)) : [];
+  for (const x of [it, ...same]) {
+    x.uses = (x.uses ?? 0) + 1;
+    x.last = Math.floor(Date.now() / 1000);
+  }
 }
 
 async function runAction(title: string, action: () => Promise<void>) {

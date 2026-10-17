@@ -138,16 +138,25 @@ function previewConfig(): Config {
   const config: Config = structuredClone(EXAMPLE);
   const now = Math.floor(Date.now() / 1000);
   config.apps.slice(0, 3).forEach((app, i) => Object.assign(app, { uses: 3 - i, last: now - i * 600 }));
-  // ?demarrer : groupe des applications du menu Démarrer, la Calculatrice lancée en dernier
-  if (new URLSearchParams(location.search).has('demarrer')) {
-    const all: AppItem[] = PREVIEW_START.map((label, i) => ({ id: `d${i}`, label, target: `shell:AppsFolder\\${label}`, start: true }));
-    all[3].last = now;
-    // Masquées (clic droit) : dans un groupe à la fin, comme config.rs
-    const children = all.filter((it) => !previewHidden.has(it.label));
-    const hidden = all.filter((it) => previewHidden.has(it.label)).map((it) => ({ ...it, hidden: true }));
-    if (hidden.length) children.push({ label: 'Masquées', icon: 'masquees', hidden: true, children: hidden });
-    config.apps.push({ label: 'Toutes les apps', icon: 'applications', auto: 'start', children });
-  }
+  // Groupe des applications du menu Démarrer (« Toutes ») ; ?demarrer : la Calculatrice lancée
+  // en dernier. Les tuiles `app` et `default` de l'exemple sont toutes là, comme si tout était installé.
+  const all: AppItem[] = PREVIEW_START.map((label, i) => ({ id: `d${i}`, label, target: `shell:AppsFolder\\${label}`, start: true }));
+  if (new URLSearchParams(location.search).has('demarrer')) all[3].last = now;
+  // Masquées (clic droit) : dans un groupe à la fin, comme config.rs
+  const children = all.filter((it) => !previewHidden.has(it.label));
+  const hidden = all.filter((it) => previewHidden.has(it.label)).map((it) => ({ ...it, hidden: true }));
+  if (hidden.length) children.push({ label: 'Masquées', icon: 'masquees', hidden: true, children: hidden });
+  const start = config.apps.find((it) => it.auto === 'start');
+  if (start) start.children = children;
+  // Ids et `same` comme config.rs : une tuile `app` et son application dans « Toutes »
+  const tiles: AppItem[] = [];
+  const assign = (items: AppItem[], prefix: string) => items.forEach((it, i) => {
+    it.id ??= `${prefix}${i}`;
+    if (it.app) tiles.push(it);
+    if (it.children) assign(it.children, `${it.id}.`);
+  });
+  assign(config.apps, 'a');
+  for (const it of all) it.same = tiles.find((t) => t.app === it.label)?.id;
   return config;
 }
 
@@ -210,7 +219,10 @@ export const host = {
      Rejette avec un message en français si le lancement échoue. */
   /* `fresh` (Ctrl+clic) : nouvelle fenêtre même si l'application est déjà ouverte */
   async launch(item: AppItem | Favorite, fresh = false) {
-    if (PREVIEW) console.info('[aperçu] ouvrir :', item.target, ('args' in item && item.args) || [], fresh ? '(nouvelle fenêtre)' : '');
+    if (PREVIEW) {
+      const app = item as AppItem;
+      console.info('[aperçu] ouvrir :', item.target ?? app.app ?? app.default, app.args ?? [], fresh ? '(nouvelle fenêtre)' : '');
+    }
     else await invoke('launch', { id: item.id, fresh });
   },
   async openTool(tool: Tool) {
@@ -325,11 +337,13 @@ export const host = {
      cible de l'exemple (la Calculatrice du menu Démarrer : une app du Store) */
   async appMenu(item: AppItem): Promise<AppMenuOptions> {
     if (PREVIEW) {
+      // Tuiles `app` et `default` : comme une application du menu Démarrer
       const target = item.target ?? '';
       const store = item.label === 'Calculatrice';
-      const program = item.start ? !store : /\.(exe|bat|cmd|msc)$/i.test(target);
-      const file = item.start ? !store : program && target.includes('/');
-      const pinnable = file && (item.start || (/\.exe$/i.test(target) && !item.args?.length));
+      const found = item.start || !!item.app || !!item.default;
+      const program = found ? !store : /\.(exe|bat|cmd|msc)$/i.test(target);
+      const file = found ? !store : program && target.includes('/');
+      const pinnable = file && (found || (/\.exe$/i.test(target) && !item.args?.length));
       return {
         admin: program,
         location: file,

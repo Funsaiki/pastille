@@ -11,6 +11,8 @@ export interface AppItem {
   icon?: string;          // clé de ICONS
   target?: string;        // aperçu seulement : Rust ne l'envoie pas
   args?: string[];
+  app?: string;           // aperçu seulement : nom dans le menu Démarrer, Rust trouve la cible
+  default?: string;       // aperçu seulement : programme par défaut (« https » : le navigateur)
   source?: string;        // petit libellé (ex. STEAM), pas affiché dans cette maquette
   auto?: string;          // 'steam', 'epic', 'spotify' ou 'start' : groupe complété par Rust
   children?: AppItem[];   // présent = bouton-groupe
@@ -19,6 +21,7 @@ export interface AppItem {
   last?: number;          // date du dernier lancement, en secondes depuis 1970
   start?: boolean;        // application du menu Démarrer (groupe auto « start ») : vraie icône demandée à Rust
   hidden?: boolean;       // masquée (clic droit) et son groupe « Masquées » : ni recherche, ni Récents, ni compte
+  same?: string;          // id d'un bouton précédent de même cible (tuile `app` aussi dans « Toutes ») : compté une fois
   /* Résultats de recherche qui ne viennent pas de apps.json (search.ts, ui.ts) */
   copy?: string;          // calcul : texte copié au lieu d'un lancement
   window?: string;        // fenêtre ouverte : son identifiant, pour la ramener

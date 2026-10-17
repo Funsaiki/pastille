@@ -166,6 +166,14 @@ pub fn shortcut(target: &str) -> Option<Shortcut> {
     })
 }
 
+/// Le programme qu'ouvre une application du menu Démarrer, si son raccourci n'a pas
+/// d'arguments : pour ramener sa fenêtre déjà ouverte (shell::launch), comme une tuile à chemin.
+/// Avec COM.
+pub fn program(target: &str) -> Option<String> {
+    let shortcut = shortcut(target)?;
+    shortcut.target.filter(|_| !shortcut.args)
+}
+
 /* ── Applications masquées (demande de Funsaiki) : demarrer.json, à côté de apps.json (une version
    plus ancienne refuserait un champ de plus dans apps.json) ; leur nom dans shell:AppsFolder ── */
 

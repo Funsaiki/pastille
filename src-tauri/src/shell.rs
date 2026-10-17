@@ -15,11 +15,12 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::System::Environment::ExpandEnvironmentStringsW;
 use windows::Win32::UI::Shell::{
-    ShellExecuteExW, SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC, SHELLEXECUTEINFOW,
+    AssocQueryStringW, ShellExecuteExW, ASSOCF_IS_PROTOCOL, ASSOCF_NONE, ASSOCSTR_EXECUTABLE, SEE_MASK_FLAG_NO_UI,
+    SEE_MASK_NOASYNC, SHELLEXECUTEINFOW,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-use crate::config;
+use crate::{config, start_menu};
 
 /// Le front envoie l'id d'un élément (a… : application, f… : dossier) ; Rust retrouve sa cible
 /// dans la config chargée.
@@ -41,10 +42,18 @@ pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), Strin
     }
     // Hors du fil principal : l'invite UAC, par exemple, attend la réponse de l'utilisateur
     crate::blocking(move || {
-        // Déjà ouverte (Code, Brave…) : sa fenêtre revient au premier plan (switch.rs)
-        if !fresh && args.is_empty() && crate::switch::focus_existing(&expand_env(&target)) {
-            eprintln!("[lanceur] déjà ouvert, fenêtre ramenée : {target}");
-            return Ok(());
+        // Déjà ouverte (Code, Brave…) : sa fenêtre revient au premier plan (switch.rs). Une
+        // application du menu Démarrer : le programme de son raccourci, s'il n'a pas d'arguments.
+        if !fresh && args.is_empty() {
+            let program = if target.starts_with(start_menu::PREFIX) {
+                crate::com::with_com(|| start_menu::program(&target))
+            } else {
+                Some(expand_env(&target))
+            };
+            if program.is_some_and(|program| crate::switch::focus_existing(&program)) {
+                eprintln!("[lanceur] déjà ouvert, fenêtre ramenée : {target}");
+                return Ok(());
+            }
         }
         open(&target, &args)
     })
@@ -160,6 +169,23 @@ pub(crate) fn is_uri(s: &str) -> bool {
     }
 }
 
+/// Programme qu'ouvre Windows par défaut pour un protocole (« https » : le navigateur) ou une
+/// extension (« .pdf »), d'après les choix des Paramètres : tuiles `default` de apps.json
+pub fn default_program(kind: &str) -> Option<String> {
+    let kind = kind.trim_end_matches(':');
+    let flags = if kind.starts_with('.') { ASSOCF_NONE } else { ASSOCF_IS_PROTOCOL };
+    let kind = HSTRING::from(kind);
+    let mut len = 0u32;
+    unsafe {
+        // Une première fois pour la longueur (S_FALSE), puis le chemin
+        AssocQueryStringW(flags, ASSOCSTR_EXECUTABLE, &kind, PCWSTR::null(), None, &mut len).ok().ok()?;
+        let mut buf = vec![0u16; len as usize];
+        AssocQueryStringW(flags, ASSOCSTR_EXECUTABLE, &kind, PCWSTR::null(), Some(windows::core::PWSTR(buf.as_mut_ptr())), &mut len).ok().ok()?;
+        let path = String::from_utf16_lossy(&buf[..(len as usize).saturating_sub(1)]);
+        Path::new(&path).is_file().then_some(path)
+    }
+}
+
 /// Dossier de travail = celui du fichier lancé : beaucoup de jeux et d'outils en ont besoin.
 fn working_dir(path: &str) -> Option<String> {
     let path = Path::new(path);
@@ -247,6 +273,15 @@ mod tests {
         for path in ["C:/Program Files/x.exe", "c:\\x", "wt.exe", "%USERPROFILE%/Projets"] {
             assert!(!is_uri(path), "{path}");
         }
+    }
+
+    /// Lecture seule : rien n'est ouvert
+    #[test]
+    fn default_programs() {
+        let browser = default_program("https").expect("un navigateur par défaut");
+        assert!(browser.to_lowercase().ends_with(".exe") && Path::new(&browser).is_file(), "{browser}");
+        assert_eq!(default_program("https:"), Some(browser));
+        assert!(default_program("protocole-qui-n-existe-pas").is_none());
     }
 
     #[test]
