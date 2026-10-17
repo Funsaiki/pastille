@@ -111,6 +111,8 @@ pub fn run() {
             bar::new_window,
             bar::show_launcher,
             bar::bar_menu,
+            bar::bar_screens,
+            bar::move_window,
             bar_pins::bar_pins,
             bar_pins::bar_pin,
             bar_pins::bar_unpin,

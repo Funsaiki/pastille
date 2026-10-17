@@ -28,6 +28,7 @@ const PLUS = 'M12 5v14M5 12h14';
 const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
 const CLOSE = 'M6 6l12 12M18 6L6 18';
 const PIN = 'M8 3h8M10 3v5.5L7 12.5h10L14 8.5V3M12 12.5V21';
+const SCREEN_NEXT = 'M3 5h12v9H3zM6.5 18h5M9 14v4M17 9.5h5M19.5 7l2.5 2.5-2.5 2.5';
 
 /* Vraie icône du programme ; dans l'aperçu, une icône à trait ; à défaut, son initiale sur
    une couleur de la palette */
@@ -70,6 +71,7 @@ interface Group {
 }
 
 let windows: BarWindow[] = [];
+let screens = 1;                 // plus d'un : « Envoyer sur l'autre écran » dans le menu d'une fenêtre
 let order: string[] = [];        // programmes dans leur ordre d'arrivée : les tuiles ne bougent pas
 let windowsShown = '';           // ce qui est affiché : on ne refait les tuiles que si ça change
 const seen = new Set<string>();  // programmes déjà affichés : seuls les nouveaux apparaissent en sautant
@@ -187,6 +189,11 @@ function groupTile(g: Group, i: number) {
     e.preventDefault();   // pas le menu de WebView2
     const list = latest(g);
     const items = [menuItem('Nouvelle fenêtre', actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(list[0].id)))];
+    // Une seule fenêtre : avec plusieurs, on ne saurait pas laquelle envoyer
+    if (screens > 1 && list.length === 1) {
+      const label = screens === 2 ? 'Envoyer sur l’autre écran' : 'Envoyer sur l’écran suivant';
+      items.push(menuItem(label, actionDot(SCREEN_NEXT, '#ffe08a'), () => act(() => host.moveWindow(list[0].id))));
+    }
     // Pas les apps hébergées (Paramètres, Calculatrice) : elles partagent leur programme
     if (g.pin) items.push(unpinItem(g.pin));
     else if (list[0].exe) items.push(menuItem('Épingler à la pilule', actionDot(PIN, '#c9d8ff'), () => act(() => pinWindow(list[0].id))));
@@ -580,6 +587,7 @@ function show(peek = false) {
     $('bar').classList.remove('hidden');
     refreshWindows();
     refreshAudio();
+    host.barScreens().then((n) => (screens = n)).catch(() => {});
     refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
     refreshMedia();
     mediaTimer = window.setInterval(refreshMedia, MEDIA_MS);

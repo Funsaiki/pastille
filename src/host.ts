@@ -364,6 +364,16 @@ export const host = {
       await invoke('close_window', { id });
     }
   },
+  /* Nombre d'écrans */
+  async barScreens(): Promise<number> {
+    if (PREVIEW) return 2;
+    return invoke<number>('bar_screens');
+  },
+  /* Envoie la fenêtre `id` sur l'écran suivant (l'autre écran chez Funsaiki) */
+  async moveWindow(id: string) {
+    if (PREVIEW) console.info('[aperçu] fenêtre sur l’autre écran :', id);
+    else await invoke('move_window', { id });
+  },
   /* Relance le programme de la fenêtre `id` ; Rust retrouve son chemin */
   async newWindow(id: string) {
     if (PREVIEW) console.info('[aperçu] nouvelle fenêtre comme :', id);

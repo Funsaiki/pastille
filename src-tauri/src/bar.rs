@@ -35,8 +35,9 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, IsZoomed,
-    PostMessageW, ShowWindowAsync, MONITORINFOF_PRIMARY, SW_MINIMIZE, WM_CLOSE,
+    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowPlacement, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+    IsWindowVisible, IsZoomed, PostMessageW, SetWindowPlacement, SetWindowPos, ShowWindow, ShowWindowAsync,
+    MONITORINFOF_PRIMARY, SWP_NOACTIVATE, SWP_NOZORDER, SW_MAXIMIZE, SW_MINIMIZE, SW_SHOWNORMAL, WINDOWPLACEMENT, WM_CLOSE,
 };
 
 use crate::bar_pins::{self, Pin};
@@ -193,26 +194,39 @@ fn index(label: &str) -> Option<usize> {
 
 /* ── Écrans et fenêtres de la barre ── */
 
-/// Écrans, le principal d'abord puis de gauche à droite (pixels de l'écran)
-fn monitors() -> Vec<RECT> {
+/// Un écran (pixels de l'écran) : tout l'écran, et sa zone de travail (sans la barre des tâches)
+struct Display {
+    primary: bool,
+    area: RECT,
+    work: RECT,
+}
+
+/// Écrans, le principal d'abord puis de gauche à droite
+fn displays() -> Vec<Display> {
     unsafe extern "system" fn visit(monitor: HMONITOR, _dc: HDC, _rect: *mut RECT, lparam: LPARAM) -> BOOL {
-        let found = unsafe { &mut *(lparam.0 as *mut Vec<(bool, RECT)>) };
-        if let Some((primary, rect)) = monitor_info(monitor) {
-            found.push((primary, rect));
+        let found = unsafe { &mut *(lparam.0 as *mut Vec<Display>) };
+        if let Some(display) = monitor_info(monitor) {
+            found.push(display);
         }
         true.into()
     }
-    let mut found: Vec<(bool, RECT)> = Vec::new();
+    let mut found: Vec<Display> = Vec::new();
     let _ = unsafe { EnumDisplayMonitors(None, None, Some(visit), LPARAM(&mut found as *mut _ as isize)) };
-    found.sort_by_key(|(primary, r)| (!primary, r.left, r.top));
-    found.into_iter().map(|(_, r)| r).collect()
+    found.sort_by_key(|d| (!d.primary, d.area.left, d.area.top));
+    found
 }
 
-fn monitor_info(monitor: HMONITOR) -> Option<(bool, RECT)> {
+fn monitors() -> Vec<RECT> {
+    displays().into_iter().map(|d| d.area).collect()
+}
+
+fn monitor_info(monitor: HMONITOR) -> Option<Display> {
     let mut info = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
-    unsafe { GetMonitorInfoW(monitor, &mut info) }
-        .as_bool()
-        .then_some((info.dwFlags & MONITORINFOF_PRIMARY != 0, info.rcMonitor))
+    unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool().then_some(Display {
+        primary: info.dwFlags & MONITORINFOF_PRIMARY != 0,
+        area: info.rcMonitor,
+        work: info.rcWork,
+    })
 }
 
 /// Une fenêtre par écran. Écran branché ou débranché : celles en trop sont détruites, les
@@ -395,7 +409,7 @@ fn read_signals(signals: &Receiver<Event>, foreground: HWND) -> (bool, Option<RE
                 let hwnd = HWND(h as *mut _);
                 if hwnd != foreground && !attention.contains(&h) && switch::is_app_window(hwnd) && pid_of(hwnd) != own {
                     attention.push(h);
-                    peek = monitor_info(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }).map(|(_, r)| r);
+                    peek = monitor_info(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }).map(|d| d.area);
                     changed = true;
                 }
             }
@@ -611,6 +625,74 @@ fn relaunch_target(id: &str) -> Result<String, String> {
         .ok_or_else(|| "Identifiant de l'application introuvable.".to_string())
 }
 
+/// Nombre d'écrans : « Envoyer sur l'autre écran » dans le menu d'une fenêtre s'il y en a plusieurs
+#[tauri::command]
+pub fn bar_screens() -> usize {
+    monitors().len()
+}
+
+/// Fenêtre envoyée sur l'écran suivant (l'autre écran chez Funsaiki), à la même place dans la
+/// zone de travail, puis ramenée devant. Agrandie, elle est remise à sa taille normale sur le
+/// nouvel écran puis agrandie à nouveau (déplacer une fenêtre agrandie trompe certaines apps) ;
+/// réduite, elle s'ouvre sur le nouvel écran.
+#[tauri::command]
+pub async fn move_window(id: String) -> Result<(), String> {
+    crate::blocking(move || {
+        let hwnd = open_windows::app_window(&id)?;
+        let displays = displays();
+        let here = monitor_info(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }).ok_or("Écran de la fenêtre introuvable.")?;
+        let i = displays.iter().position(|d| d.area == here.area).unwrap_or(0);
+        if displays.len() < 2 {
+            return Err("Il n'y a qu'un écran.".to_string());
+        }
+        let to = &displays[(i + 1) % displays.len()];
+        let error = |e: windows::core::Error| e.message().trim_end().to_string();
+        unsafe {
+            let zoomed = IsZoomed(hwnd).as_bool();
+            if zoomed || IsIconic(hwnd).as_bool() {
+                // Place normale, en coordonnées de la zone de travail de l'écran principal
+                let mut placement = WINDOWPLACEMENT { length: size_of::<WINDOWPLACEMENT>() as u32, ..Default::default() };
+                GetWindowPlacement(hwnd, &mut placement).map_err(error)?;
+                let primary = displays.iter().find(|d| d.primary).unwrap_or(&displays[0]);
+                let (dx, dy) = (primary.work.left - primary.area.left, primary.work.top - primary.area.top);
+                let normal = offset(placement.rcNormalPosition, dx, dy);
+                placement.rcNormalPosition = offset(shift(normal, &here.work, &to.work), -dx, -dy);
+                if zoomed {
+                    placement.showCmd = SW_SHOWNORMAL.0 as u32;
+                }
+                SetWindowPlacement(hwnd, &placement).map_err(error)?;
+                if zoomed {
+                    let _ = ShowWindow(hwnd, SW_MAXIMIZE);
+                }
+            } else {
+                let mut r = RECT::default();
+                GetWindowRect(hwnd, &mut r).map_err(error)?;
+                let r = shift(r, &here.work, &to.work);
+                SetWindowPos(hwnd, None, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE)
+                    .map_err(error)?;
+            }
+        }
+        switch::bring(hwnd);
+        Ok(())
+    })
+    .await?
+}
+
+fn offset(r: RECT, dx: i32, dy: i32) -> RECT {
+    RECT { left: r.left + dx, top: r.top + dy, right: r.right + dx, bottom: r.bottom + dy }
+}
+
+/// Même place par rapport à la zone de travail ; plus grande que la nouvelle, elle y est
+/// ramenée, sans en sortir (16 px de marge : les bords invisibles des fenêtres de Windows 11)
+fn shift(r: RECT, from: &RECT, to: &RECT) -> RECT {
+    const MARGIN: i32 = 16;
+    let width = (r.right - r.left).min(to.right - to.left);
+    let height = (r.bottom - r.top).min(to.bottom - to.top);
+    let left = (to.left + r.left - from.left).clamp(to.left - MARGIN, to.right - width + MARGIN);
+    let top = (to.top + r.top - from.top).clamp(to.top - MARGIN, to.bottom - height + MARGIN);
+    RECT { left, top, right: left + width, bottom: top + height }
+}
+
 /// Bouton Applications : le téléphone monte sur l'écran de la souris (celui de la pilule)
 #[tauri::command]
 pub fn show_launcher(app: AppHandle) {
@@ -639,6 +721,22 @@ mod tests {
         let r = RECT { left: 0, top: 0, right: 10, bottom: 10 };
         assert!(contains(&r, POINT { x: 0, y: 9 }));
         assert!(!contains(&r, POINT { x: 10, y: 5 }), "bord droit exclu");
+    }
+
+    #[test]
+    fn shift_to_other_screen() {
+        let left = RECT { left: 0, top: 0, right: 1920, bottom: 1080 };
+        let right = RECT { left: 1920, top: 0, right: 3840, bottom: 1080 };
+        let window = RECT { left: 100, top: 50, right: 1100, bottom: 750 };
+        let moved = shift(window, &left, &right);
+        assert_eq!((moved.left, moved.top, moved.right, moved.bottom), (2020, 50, 3020, 750));
+        // Ancrée à gauche (bord invisible de 7 px) : gardée telle quelle
+        let snapped = shift(RECT { left: -7, top: 0, right: 967, bottom: 1087 }, &left, &right);
+        assert_eq!((snapped.left, snapped.right), (1913, 2887));
+        // Plus grande que l'écran d'arrivée : ramenée dedans
+        let small = RECT { left: 3840, top: 0, right: 5120, bottom: 720 };
+        let big = shift(RECT { left: 0, top: 0, right: 1920, bottom: 1080 }, &left, &small);
+        assert_eq!((big.left, big.right - big.left, big.bottom - big.top), (3840, 1280, 720));
     }
 
     #[test]
