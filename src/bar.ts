@@ -419,7 +419,9 @@ function placeCard(card: HTMLElement, button: HTMLElement) {
 }
 
 /* ══ Masquage automatique : la pilule sort quand la souris touche le bas de l'écran et rentre
-   0,7 s après l'avoir quittée, pas tant qu'un menu ou la zone de notification est ouvert ══ */
+   0,7 s après l'avoir quittée (elle et ses cartes), pas tant qu'un menu est ouvert. Les cartes
+   (zone de notification, calendrier, lecteur) rentrent avec elle (demande de Funsaiki : un clic
+   « dans le vide » tombe sur la fenêtre en dessous) ══ */
 const HIDE_MS = 700;
 const SINK_MS = 280;      // rentrée de la pilule (.bar.hidden), avant que Rust masque la fenêtre
 const PEEK_MS = 2500;     // sortie pour une fenêtre qui demande l'attention
@@ -427,7 +429,7 @@ const PEEK_MS = 2500;     // sortie pour une fenêtre qui demande l'attention
 // signal manquerait, toutes les 5 s tant que la pilule est sortie
 const REFRESH_MS = 5000;
 let shown = false;
-let inside = false;       // souris sur la pilule, la zone de notification ou un menu
+let inside = false;       // souris sur la pilule, une carte ou un menu
 let hideTimer = 0;
 let sinkTimer = 0;
 let refreshTimer = 0;
@@ -446,7 +448,7 @@ function show(peek = false) {
     reportRects();
   }
   // Un instant seulement, sauf si la souris vient dessus
-  if (peek && !inside && !menu && !popOpen()) {
+  if (peek && !inside && !menu) {
     clearTimeout(hideTimer);
     hideTimer = window.setTimeout(hide, PEEK_MS);
   }
@@ -460,7 +462,7 @@ function windowsChanged() {
 }
 
 function hide(force = false) {
-  if (!shown || (!force && (menu || popOpen() || calOpen() || playerOpen() || inside))) return;
+  if (!shown || (!force && (menu || inside))) return;
   closePreview();
   closeMenu(false);
   if (popOpen()) togglePop(false);
