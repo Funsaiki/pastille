@@ -2,7 +2,10 @@
 //! à l'affichage et vide la scène avant de masquer (voir « Image figée » dans CLAUDE.md).
 
 use std::{
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     time::{Duration, Instant},
 };
 
@@ -114,6 +117,17 @@ pub fn show(app: &AppHandle) {
     let _ = w.show();
     let _ = w.set_focus();
     let _ = app.emit("launcher:shown", ());
+}
+
+/// Premier lancement (après l'installation) : le téléphone se montre de lui-même, avec la
+/// bienvenue. Appelé par la page une fois prête : montré pendant le démarrage, il perdait le
+/// focus pendant que WebView2 se créait. Une fois par démarrage.
+#[tauri::command]
+pub fn first_show(app: AppHandle) {
+    static DONE: AtomicBool = AtomicBool::new(false);
+    if config::first_run(&app) && !DONE.swap(true, Ordering::SeqCst) {
+        show(&app);
+    }
 }
 
 /// Le front vide la scène, puis masque la fenêtre lui-même.

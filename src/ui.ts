@@ -1831,4 +1831,5 @@ export async function init() {
   });
   host.onHideRequest(hideLauncher);
   if (await host.isVisible()) playEntrance();
+  else if (welcome) host.firstShow().catch(console.error);   // premier lancement, page prête
 }

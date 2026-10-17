@@ -224,6 +224,10 @@ export const host = {
     if (PREVIEW) return { config: previewConfig(), problems: [], welcome };
     return invoke<ConfigPayload>('get_config');
   },
+  /* Premier lancement : Rust montre le téléphone une fois la page prête (une fois par démarrage) */
+  async firstShow() {
+    if (!PREVIEW) await invoke('first_show');
+  },
   /* « Démarrer avec Windows » depuis la bienvenue ; rejette en développement */
   async enableAutostart() {
     if (PREVIEW) console.info('[aperçu] démarrer avec Windows');
