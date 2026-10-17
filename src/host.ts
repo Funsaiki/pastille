@@ -156,14 +156,18 @@ function previewConfig(): Config {
   if (hidden.length) children.push({ label: 'Masquées', icon: 'masquees', hidden: true, children: hidden });
   const start = config.apps.find((it) => it.auto === 'start');
   if (start) start.children = children;
-  // Ids et `same` comme config.rs : une tuile `app` et son application dans « Toutes »
-  const tiles: AppItem[] = [];
+  // Ids, groupes `auto` réduits à leur lanceur (rien n'y est ajouté ici : ni jeux, ni playlists)
+  // et `same` comme config.rs : une tuile `app` et son application dans « Toutes »
   const assign = (items: AppItem[], prefix: string) => items.forEach((it, i) => {
     it.id ??= `${prefix}${i}`;
-    if (it.app) tiles.push(it);
     if (it.children) assign(it.children, `${it.id}.`);
+    const only = it.auto && it.children?.length === 1 && !it.children[0].children ? it.children[0] : null;
+    if (only) items[i] = { ...only, id: it.id, label: it.label, icon: it.icon ?? only.icon, keywords: [it.keywords, only.keywords].filter(Boolean).join(' ') || undefined };
   });
   assign(config.apps, 'a');
+  const tiles: AppItem[] = [];
+  const collect = (items: AppItem[]) => items.forEach((it) => (it.app ? tiles.push(it) : collect(it.children ?? [])));
+  collect(config.apps);
   for (const it of all) it.same = tiles.find((t) => t.app === it.label)?.id;
   return config;
 }

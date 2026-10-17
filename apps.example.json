@@ -30,7 +30,15 @@
       ]
     },
     { "label": "Messages", "icon": "messages", "keywords": "discord", "app": "Discord" },
-    { "label": "Musique", "icon": "musique", "keywords": "spotify", "app": "Spotify" },
+    {
+      "label": "Musique",
+      "icon": "musique",
+      "keywords": "spotify",
+      "auto": "spotify",
+      "children": [
+        { "label": "Spotify", "icon": "musique", "source": "LANCEUR", "app": "Spotify" }
+      ]
+    },
     { "label": "Terminal", "icon": "terminal", "target": "wt.exe" },
     { "label": "Toutes", "icon": "applications", "auto": "start" }
   ],

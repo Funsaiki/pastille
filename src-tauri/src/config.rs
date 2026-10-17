@@ -70,6 +70,10 @@ pub struct AppItem {
     /// et le compte ; jamais lu dans apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub same: Option<String>,
+    /// Ajouté à un groupe `auto` (jeu, playlist, application du menu Démarrer), pas écrit par
+    /// Funsaiki dans apps.json
+    #[serde(skip)]
+    pub added: bool,
 }
 
 fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
@@ -269,12 +273,14 @@ fn is_hex_color(s: &str) -> bool {
 /// trouve les cibles des tuiles `app` et `default`, attribue les identifiants, puis retire les
 /// tuiles introuvables sur ce PC et les groupes restés vides (Epic pas installé…). Les
 /// identifiants sont attribués avant : ils ne changent pas quand une application apparaît.
+/// Un groupe `auto` auquel rien n'a été ajouté et qui n'a plus qu'un lanceur (Spotify pas
+/// connecté, Steam sans jeux) devient ce lanceur, sous le libellé et l'icône du groupe.
 fn merge(base: &Config, games: &Detected) -> Config {
     fn add(children: &mut Vec<AppItem>, label: &str, target: String, source: &str, icon: &str) {
         add_item(children, AppItem { icon: Some(icon.into()), ..found(label, target, source) });
     }
     fn found(label: &str, target: String, source: &str) -> AppItem {
-        AppItem { label: label.into(), target: Some(target), source: Some(source.into()), ..Default::default() }
+        AppItem { label: label.into(), target: Some(target), source: Some(source.into()), added: true, ..Default::default() }
     }
     fn add_item(children: &mut Vec<AppItem>, item: AppItem) {
         if !children.iter().any(|c| c.target == item.target) {
@@ -318,6 +324,7 @@ fn merge(base: &Config, games: &Detected) -> Config {
                             icon: Some("masquees".into()),
                             children: Some(hidden),
                             hidden: true,
+                            added: true,
                             ..Default::default()
                         });
                     }
@@ -351,6 +358,24 @@ fn merge(base: &Config, games: &Detected) -> Config {
             }
             None => it.target.is_some(),
         });
+        items.iter_mut().for_each(collapse);
+    }
+    fn collapse(it: &mut AppItem) {
+        let alone = |c: &[AppItem]| matches!(c, [only] if !only.added && only.children.is_none());
+        if it.auto.is_none() || !it.children.as_deref().is_some_and(alone) {
+            return;
+        }
+        let only = it.children.take().unwrap_or_default().remove(0);
+        let keywords: Vec<String> = [it.keywords.take(), only.keywords.clone()].into_iter().flatten().collect();
+        let icon = it.icon.take().or(only.icon.clone());
+        *it = AppItem {
+            id: std::mem::take(&mut it.id),
+            label: std::mem::take(&mut it.label),
+            start: only.start && icon.is_none(), // vraie icône seulement sans clé d'icône
+            icon,
+            keywords: (!keywords.is_empty()).then(|| keywords.join(" ")),
+            ..only
+        };
     }
     let mut config = base.clone();
     fill(&mut config.apps, games);
@@ -695,6 +720,14 @@ mod tests {
         let jeux = steam.apps[1].children.as_ref().unwrap();
         assert_eq!((steam.apps[1].label.as_str(), jeux.len(), jeux[0].label.as_str()), ("Jeux", 1, "Steam"));
         assert_eq!(steam.apps.last().unwrap().label, "Toutes");
+        // Spotify sans connexion : Musique le lance directement ; connecté, ses playlists
+        let music = |playlists| {
+            let config = merge(&config, &Detected { start: vec![start_app("Spotify")], playlists, ..Default::default() });
+            config.apps.into_iter().find(|it| it.label == "Musique").unwrap()
+        };
+        assert_eq!(music(Vec::new()).target.as_deref(), Some(r"shell:AppsFolder\Spotify"));
+        let lofi = spotify::Playlist { name: "Lofi".into(), uri: "spotify:playlist:abc".into() };
+        assert_eq!(music(vec![lofi]).children.map(|c| c.len()), Some(2));
     }
 
     #[test]
@@ -734,6 +767,31 @@ mod tests {
         let music = config.apps[0].children.as_ref().unwrap();
         assert_eq!(music[0].label, "Spotify", "le lanceur de Spotify reste en tête");
         assert_eq!((music[1].label.as_str(), music[1].icon.as_deref(), music[1].target.as_deref()), ("Lofi", Some("musique"), Some("spotify:playlist:abc")));
+    }
+
+    /// Spotify pas connecté (pas de playlists) : le groupe n'a que le lanceur, il devient ce
+    /// lanceur ; ses playlists le refont groupe, avec le même identifiant
+    #[test]
+    fn lone_launcher_replaces_its_auto_group() {
+        let base = parse(r#"{ "apps": [ { "label": "Code", "target": "code.exe" },
+            { "label": "Musique", "icon": "musique", "keywords": "spotify", "auto": "spotify", "children": [
+                { "label": "Spotify", "keywords": "son", "target": "spotify:" } ] },
+            { "label": "Jeux", "auto": "steam", "children": [ { "label": "Absent", "app": "Introuvable" } ] },
+            { "label": "Seul", "children": [ { "label": "Garde", "target": "x.exe" } ] } ] }"#).unwrap();
+        let alone = merge(&base, &Detected::default());
+        let music = &alone.apps[1];
+        assert_eq!((music.id.as_str(), music.label.as_str(), music.icon.as_deref()), ("a1", "Musique", Some("musique")));
+        assert_eq!((music.target.as_deref(), music.children.is_none(), music.auto.as_deref()), (Some("spotify:"), true, None));
+        assert_eq!(music.keywords.as_deref(), Some("spotify son"));
+        assert_eq!(alone.apps.len(), 3, "groupe Steam vide retiré");
+        assert!(alone.apps[2].children.is_some(), "un groupe sans auto reste un groupe");
+        let playlists = vec![spotify::Playlist { name: "Lofi".into(), uri: "spotify:playlist:abc".into() }];
+        let full = merge(&base, &Detected { playlists, ..Default::default() });
+        assert_eq!((full.apps[1].id.as_str(), full.apps[1].children.as_ref().map(Vec::len)), ("a1", Some(2)));
+        // Un seul jeu trouvé, sans lanceur à soi : il reste dans son groupe
+        let steam = vec![steam::Game { appid: 1, name: "Celeste".into(), last_played: 0 }];
+        let one = merge(&parse(r#"{ "apps": [ { "label": "Jeux", "auto": "steam", "children": [] } ] }"#).unwrap(), &Detected { steam, ..Default::default() });
+        assert_eq!(one.apps[0].children.as_ref().map(Vec::len), Some(1));
     }
 
     #[test]
