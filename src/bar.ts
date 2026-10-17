@@ -71,12 +71,17 @@ let windowsShown = '';           // ce qui est affiché : on ne refait les tuile
 const seen = new Set<string>();  // programmes déjà affichés : seuls les nouveaux apparaissent en sautant
 let alerted = new Set<string>(); // programmes qui demandent l'attention : seuls les nouveaux sonnent
 const icons = new Map<string, AppIcon | null>();  // par programme : Rust ne la renvoie pas chaque seconde
+let windowsRun = 0;   // une réponse plus ancienne que la dernière demande est ignorée
 
 async function refreshWindows() {
+  const run = ++windowsRun;
   const known = [...icons.keys()];
   const list = await host.barWindows(known).catch(() => null);
+  // Icônes gardées même d'une réponse dépassée (une première icône prend 80 à 100 ms) : Rust ne
+  // les renverra pas
+  if (list) for (const w of list) if (!known.includes(w.key)) icons.set(w.key, w.icon);
+  if (run !== windowsRun) return;
   if (list) {
-    for (const w of list) if (!known.includes(w.key)) icons.set(w.key, w.icon);
     // Programmes fermés oubliés ; une icône oubliée entre-temps est redemandée au relevé suivant
     for (const key of icons.keys()) if (!list.some((w) => w.key === key)) icons.delete(key);
     windows = list.map((w) => ({ ...w, icon: icons.get(w.key) ?? null }));
@@ -102,6 +107,7 @@ function renderWindows() {
   if (menu || preview || shown === windowsShown) return;
   windowsShown = shown;
   const first = seen.size === 0;
+  for (const key of seen) if (!list.some((g) => g.key === key)) seen.delete(key);
   const calling = new Set(list.filter((g) => g.windows.some((w) => w.attention)).map((g) => g.key));
   $('bar-windows').replaceChildren(...list.map((g, i) => {
     const tile = groupTile(g, i);
@@ -123,6 +129,13 @@ function ring(node: HTMLElement) {
 /* Titre de la fenêtre, avec le programme s'il n'y est pas déjà */
 const windowLabel = (w: BarWindow) => (w.title.includes(w.app) ? w.title : `${w.title} — ${w.app}`);
 
+/* Fenêtres du programme d'après la dernière liste : la tuile a pu être faite avant (pas refaite
+   pendant un aperçu ou un menu) */
+function latest(g: Group): BarWindow[] {
+  const now = windows.filter((w) => w.key === g.key);
+  return now.length ? now : g.windows;
+}
+
 /* Clic : ramène la fenêtre, ou la réduit si elle est déjà au premier plan ; plusieurs fenêtres :
    leur liste. Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. Survol :
    aperçu des fenêtres (il remplace l'infobulle). */
@@ -141,9 +154,13 @@ function groupTile(g: Group, i: number) {
   b.addEventListener('pointerenter', () => hoverTile(g, b));
   b.addEventListener('pointerleave', leavePreview);
   b.addEventListener('click', () => {
-    closePreview();
-    if (many) openMenu(b, g.app, g.windows.map(windowItem));
-    else act(() => (first.active ? host.minimizeWindow(first.id) : host.focusWindow(first.id)));
+    const list = latest(g);
+    if (list.length > 1) {
+      openMenu(b, g.app, list.map(windowItem));
+    } else {
+      closePreview();
+      act(() => (list[0].active ? host.minimizeWindow(list[0].id) : host.focusWindow(list[0].id)));
+    }
   });
   // Clic du milieu : nouvelle fenêtre, comme dans la barre de Windows
   b.addEventListener('mousedown', (e) => {
@@ -153,14 +170,15 @@ function groupTile(g: Group, i: number) {
     if (e.button !== 1) return;
     e.preventDefault();
     closePreview();
-    act(() => host.newWindow(first.id));
+    act(() => host.newWindow(latest(g)[0].id));
   });
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();   // pas le menu de WebView2
+    const list = latest(g);
     openMenu(b, g.app, [
-      menuItem('Nouvelle fenêtre', actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(first.id))),
-      menuItem(many ? `Fermer les ${g.windows.length} fenêtres` : 'Fermer la fenêtre', actionDot(CLOSE, '#f6c6da'),
-        () => act(() => Promise.all(g.windows.map((w) => host.closeWindow(w.id))))),
+      menuItem('Nouvelle fenêtre', actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(list[0].id))),
+      menuItem(list.length > 1 ? `Fermer les ${list.length} fenêtres` : 'Fermer la fenêtre', actionDot(CLOSE, '#f6c6da'),
+        () => act(() => Promise.all(list.map((w) => host.closeWindow(w.id))))),
     ]);
   });
   return b;
@@ -183,7 +201,8 @@ let previewTimer = 0;
 
 function hoverTile(g: Group, tile: HTMLElement) {
   clearTimeout(previewTimer);
-  if (menu || preview?.tile === tile) return;
+  // Une carte à la fois : pas par-dessus la zone de notification, le calendrier ou le lecteur
+  if (menu || cardOpen() || preview?.tile === tile) return;
   previewTimer = window.setTimeout(() => openPreview(g, tile), preview ? 0 : PREVIEW_DELAY);
 }
 
@@ -197,9 +216,9 @@ async function openPreview(g: Group, tile: HTMLElement) {
   const list = g.windows.slice(0, PREVIEW_MAX);
   previewAsked = true;
   const sizes = await host.barPreview(list.map((w) => w.id)).catch(() => null);
-  // Autre tuile survolée, menu ouvert ou pilule rentrée entre-temps
+  // Autre tuile survolée, souris partie, menu ou carte ouverts, pilule rentrée entre-temps
   if (run !== previewRun) return;
-  if (!sizes || menu || !shown || !tile.isConnected) {
+  if (!sizes || menu || cardOpen() || !shown || !tile.isConnected || !tile.matches(':hover')) {
     closePreview();
     return;
   }
@@ -212,7 +231,9 @@ async function openPreview(g: Group, tile: HTMLElement) {
   window.setTimeout(() => run === previewRun && placeThumbs(), PREVIEW_SETTLE);
 }
 
-function closePreview() {
+/* `render` : listes arrivées pendant l'aperçu, sauf quand un menu s'ouvre (il s'accroche à sa
+   tuile, qui doit rester en place) */
+function closePreview(render = true) {
   clearTimeout(previewTimer);
   previewRun++;
   if (previewAsked) host.barPreviewClose();
@@ -220,7 +241,7 @@ function closePreview() {
   if (!preview) return;
   preview = null;
   $('bar-preview').classList.remove('open');
-  renderWindows();   // listes arrivées pendant l'aperçu
+  if (render) renderWindows();
   reportRects();
 }
 
@@ -370,12 +391,19 @@ function menuItem(label: string, dot: HTMLElement, run: (item: HTMLButtonElement
   return b;
 }
 
-/* Un second clic sur la même tuile referme son menu */
+/* Un second clic sur la même tuile referme son menu. Les tuiles ne sont pas refaites avant
+   l'ouverture : le menu se place au-dessus de celle-ci (refaites à sa fermeture). */
 function openMenu(tile: HTMLElement, name: string, items: HTMLElement[]) {
   const again = menu?.tile === tile;
-  closePreview();
-  closeMenu(false);
-  if (again) return;
+  closePreview(false);
+  closeMenu(false, false);
+  if (again) {
+    renderWindows();
+    renderTray();
+    return;
+  }
+  // Une carte à la fois ; le menu d'une app de la zone de notification s'ouvre sur sa carte
+  if (!$('bar-pop').contains(tile)) closeCards();
   $('bar-menu-name').textContent = name;
   $('bar-menu-items').replaceChildren(...items);
   menu = { tile };
@@ -386,7 +414,7 @@ function openMenu(tile: HTMLElement, name: string, items: HTMLElement[]) {
   reportRects();
 }
 
-function closeMenu(refocus = true) {
+function closeMenu(refocus = true, render = true) {
   if (!menu) return;
   const { tile } = menu;
   menu = null;
@@ -394,8 +422,10 @@ function closeMenu(refocus = true) {
   tile.classList.remove('menu-open');
   if (refocus && tile.isConnected) tile.focus({ preventScroll: true });
   // Listes arrivées pendant que le menu était ouvert
-  renderWindows();
-  renderTray();
+  if (render) {
+    renderWindows();
+    renderTray();
+  }
   autoHide();
   reportRects();
 }
@@ -416,6 +446,14 @@ function place(node: HTMLElement, anchor: HTMLElement, over: HTMLElement = ancho
 function placeCard(card: HTMLElement, button: HTMLElement) {
   place(card, button, $('bar'));
   void card.offsetWidth;
+}
+
+const cardOpen = () => popOpen() || calOpen() || playerOpen();
+
+function closeCards() {
+  if (popOpen()) togglePop(false);
+  if (calOpen()) toggleCal(false);
+  if (playerOpen()) togglePlayer(false);
 }
 
 /* ══ Masquage automatique : la pilule sort quand la souris touche le bas de l'écran et rentre
@@ -440,6 +478,8 @@ function show(peek = false) {
   if (!peek) clearTimeout(hideTimer);
   if (!shown) {
     shown = true;
+    // La souris a pu toucher le bord pendant la rentrée ; Rust redit aussitôt si elle est dessus
+    inside = false;
     $('bar').classList.remove('hidden');
     refreshWindows();
     refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
@@ -465,9 +505,7 @@ function hide(force = false) {
   if (!shown || (!force && (menu || inside))) return;
   closePreview();
   closeMenu(false);
-  if (popOpen()) togglePop(false);
-  if (calOpen()) toggleCal(false);
-  if (playerOpen()) togglePlayer(false);
+  closeCards();
   clearTimeout(hideTimer);
   clearTimeout(signalTimer);
   clearInterval(refreshTimer);
@@ -515,9 +553,7 @@ function setInside(on: boolean) {
 function clickedOutside() {
   closePreview();
   closeMenu(false);
-  if (popOpen()) togglePop(false);
-  if (calOpen()) toggleCal(false);
-  if (playerOpen()) togglePlayer(false);
+  closeCards();
   autoHide();
 }
 
@@ -782,7 +818,9 @@ const fmtToday = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numer
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const LEFT = 'M15 6l-6 6 6 6';
 const RIGHT = 'M9 6l6 6-6 6';
+const CAL_WHEEL_MS = 450;    // un mois par geste, comme les pages du téléphone
 let calMonth = new Date();   // premier jour du mois affiché
+let calWheelAt = 0;
 
 const calOpen = () => $('bar-cal').classList.contains('open');
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -908,9 +946,12 @@ function init() {
     calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     renderCal();
   });
+  // Un pavé tactile envoie des dizaines d'événements par geste
   $('bar-cal-grid').addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (e.deltaY) moveCal(Math.sign(e.deltaY));
+    if (Math.abs(e.deltaY) < 4 || performance.now() - calWheelAt < CAL_WHEEL_MS) return;
+    calWheelAt = performance.now();
+    moveCal(Math.sign(e.deltaY));
   }, { passive: false });
   $('bar-cal-notif').addEventListener('click', () => {
     toggleCal(false);
@@ -919,18 +960,27 @@ function init() {
   // Aperçu : la souris peut aller de la tuile à la carte
   $('bar-preview').addEventListener('pointerenter', () => clearTimeout(previewTimer));
   $('bar-preview').addEventListener('pointerleave', leavePreview);
-  // La pilule change de largeur (fenêtre ouverte ou fermée) : les cartes suivent leur bouton
-  new ResizeObserver(() => {
+  // La pilule change de largeur (fenêtre ouverte ou fermée) : les cartes suivent leur bouton ;
+  // une carte change de taille (zone de notification qui grandit) : Rust reçoit son rectangle
+  const resized = new ResizeObserver(() => {
     if (popOpen()) place($('bar-pop'), $('bar-tray'), $('bar'));
     if (calOpen()) place($('bar-cal'), $('bar-clock'), $('bar'));
     if (playerOpen()) place($('bar-player'), $('bar-music'), $('bar'));
     reportRects();
-  }).observe($('bar'));
+  });
+  for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview']) resized.observe($(id));
 
-  host.onBarReveal(show);
-  host.onBarWindows(windowsChanged);
-  host.onBarPointer(setInside);
-  host.onBarOutside(clickedOutside);
+  // Rust a pu faire sortir la pilule avant que la page écoute (fenêtre juste créée) : sans
+  // réponse, elle ne serait plus jamais ressortie sur cet écran. Son état est remis à zéro.
+  Promise.all([
+    host.onBarReveal(show),
+    host.onBarWindows(windowsChanged),
+    host.onBarPointer(setInside),
+    host.onBarOutside(clickedOutside),
+    host.onBarReset(() => hide(true)),
+  ]).then(() => {
+    if (!shown) host.barHidden();
+  });
   // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
   if (PREVIEW) {
     for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-menu', 'bar-preview']) {

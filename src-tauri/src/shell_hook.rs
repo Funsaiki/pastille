@@ -15,8 +15,8 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DeregisterShellHookWindow, DestroyWindow, DispatchMessageW, GetMessageW,
-    PostThreadMessageW, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW, MSG, WINDOW_EX_STYLE,
-    WM_QUIT, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
+    PeekMessageW, PostThreadMessageW, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW, MSG,
+    PM_NOREMOVE, WINDOW_EX_STYLE, WM_QUIT, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
 /// Fenêtres par leur handle (un HWND ne passe pas d'un fil à l'autre)
@@ -56,6 +56,8 @@ pub fn start(sender: Sender<Event>) {
     }
     let (id_sender, id_receiver) = std::sync::mpsc::channel();
     let thread = std::thread::spawn(move || {
+        // File de messages créée avant de donner l'identifiant : `stop` peut y poster WM_QUIT
+        let _ = unsafe { PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE) };
         let _ = id_sender.send(unsafe { GetCurrentThreadId() });
         SENDER.with(|s| *s.borrow_mut() = Some(sender));
         let Some(hwnd) = create_window() else { return };
@@ -79,8 +81,9 @@ pub fn start(sender: Sender<Event>) {
 
 pub fn stop() {
     let Some((id, thread)) = WATCH.lock().unwrap().take() else { return };
-    let _ = unsafe { PostThreadMessageW(id, WM_QUIT, WPARAM(0), LPARAM(0)) };
-    let _ = thread.join();
+    if unsafe { PostThreadMessageW(id, WM_QUIT, WPARAM(0), LPARAM(0)) }.is_ok() {
+        let _ = thread.join();
+    }
 }
 
 /// Fenêtre invisible, hors barre des tâches : elle ne sert qu'à recevoir les signaux

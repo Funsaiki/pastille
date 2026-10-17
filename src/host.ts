@@ -286,18 +286,22 @@ export const host = {
   },
   /* Envoyés par Rust à la fenêtre de cet écran : souris au bord bas (ou `peek` : un instant,
      pour une fenêtre qui demande l'attention), souris sur la pilule ou non, clic ailleurs,
-     fenêtres à relire (signaux de Windows) */
-  onBarReveal(fn: (peek: boolean) => void) {
-    if (!PREVIEW) getCurrentWindow().listen<boolean>('bar:reveal', (e) => fn(e.payload));
+     fenêtres à relire (signaux de Windows), écran branché ou débranché (pilule rentrée sans
+     attendre). Résolus une fois l'écoute en place. */
+  onBarReveal(fn: (peek: boolean) => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen<boolean>('bar:reveal', (e) => fn(e.payload));
   },
-  onBarWindows(fn: () => void) {
-    if (!PREVIEW) getCurrentWindow().listen('bar:windows', fn);
+  onBarWindows(fn: () => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:windows', fn);
   },
-  onBarPointer(fn: (inside: boolean) => void) {
-    if (!PREVIEW) getCurrentWindow().listen<boolean>('bar:pointer', (e) => fn(e.payload));
+  onBarPointer(fn: (inside: boolean) => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen<boolean>('bar:pointer', (e) => fn(e.payload));
   },
-  onBarOutside(fn: () => void) {
-    if (!PREVIEW) getCurrentWindow().listen('bar:outside', fn);
+  onBarOutside(fn: () => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:outside', fn);
+  },
+  onBarReset(fn: () => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:reset', fn);
   },
   /* Fenêtres de la barre des tâches de tous les écrans (demande de Funsaiki), sauf celles du
      lanceur ; sans l'icône des programmes de `known` (le front l'a déjà) */

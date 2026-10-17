@@ -33,12 +33,13 @@ pub fn bar_preview(window: WebviewWindow, ids: Vec<String>) -> Vec<Option<[i32; 
                 return (None, None);
             }
             let mut client = RECT::default();
-            let (Ok(thumb), Ok(())) = (unsafe { DwmRegisterThumbnail(destination, source) }, unsafe {
-                GetClientRect(source, &mut client)
-            }) else {
+            if unsafe { GetClientRect(source, &mut client) }.is_err() {
                 return (None, None);
-            };
-            (Some(thumb), Some([client.right, client.bottom]))
+            }
+            match unsafe { DwmRegisterThumbnail(destination, source) } {
+                Ok(thumb) => (Some(thumb), Some([client.right, client.bottom])),
+                Err(_) => (None, None),
+            }
         })
         .unzip();
     THUMBS.lock().unwrap().get_or_insert_with(HashMap::new).insert(window.label().to_string(), thumbs);
@@ -74,7 +75,12 @@ pub fn bar_preview_close(window: WebviewWindow) {
 }
 
 fn close(window: &WebviewWindow) {
-    let removed = THUMBS.lock().unwrap().as_mut().and_then(|all| all.remove(window.label()));
+    forget(window.label());
+}
+
+/// Vignettes de la fenêtre de la barre `label` libérées (aussi quand elle est détruite)
+pub fn forget(label: &str) {
+    let removed = THUMBS.lock().unwrap().as_mut().and_then(|all| all.remove(label));
     for thumb in removed.into_iter().flatten().flatten() {
         let _ = unsafe { DwmUnregisterThumbnail(thumb) };
     }

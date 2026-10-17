@@ -5,7 +5,11 @@
 use std::path::Path;
 
 use serde::Serialize;
-use windows::Win32::Foundation::HWND;
+use windows::core::GUID;
+use windows::Win32::Foundation::{HWND, PROPERTYKEY};
+use windows::Win32::System::Com::CoTaskMemFree;
+use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
+use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, SHGetPropertyStoreForWindow};
 use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, GetWindowTextW};
 
 use crate::switch;
@@ -45,6 +49,22 @@ pub(crate) fn app_window(id: &str) -> Result<HWND, String> {
         return Err("Cette fenêtre n'est plus ouverte.".to_string());
     }
     Ok(hwnd)
+}
+
+/// Identifiant d'application donné à la fenêtre (`PKEY_AppUserModel_ID`) : celui des apps du
+/// Store hébergées par ApplicationFrameHost (Paramètres, Calculatrice). Avec COM.
+pub(crate) fn window_app_id(hwnd: HWND) -> Option<String> {
+    const APP_ID: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0x9f4c2855_9f79_4b39_a8d0_e1d42de1d5f3), pid: 5 };
+    unsafe {
+        let store: IPropertyStore = SHGetPropertyStoreForWindow(hwnd).ok()?;
+        let mut value = store.GetValue(&APP_ID).ok()?;
+        let text = PropVariantToStringAlloc(&value).ok();
+        let _ = PropVariantClear(&mut value);
+        let text = text?;
+        let id = text.to_string().ok();
+        CoTaskMemFree(Some(text.0 as *const _));
+        id.filter(|id| !id.is_empty())
+    }
 }
 
 fn list() -> Vec<OpenWindow> {

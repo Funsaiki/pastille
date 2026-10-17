@@ -34,12 +34,12 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsZoomed, PostMessageW,
-    ShowWindow, MONITORINFOF_PRIMARY, SW_MINIMIZE, WM_CLOSE,
+    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, IsZoomed,
+    PostMessageW, ShowWindowAsync, MONITORINFOF_PRIMARY, SW_MINIMIZE, WM_CLOSE,
 };
 
 use crate::shell_hook::{self, Event};
-use crate::{launcher, open_windows, switch, taskbar, tray_apps};
+use crate::{bar_preview, launcher, open_windows, switch, taskbar, tray_apps};
 
 /// Hauteur des fenêtres de la barre, en pixels logiques : la pilule, et au-dessus la zone de
 /// notification avec un menu ouvert
@@ -92,9 +92,10 @@ pub fn init(app: &AppHandle) {
     }
 }
 
-/// Case « Barre pastel » du menu de l'icône ; renvoie le nouvel état
+/// Case « Barre pastel » du menu de l'icône ; renvoie le nouvel état (d'après la barre, pas
+/// d'après barre.json, qui a pu être modifié à la main)
 pub fn toggle(app: &AppHandle) -> bool {
-    let active = !is_active(app);
+    let active = !RUNNING.load(SeqCst);
     save(app, &Settings { active });
     if active { start(app) } else { stop(app) }
     active
@@ -140,6 +141,7 @@ fn stop(app: &AppHandle) {
     }
     for (label, w) in app.webview_windows() {
         if index(&label).is_some() {
+            bar_preview::forget(&label);
             let _ = w.destroy();
         }
     }
@@ -188,14 +190,34 @@ fn monitor_info(monitor: HMONITOR) -> Option<(bool, RECT)> {
         .then_some((info.dwFlags & MONITORINFOF_PRIMARY != 0, info.rcMonitor))
 }
 
-/// Une fenêtre par écran ; refait quand un écran est branché ou débranché
+/// Une fenêtre par écran. Écran branché ou débranché : celles en trop sont détruites, les
+/// autres rentrées (leur état ne vaut plus : pilule sortie, souris prise) ; une fenêtre qui n'a
+/// pas pu être créée est réessayée au relevé suivant.
 fn ensure_windows(app: &AppHandle, monitors: &[RECT]) {
-    if SCREENS.lock().unwrap().len() == monitors.len() {
-        return;
-    }
-    for (label, w) in app.webview_windows() {
-        if index(&label).is_some_and(|i| i >= monitors.len()) {
-            let _ = w.destroy();
+    let changed = {
+        let mut screens = SCREENS.lock().unwrap();
+        let changed = screens.len() != monitors.len();
+        if changed {
+            screens.clear();
+            screens.resize_with(monitors.len(), Screen::default);
+        }
+        changed
+    };
+    if changed {
+        for (label, w) in app.webview_windows() {
+            match index(&label) {
+                Some(i) if i >= monitors.len() => {
+                    bar_preview::forget(&label);
+                    let _ = w.destroy();
+                }
+                Some(_) => {
+                    let _ = w.set_ignore_cursor_events(true);
+                    let _ = w.hide();
+                    launcher::set_memory_low(&w, true);
+                    let _ = app.emit_to(label, "bar:reset", ());
+                }
+                None => {}
+            }
         }
     }
     for (i, monitor) in monitors.iter().enumerate() {
@@ -204,13 +226,15 @@ fn ensure_windows(app: &AppHandle, monitors: &[RECT]) {
             continue;
         }
         match create(app, &label) {
+            // Barre coupée pendant la création (`stop`, depuis le fil principal)
+            Ok(w) if !RUNNING.load(SeqCst) => {
+                let _ = w.destroy();
+                return;
+            }
             Ok(w) => place(&w, monitor),
             Err(e) => eprintln!("[lanceur] barre : fenêtre {label} impossible : {e}"),
         }
     }
-    let mut screens = SCREENS.lock().unwrap();
-    screens.clear();
-    screens.resize_with(monitors.len(), Screen::default);
 }
 
 fn create(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
@@ -256,16 +280,25 @@ enum Action {
 }
 
 fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
+    let foreground = remember_foreground();
+    // Lus même écran verrouillé : ils s'accumuleraient toute la nuit
+    let (changed, peek) = read_signals(signals, foreground);
     let mut cursor = POINT::default();
+    // Écran verrouillé, demande de l'UAC : pas de souris
     if unsafe { GetCursorPos(&mut cursor) }.is_err() {
         return;
     }
-    let foreground = remember_foreground();
     let monitors = monitors();
     ensure_windows(app, &monitors);
-    let (changed, peek) = read_signals(signals, foreground);
-    let pressed = [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].iter().any(|k| unsafe { GetAsyncKeyState(k.0 as i32) } < 0);
-    let click = pressed && !*pressed_before;
+    // Bouton enfoncé, ou enfoncé depuis le dernier relevé (clic de moins de 50 ms : bit de poids
+    // faible, qu'un autre programme peut prendre avant nous ; jamais un faux clic)
+    let (mut pressed, mut tapped) = (false, false);
+    for key in [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON] {
+        let state = unsafe { GetAsyncKeyState(key.0 as i32) };
+        pressed |= state < 0;
+        tapped |= state & 1 != 0;
+    }
+    let click = (pressed && !*pressed_before) || tapped;
     *pressed_before = pressed;
 
     // Décisions sous le verrou, appels à Tauri après (ils passent par le fil principal)
@@ -375,8 +408,9 @@ fn blocked(foreground: HWND, monitor: &RECT) -> bool {
     if foreground.is_invalid() {
         return false;
     }
+    // Le téléphone affiché ; masqué, sa fenêtre peut rester au premier plan (menu de l'icône)
     if pid_of(foreground) == std::process::id() {
-        return true;
+        return unsafe { IsWindowVisible(foreground) }.as_bool();
     }
     let mut r = RECT::default();
     if unsafe { GetWindowRect(foreground, &mut r) }.is_err() {
@@ -463,10 +497,9 @@ fn list(known: &[String]) -> Vec<BarWindow> {
                 return None;
             }
             let title = open_windows::title(hwnd);
-            // Les apps du Store comme Paramètres ou Calculatrice partagent ce programme : une
-            // tuile par fenêtre, nommée par son titre
+            // Une tuile par fenêtre, nommée par son titre
             let lower = path.to_lowercase();
-            let hosted = lower.ends_with(r"\applicationframehost.exe");
+            let hosted = is_hosted(&path);
             let app = if hosted {
                 title.clone()
             } else {
@@ -489,12 +522,18 @@ fn list(known: &[String]) -> Vec<BarWindow> {
         .collect()
 }
 
-/// Réduite, comme un clic sur la tuile de la fenêtre au premier plan dans la barre de Windows
+/// Les apps du Store comme Paramètres ou Calculatrice partagent ce programme
+pub fn is_hosted(path: &str) -> bool {
+    path.to_lowercase().ends_with(r"\applicationframehost.exe")
+}
+
+/// Réduite, comme un clic sur la tuile de la fenêtre au premier plan dans la barre de Windows.
+/// Sans attendre le programme (il peut ne plus répondre).
 #[tauri::command]
 pub async fn minimize_window(id: String) -> Result<(), String> {
     crate::blocking(move || {
         let hwnd = open_windows::app_window(&id)?;
-        let _ = unsafe { ShowWindow(hwnd, SW_MINIMIZE) };
+        let _ = unsafe { ShowWindowAsync(hwnd, SW_MINIMIZE) };
         Ok(())
     })
     .await?
@@ -514,17 +553,26 @@ pub async fn close_window(id: String) -> Result<(), String> {
 /// une app du Store par son identifiant
 #[tauri::command]
 pub async fn new_window(id: String) -> Result<(), String> {
-    crate::blocking(move || {
-        let hwnd = open_windows::app_window(&id)?;
-        let (path, pid) = switch::process_of(hwnd);
-        let path = path.ok_or("Programme de la fenêtre introuvable.")?;
-        if tray_apps::is_packaged(&path) {
-            let id = tray_apps::app_id(pid).ok_or("Identifiant de l'application introuvable.")?;
-            return crate::shell::open_as_is(&format!(r"shell:AppsFolder\{id}"));
-        }
-        crate::shell::open_as_is(&path)
-    })
-    .await?
+    let target = crate::com::com_task(move || Ok(relaunch_target(&id))).await??;
+    crate::blocking(move || crate::shell::open_as_is(&target)).await?
+}
+
+/// Avec COM : l'identifiant d'une app hébergée est lu sur sa fenêtre (ApplicationFrameHost,
+/// relancé seul, n'ouvrirait rien)
+fn relaunch_target(id: &str) -> Result<String, String> {
+    let hwnd = open_windows::app_window(id)?;
+    let (path, pid) = switch::process_of(hwnd);
+    let path = path.ok_or("Programme de la fenêtre introuvable.")?;
+    let app_id = if is_hosted(&path) {
+        open_windows::window_app_id(hwnd)
+    } else if tray_apps::is_packaged(&path) {
+        tray_apps::app_id(pid)
+    } else {
+        return Ok(path);
+    };
+    app_id
+        .map(|id| format!(r"shell:AppsFolder\{id}"))
+        .ok_or_else(|| "Identifiant de l'application introuvable.".to_string())
 }
 
 /// Bouton Applications : le téléphone monte sur l'écran de la souris (celui de la pilule)
@@ -534,10 +582,12 @@ pub fn show_launcher(app: AppHandle) {
 }
 
 /// Clic droit sur Applications : le menu de l'icône du lanceur (couper la barre pastel,
-/// quitter…), que la barre de Windows masquée ne montre plus
+/// quitter…), que la barre de Windows masquée ne montre plus. Ouvert depuis la boucle du fil
+/// principal, pas pendant la commande : le menu attend le choix de Funsaiki.
 #[tauri::command]
-pub fn bar_menu(app: AppHandle) {
-    crate::tray::popup_menu(&app);
+pub async fn bar_menu(app: AppHandle) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || crate::tray::popup_menu(&handle));
 }
 
 #[cfg(test)]
@@ -566,6 +616,11 @@ mod tests {
             let start = std::time::Instant::now();
             for w in list(&[]) {
                 eprintln!("  {:<28} {:<40} icône : {}", w.app, w.title.chars().take(40).collect::<String>(), w.icon.is_some());
+            }
+            for hwnd in switch::app_windows() {
+                if switch::process_of(hwnd).0.as_deref().is_some_and(is_hosted) {
+                    eprintln!("  hébergée : {} → {:?}", open_windows::title(hwnd), open_windows::window_app_id(hwnd));
+                }
             }
             eprintln!("  durée : {:?}", start.elapsed());
         });

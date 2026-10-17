@@ -18,9 +18,9 @@ use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, WPARAM};
 use windows::Win32::System::Threading::{GetCurrentThreadId, OpenProcess, WaitForSingleObject, INFINITE, PROCESS_SYNCHRONIZE};
 use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, FindWindowExW, GetClassNameW, GetMessageW, IsWindowVisible, KillTimer, PostThreadMessageW,
-    SetTimer, ShowWindow, EVENT_OBJECT_SHOW, MSG, OBJID_WINDOW, SW_HIDE, SW_SHOWNA, WINEVENT_OUTOFCONTEXT,
-    WINEVENT_SKIPOWNPROCESS, WM_QUIT,
+    DispatchMessageW, FindWindowExW, GetClassNameW, GetMessageW, IsWindowVisible, KillTimer, PeekMessageW,
+    PostThreadMessageW, SetTimer, ShowWindow, ShowWindowAsync, EVENT_OBJECT_SHOW, MSG, OBJID_WINDOW, PM_NOREMOVE,
+    SW_HIDE, SW_SHOWNA, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_QUIT,
 };
 
 /// Fil qui garde les barres masquées : (identifiant du fil, pour l'arrêter ; le fil)
@@ -35,6 +35,8 @@ pub fn hide() {
     spawn_guard();
     let (sender, receiver) = std::sync::mpsc::channel();
     let thread = std::thread::spawn(move || {
+        // File de messages créée avant de donner l'identifiant : `restore` peut y poster WM_QUIT
+        let _ = unsafe { PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE) };
         let _ = sender.send(unsafe { GetCurrentThreadId() });
         unsafe {
             for_each_bar(|bar| {
@@ -69,8 +71,11 @@ pub fn hide() {
 /// Réaffiche les barres de Windows (arrêt de la barre pastel ou du lanceur)
 pub fn restore() {
     let Some((id, thread)) = WATCH.lock().unwrap().take() else { return };
-    let _ = unsafe { PostThreadMessageW(id, WM_QUIT, WPARAM(0), LPARAM(0)) };
-    let _ = thread.join();
+    if unsafe { PostThreadMessageW(id, WM_QUIT, WPARAM(0), LPARAM(0)) }.is_ok() {
+        let _ = thread.join();
+    } else {
+        show_all();
+    }
 }
 
 /// Argument du processus de garde, suivi de l'identifiant du lanceur
@@ -119,10 +124,11 @@ pub fn guard() -> bool {
     true
 }
 
-/// Sans effet sur une barre déjà affichée
+/// Sans effet sur une barre déjà affichée. Sans attendre l'Explorateur : s'il ne répond plus,
+/// le lanceur ne se fige pas (appelé depuis le fil principal).
 pub fn show_all() {
     for_each_bar(|bar| unsafe {
-        let _ = ShowWindow(bar, SW_SHOWNA);
+        let _ = ShowWindowAsync(bar, SW_SHOWNA);
     });
 }
 
