@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-use crate::{epic, spotify, steam, tray, usage};
+use crate::{epic, spotify, start_menu, steam, tray, usage};
 
 const EXAMPLE: &str = include_str!("../../apps.example.json");
 
@@ -46,6 +46,10 @@ pub struct AppItem {
     pub uses: u32,
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub last: u64,
+    /// Application du menu Démarrer (groupe `auto: "start"`) : le front demande sa vraie icône
+    /// (start_menu::start_icons) ; jamais lu dans apps.json
+    #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
+    pub start: bool,
 }
 
 fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
@@ -100,22 +104,31 @@ pub struct ConfigState {
 
 pub type SharedConfig = Mutex<ConfigState>;
 
-/// Jeux détectés, ajoutés aux groupes `auto: "steam"` et `auto: "epic"`, et playlists de
-/// Spotify, ajoutées aux groupes `auto: "spotify"` (demande de Funsaiki)
+/// Jeux détectés, ajoutés aux groupes `auto: "steam"` et `auto: "epic"`, playlists de
+/// Spotify, ajoutées aux groupes `auto: "spotify"`, et applications du menu Démarrer, ajoutées
+/// aux groupes `auto: "start"` (demandes de Funsaiki)
 #[derive(Clone, Default, PartialEq)]
 struct Detected {
     steam: Vec<steam::Game>,
     epic: Vec<epic::Game>,
     playlists: Vec<spotify::Playlist>,
+    start: Vec<start_menu::StartApp>,
 }
 
-/// `previous` : Spotify injoignable, les playlists déjà connues restent
-fn detect(app: &AppHandle, previous: &Detected) -> Detected {
+/// `previous` : Spotify injoignable, les playlists déjà connues restent. Le menu Démarrer
+/// (~1 s) n'est lu que si apps.json a un groupe `auto: "start"`.
+fn detect(app: &AppHandle, previous: &Detected, start: bool) -> Detected {
     Detected {
         steam: steam::installed_games(),
         epic: epic::installed_games(),
         playlists: spotify::playlists(app).unwrap_or_else(|| previous.playlists.clone()),
+        start: if start { crate::com::with_com(start_menu::installed_apps) } else { Vec::new() },
     }
+}
+
+/// Un groupe `auto: kind`, à n'importe quelle profondeur
+fn uses_auto(items: &[AppItem], kind: &str) -> bool {
+    items.iter().any(|it| it.auto.as_deref() == Some(kind) || it.children.as_deref().is_some_and(|c| uses_auto(c, kind)))
 }
 
 /* ── Lecture et validation ── */
@@ -165,8 +178,8 @@ fn describe(e: &serde_json::Error) -> String {
 fn validate(items: &mut [AppItem]) -> Result<(), String> {
     for it in items {
         if let Some(auto) = &it.auto {
-            if !matches!(auto.as_str(), "steam" | "epic" | "spotify") {
-                return Err(format!("« {} » : auto « {auto} » inconnu (steam, epic ou spotify).", it.label));
+            if !matches!(auto.as_str(), "steam" | "epic" | "spotify" | "start") {
+                return Err(format!("« {} » : auto « {auto} » inconnu (steam, epic, spotify ou start).", it.label));
             }
             it.children.get_or_insert_with(Vec::new);
         }
@@ -189,14 +202,14 @@ fn is_hex_color(s: &str) -> bool {
 /// puis attribue les identifiants.
 fn merge(base: &Config, games: &Detected) -> Config {
     fn add(children: &mut Vec<AppItem>, label: &str, target: String, source: &str, icon: &str) {
-        if !children.iter().any(|c| c.target.as_deref() == Some(target.as_str())) {
-            children.push(AppItem {
-                label: label.into(),
-                icon: Some(icon.into()),
-                target: Some(target),
-                source: Some(source.into()),
-                ..Default::default()
-            });
+        add_item(children, AppItem { icon: Some(icon.into()), ..found(label, target, source) });
+    }
+    fn found(label: &str, target: String, source: &str) -> AppItem {
+        AppItem { label: label.into(), target: Some(target), source: Some(source.into()), ..Default::default() }
+    }
+    fn add_item(children: &mut Vec<AppItem>, item: AppItem) {
+        if !children.iter().any(|c| c.target == item.target) {
+            children.push(item);
         }
     }
     fn fill(items: &mut [AppItem], games: &Detected) {
@@ -216,6 +229,12 @@ fn merge(base: &Config, games: &Detected) -> Config {
                 Some("spotify") => {
                     for p in &games.playlists {
                         add(children, &p.name, p.uri.clone(), "SPOTIFY", "musique");
+                    }
+                }
+                // Sans clé d'icône : le front montre la vraie (start_icons)
+                Some("start") => {
+                    for a in &games.start {
+                        add_item(children, AppItem { start: true, ..found(&a.name, a.target.clone(), "DÉMARRER") });
                     }
                 }
                 _ => {}
@@ -368,9 +387,14 @@ pub fn reload(app: &AppHandle) {
     }
     apply_shortcut(app, &mut s);
     let tooltip = tooltip(&s);
+    // Groupe « start » ajouté à apps.json : le menu Démarrer est lu tout de suite
+    let start_missing = uses_auto(&s.base.apps, "start") && s.games.start.is_empty();
     drop(s);
     tray::set_tooltip(app, &tooltip);
     let _ = app.emit("config:changed", ());
+    if start_missing {
+        rescan(app);
+    }
 }
 
 /// À chaque ouverture du lanceur : recharge si apps.json a changé depuis la dernière lecture.
@@ -395,7 +419,8 @@ pub fn refresh_games_if_stale(app: &AppHandle) {
     scan_games(app);
 }
 
-/// Juste après la connexion à Spotify : ses playlists peuvent maintenant être lues
+/// Juste après la connexion à Spotify (ses playlists peuvent maintenant être lues), ou un
+/// groupe `auto: "start"` ajouté à apps.json
 pub fn rescan(app: &AppHandle) {
     {
         let state = app.state::<SharedConfig>();
@@ -408,13 +433,17 @@ pub fn rescan(app: &AppHandle) {
     scan_games(app);
 }
 
-/// Cherche les jeux Steam et Epic (et les playlists de Spotify) sur un autre fil ; le front
-/// n'est prévenu qu'en cas de changement
+/// Cherche les jeux Steam et Epic (et les playlists de Spotify, les applications du menu
+/// Démarrer) sur un autre fil ; le front n'est prévenu qu'en cas de changement
 fn scan_games(app: &AppHandle) {
     let app = app.clone();
     thread::spawn(move || {
-        let previous = app.state::<SharedConfig>().lock().unwrap().games.clone();
-        let games = detect(&app, &previous);
+        let (previous, start) = {
+            let state = app.state::<SharedConfig>();
+            let s = state.lock().unwrap();
+            (s.games.clone(), uses_auto(&s.base.apps, "start"))
+        };
+        let games = detect(&app, &previous, start);
         let state = app.state::<SharedConfig>();
         let mut s = state.lock().unwrap();
         s.scanning = false;
@@ -506,6 +535,20 @@ mod tests {
         let music = config.apps[0].children.as_ref().unwrap();
         assert_eq!(music[0].label, "Spotify", "le lanceur de Spotify reste en tête");
         assert_eq!((music[1].label.as_str(), music[1].icon.as_deref(), music[1].target.as_deref()), ("Lofi", Some("musique"), Some("spotify:playlist:abc")));
+    }
+
+    #[test]
+    fn start_menu_completes_start_groups() {
+        let base = parse(r#"{ "apps": [ { "label": "Code", "target": "code.exe" },
+            { "label": "Outils", "children": [ { "label": "Toutes les apps", "auto": "start" } ] } ] }"#).unwrap();
+        assert!(uses_auto(&base.apps, "start") && !uses_auto(&base.apps, "steam"));
+        let start = vec![start_menu::StartApp { name: "Calculatrice".into(), target: r"shell:AppsFolder\Calc!App".into() }];
+        let config = merge(&base, &Detected { start, ..Default::default() });
+        let calc = &config.apps[1].children.as_ref().unwrap()[0].children.as_ref().unwrap()[0];
+        assert_eq!((calc.label.as_str(), calc.id.as_str(), calc.start, calc.icon.as_deref()), ("Calculatrice", "a1.0.0", true, None));
+        let json = serde_json::to_string(calc).unwrap();
+        assert!(json.contains(r#""start":true"#) && !json.contains("AppsFolder"), "{json}");
+        assert!(parse(r#"{ "apps": [ { "label": "X", "target": "x", "start": true } ] }"#).is_err(), "jamais lu dans apps.json");
     }
 
     /// Diagnostic sur l'apps.json de Funsaiki : cargo test real_config -- --ignored --nocapture

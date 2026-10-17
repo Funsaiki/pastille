@@ -126,7 +126,27 @@ function previewConfig(): Config {
   const config: Config = structuredClone(EXAMPLE);
   const now = Math.floor(Date.now() / 1000);
   config.apps.slice(0, 3).forEach((app, i) => Object.assign(app, { uses: 3 - i, last: now - i * 600 }));
+  // ?demarrer : groupe des applications du menu Démarrer, la Calculatrice lancée en dernier
+  if (new URLSearchParams(location.search).has('demarrer')) {
+    const children: AppItem[] = PREVIEW_START.map((label, i) => ({ id: `d${i}`, label, target: `shell:AppsFolder\\${label}`, start: true }));
+    children[3].last = now;
+    config.apps.push({ label: 'Toutes les apps', icon: 'applications', auto: 'start', children });
+  }
   return config;
+}
+
+const PREVIEW_START = ['2XKO', 'Battle.net', 'Bloc-notes', 'Calculatrice', 'Caméra', 'Discord', 'Docker Desktop', 'EA',
+  'Epic Games Launcher', 'Excel', 'Explorateur de fichiers', 'Firefox', 'GitHub Desktop', 'Google Chrome', 'HoYoPlay',
+  'Krita (x64)', 'League of Legends', 'Microsoft Store', 'OBS Studio (64bit)', 'Paint', 'Steam', 'Terminal', 'VLC media player'];
+
+/* Aperçu navigateur : une pastille de couleur à la place de la vraie icône */
+function previewIcon(seed: number): AppIcon {
+  const [r, g, b] = [[95, 170, 230], [240, 120, 90], [120, 200, 120], [170, 120, 220]][seed % 4];
+  let bytes = '';
+  for (let y = 0; y < 48; y++) {
+    for (let x = 0; x < 48; x++) bytes += String.fromCharCode(r, g, b, Math.hypot(x - 23.5, y - 23.5) < 22 ? 255 : 0);
+  }
+  return { width: 48, height: 48, rgba: btoa(bytes) };
 }
 
 /* Aperçu navigateur : le morceau de la maquette */
@@ -274,6 +294,14 @@ export const host = {
   async openDownload(name: string) {
     if (PREVIEW) console.info('[aperçu] ouvrir le téléchargement :', name);
     else await invoke('open_download', { name });
+  },
+  /* Icônes des applications du menu Démarrer `ids`, dans le même ordre (null : pas d'icône) */
+  async startIcons(ids: string[]): Promise<(AppIcon | null)[]> {
+    if (PREVIEW) {
+      await new Promise((r) => setTimeout(r, 150));
+      return ids.map((id) => (id === 'd1' ? null : previewIcon(Number(id.slice(1)))));
+    }
+    return invoke<(AppIcon | null)[]>('start_icons', { ids });
   },
   /* Fenêtres de la barre des tâches, la plus récemment active d'abord */
   async openWindows(): Promise<OpenWindow[]> {

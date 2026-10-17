@@ -12,11 +12,12 @@ export interface AppItem {
   target?: string;        // aperçu seulement : Rust ne l'envoie pas
   args?: string[];
   source?: string;        // petit libellé (ex. STEAM), pas affiché dans cette maquette
-  auto?: string;          // 'steam' ou 'epic' : groupe complété par les jeux détectés
+  auto?: string;          // 'steam', 'epic', 'spotify' ou 'start' : groupe complété par Rust
   children?: AppItem[];   // présent = bouton-groupe
   keywords?: string;      // mots cherchés en plus du libellé, en début de mot
   uses?: number;          // lancements (usage.json, envoyé par Rust)
   last?: number;          // date du dernier lancement, en secondes depuis 1970
+  start?: boolean;        // application du menu Démarrer (groupe auto « start ») : vraie icône demandée à Rust
   /* Résultats de recherche qui ne viennent pas de apps.json (search.ts, ui.ts) */
   copy?: string;          // calcul : texte copié au lieu d'un lancement
   window?: string;        // fenêtre ouverte : son identifiant, pour la ramener

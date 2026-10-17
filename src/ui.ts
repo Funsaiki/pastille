@@ -10,7 +10,7 @@ import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ICONS, MIC, MIC_OFF, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
 import { el, iconCanvas, latestOnly } from './dom';
-import { PREVIEW, host, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
+import { PREVIEW, host, type AppIcon, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -983,7 +983,17 @@ function currentList(): AppItem[] {
     // Puis (demandés par Funsaiki) : le résultat d'un calcul en tête, les pages des Paramètres
     // et les fenêtres ouvertes (titre ou programme) après les applications
     const calc = calcResult(state.query);
-    const apps = flattenApps(CONFIG.apps).filter(match).sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
+    // Un même nom une fois : un jeu Steam ou une app de apps.json est aussi dans le menu Démarrer
+    const names = new Set<string>();
+    const apps = flattenApps(CONFIG.apps)
+      .filter(match)
+      .sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0))
+      .filter((it) => {
+        const name = norm(it.label);
+        if (names.has(name)) return false;
+        names.add(name);
+        return true;
+      });
     const windows = openWindows.filter((w) => norm(w.label).includes(q) || norm(w.keywords ?? '').includes(q));
     return [...(calc ? [calc] : []), ...apps, ...SETTINGS.filter(match), ...windows].slice(0, 16);
   }
@@ -1028,6 +1038,13 @@ function appButton(item: AppItem, index: number) {
     ic.classList.add('app-picture');
     ic.append(iconCanvas(item.picture));
     b.title = `${item.label} — ${item.keywords}`;
+  } else if (item.start) {
+    // Application du menu Démarrer : sa vraie icône aussi ; à défaut, comme une tuile sans icône
+    ic.classList.add('app-picture');
+    startIconSlot(ic, item, () => {
+      ic.style.background = palette()[index % 4];
+      ic.prepend(icon(ICONS.fichiers, 26, 2.1));
+    });
   } else {
     ic.style.background = palette()[index % 4];
     ic.append(icon(ICONS[item.icon ?? ''] ?? ICONS.fichiers, 26, 2.1));
@@ -1064,6 +1081,50 @@ function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
   $('folders').hidden = !showFolders();
   renderRecents();
   renderHead(list.length);
+  loadStartIcons(list.slice((state.page + 1) * size, (state.page + 2) * size));
+}
+
+/* ── Icônes des applications du menu Démarrer (groupe auto « start », demandé par Funsaiki) :
+   demandées à Rust pour les tuiles affichées (~15 ms chacune la première fois), puis pour la
+   page suivante ; gardées jusqu'au prochain chargement de la config (les ids changent) ── */
+const startIcons = new Map<string, AppIcon | null>();
+const startAsked = new Set<string>();
+let startSlots: { id: string; slot: HTMLElement; paint: () => void }[] = [];
+let startRun = 0;
+
+/* Icône dessinée tout de suite si elle est connue, sinon à son arrivée ; `fallback` : pas d'icône */
+function startIconSlot(slot: HTMLElement, item: AppItem, fallback: () => void) {
+  const paint = () => {
+    const picture = startIcons.get(item.id!);
+    if (picture) slot.prepend(iconCanvas(picture));
+    else fallback();
+  };
+  if (startIcons.has(item.id!)) paint();
+  else startSlots.push({ id: item.id!, slot, paint });
+}
+
+async function loadStartIcons(next: AppItem[]) {
+  const run = startRun;
+  const ask = async (ids: string[]) => {
+    ids = [...new Set(ids)].filter((id) => !startIcons.has(id) && !startAsked.has(id));
+    if (!ids.length) return;
+    ids.forEach((id) => startAsked.add(id));
+    const icons = await host.startIcons(ids).catch(() => null);
+    if (run !== startRun) return;
+    ids.forEach((id, i) => {
+      startAsked.delete(id);
+      if (icons) startIcons.set(id, icons[i] ?? null);   // échec : redemandée au prochain affichage
+    });
+    startSlots = startSlots.filter((s) => {
+      if (!s.slot.isConnected) return false;
+      if (!startIcons.has(s.id)) return true;
+      s.paint();
+      return false;
+    });
+  };
+  startSlots = startSlots.filter((s) => s.slot.isConnected);
+  await ask(startSlots.map((s) => s.id));
+  await ask(next.filter((it) => it.start).map((it) => it.id!));
 }
 
 /* Récents (demandé par Funsaiki) : les dernières applications lancées, à la racine sans
@@ -1089,8 +1150,17 @@ function renderRecents() {
     const b = el('button', 'tp-press folder');
     b.title = it.label;
     const dot = el('span', 'recent-dot');
-    dot.style.background = palette()[i % 4];
-    dot.append(icon(ICONS[it.icon ?? ''] ?? ICONS.fichiers, 13, 2.4));
+    const glyph = () => {
+      dot.style.background = palette()[i % 4];
+      dot.append(icon(ICONS[it.icon ?? ''] ?? ICONS.fichiers, 13, 2.4));
+    };
+    // Application du menu Démarrer : sa vraie icône sur une pastille blanche, comme le mélangeur
+    if (it.start) {
+      dot.style.background = '#ffffff';
+      startIconSlot(dot, it, glyph);
+    } else {
+      glyph();
+    }
     b.append(dot, el('span', '', it.label));
     b.addEventListener('click', (e) => launch(it, e.ctrlKey));
     return b;
@@ -1545,6 +1615,9 @@ let configLoading: Promise<void> = Promise.resolve();
 async function loadConfig() {
   const { config, problems } = await host.getConfig();
   setConfig(config);
+  startIcons.clear();
+  startAsked.clear();
+  startRun++;
   configProblems = problems;
   document.documentElement.style.setProperty('--fill', CONFIG.accent);
   renderFolders();

@@ -18,6 +18,8 @@ export const ICONS: Record<string, string> = {
   cube: 'M12 2l9 5v10l-9 5-9-5V7zM12 12l9-5M12 12L3 7M12 12v10',
   trophee: 'M8 4h8v5a4 4 0 01-8 0zM8 6H5v1a3 3 0 003 3M16 6h3v1a3 3 0 01-3 3M12 13v4M8 20h8M10 17h4',
   document: 'M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6',
+  // Le motif du bouton Applications, pour le groupe des applications du menu Démarrer
+  applications: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
   calcul: 'M5 4h14v16H5zM9 10h6M9 14h6',
   /* Jeux et lanceurs de Funsaiki (demande du 15/10/2026) : logos de Steam, Epic, League of Legends
      et Valorant en traits ; pour les gachas, logos choisis par Funsaiki un par un. */

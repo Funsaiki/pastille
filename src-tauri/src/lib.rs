@@ -15,6 +15,7 @@ mod power;
 mod shell;
 mod shell_hook;
 mod spotify;
+mod start_menu;
 mod steam;
 mod switch;
 mod system;
@@ -118,6 +119,7 @@ pub fn run() {
             bar_pins::bar_unpin,
             bar_pins::bar_open_pin,
             bar_preview::bar_preview,
+            start_menu::start_icons,
             bar_preview::bar_preview_place,
             bar_preview::bar_preview_close
         ])

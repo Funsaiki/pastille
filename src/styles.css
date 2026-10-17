@@ -548,6 +548,7 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
    sur fond blanc, comme l'onglet Apps */
 .app-picture { background: #ffffff; }
 .app-picture canvas { width: 30px; height: 30px; }
+.recent-dot canvas { width: 16px; height: 16px; }
 .app-label { max-width: 100%; font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .no-result {
   height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
