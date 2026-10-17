@@ -672,6 +672,8 @@ pub struct PlayerState {
     problem: Option<String>,
     /// Connexion d'avant les playlists (Status::Outdated) : notification « Reconnecter »
     reconnect: bool,
+    /// Pas connecté (pas d'identifiant, ou déconnecté) : notification « Connecter », Spotify ouvert
+    connect: bool,
 }
 
 /// Appareil où Spotify joue (ce PC, ou le téléphone par Spotify Connect) ; None sans appareil actif
@@ -684,7 +686,8 @@ struct Player {
 #[tauri::command]
 pub async fn spotify_state(app: AppHandle) -> PlayerState {
     crate::blocking(move || {
-        let mut state = PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false };
+        let mut state =
+            PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false, connect: false };
         if connected(&app) {
             match player(&app) {
                 Ok(Some(player)) => {
@@ -701,11 +704,13 @@ pub async fn spotify_state(app: AppHandle) -> PlayerState {
         }
         state.problem = app.state::<Spotify>().auth.lock().unwrap().problem.clone();
         // Connu après le premier jeton (ses portées) : la lecture ci-dessus en demande un
-        state.reconnect = status(&app) == Status::Outdated;
+        let status = status(&app);
+        state.reconnect = status == Status::Outdated;
+        state.connect = matches!(status, Status::NoClient | Status::Disconnected);
         state
     })
     .await
-    .unwrap_or(PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false })
+    .unwrap_or(PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false, connect: false })
 }
 
 /// Volume de Spotify lui-même (connecté seulement ; sinon le front passe par le mélangeur)

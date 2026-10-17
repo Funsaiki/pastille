@@ -429,7 +429,10 @@ async function refreshMedia() {
   media = now;
   renderMedia();
   refreshCover();
-  if (opened) refreshSpotifyVolume();
+  if (opened) {
+    refreshSpotifyVolume();
+    if (spotifyConnect) renderNotifs();   // « Connecter » suit l'ouverture de Spotify
+  }
 }
 
 /* Pochette : demandée au changement de morceau. Spotify annonce le titre un peu avant la
@@ -483,6 +486,7 @@ let spotifyVolume: SpotifyVolume | null = null;
 let spotifyModes: { shuffle: ShuffleMode; repeat: RepeatMode } | null = null;
 let spotifyProblem: string | null = null;   // échec de connexion, montré dans Notifs
 let spotifyReconnect = false;               // connexion d'avant les playlists, montrée dans Notifs
+let spotifyConnect = false;                 // pas connecté : « Connecter » dans Notifs, Spotify ouvert
 let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
 let spotifyHold = 0;          // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
 let spotifyReading = false;   // une lecture à la fois (une requête lente ne s'empile pas)
@@ -501,9 +505,10 @@ async function refreshSpotifyVolume() {
   spotifyVolume = now.volume;
   spotifyModes = now.shuffle != null && now.repeat ? { shuffle: now.shuffle, repeat: now.repeat } : null;
   renderSpotifyVolume();
-  if (now.problem !== spotifyProblem || now.reconnect !== spotifyReconnect) {
+  if (now.problem !== spotifyProblem || now.reconnect !== spotifyReconnect || now.connect !== spotifyConnect) {
     spotifyProblem = now.problem;
     spotifyReconnect = now.reconnect;
+    spotifyConnect = now.connect;
     renderNotifs();
   }
 }
@@ -673,6 +678,10 @@ function allNotifs(): Notif[] {
   // Connexion d'avant les playlists (demandé par Funsaiki) : un clic la refait dans le navigateur
   if (spotifyReconnect) {
     problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: 'Reconnecter pour voir les playlists', d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
+  }
+  // Pas connecté, Spotify ouvert (pour les amis de Funsaiki) : un clic ouvre la page de connexion
+  if (spotifyConnect && media) {
+    problems.push({ id: 'spotify:connect', title: 'Spotify', when: '', body: 'Connecter pour le volume et les playlists', d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
   // Premier lancement (pour les amis de Funsaiki) : le raccourci, et démarrer avec Windows d'un clic
   if (welcome) {

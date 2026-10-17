@@ -78,6 +78,7 @@ export interface SpotifyState {
   repeat: RepeatMode | null;
   problem: string | null;         // dernier échec de connexion, pour les notifications
   reconnect: boolean;             // connexion d'avant les playlists : à refaire
+  connect: boolean;               // pas connecté : notification « Connecter » si Spotify est ouvert
 }
 
 /* Fenêtre ouverte, pour la recherche (open_windows.rs) */
@@ -302,13 +303,18 @@ export const host = {
   },
   async spotifyState(): Promise<SpotifyState> {
     if (PREVIEW) {
-      // ?reconnecter : connexion d'avant les playlists
-      const reconnect = new URLSearchParams(location.search).has('reconnecter');
-      return { volume: { source: 'app', key: '', volume: 80 }, shuffle: previewShuffle, repeat: previewRepeat, problem: null, reconnect };
+      // ?reconnecter : connexion d'avant les playlists ; ?connecter : pas connecté (volume de Windows)
+      const params = new URLSearchParams(location.search);
+      if (params.has('connecter')) {
+        return { volume: { source: 'windows', key: 'spotify.exe', volume: 80 }, shuffle: null, repeat: null, problem: null, reconnect: false, connect: true };
+      }
+      const reconnect = params.has('reconnecter');
+      return { volume: { source: 'app', key: '', volume: 80 }, shuffle: previewShuffle, repeat: previewRepeat, problem: null, reconnect, connect: false };
     }
     return invoke<SpotifyState>('spotify_state');
   },
-  /* Connexion à refaire (playlists) : autorisation dans le navigateur, comme l'entrée du menu */
+  /* Notifications « Connecter » et « Reconnecter » : comme l'entrée du menu, dans le navigateur
+     (sans identifiant, la page de configuration) */
   async spotifyReconnect() {
     if (PREVIEW) console.info('[aperçu] reconnecter Spotify');
     else await invoke('spotify_reconnect');
