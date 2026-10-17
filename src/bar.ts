@@ -340,11 +340,11 @@ function togglePop(open = !popOpen()) {
   closeMenu(false);
   if (open && calOpen()) toggleCal(false);
   if (open && playerOpen()) togglePlayer(false);
+  if (open && !popOpen()) placeCard($('bar-pop'), $('bar-tray'));
   $('bar-pop').classList.toggle('open', open);
   $('bar-tray').setAttribute('aria-expanded', String(open));
   if (open) {
     refreshTray();
-    place($('bar-pop'), $('bar-tray'), $('bar'));
   } else {
     autoHide();
   }
@@ -409,6 +409,13 @@ function place(node: HTMLElement, anchor: HTMLElement, over: HTMLElement = ancho
   node.style.left = left + 'px';
   node.style.bottom = innerHeight - over.getBoundingClientRect().top + 12 + 'px';
   node.style.setProperty('--arrow', center - left + 'px');
+}
+
+/* Carte au-dessus de la pilule, placée avant d'être ouverte : sa bulle part de sa pointe à sa
+   nouvelle place, pas de l'ancienne */
+function placeCard(card: HTMLElement, button: HTMLElement) {
+  place(card, button, $('bar'));
+  void card.offsetWidth;
 }
 
 /* ══ Masquage automatique : la pilule sort quand la souris touche le bas de l'écran et rentre
@@ -634,12 +641,8 @@ function togglePlayer(open = !playerOpen()) {
   closeMenu(false);
   if (open && popOpen()) togglePop(false);
   if (open && calOpen()) toggleCal(false);
-  const card = $('bar-player');
-  if (open && !playerOpen()) {
-    place(card, $('bar-music'), $('bar'));
-    void card.offsetWidth;   // la bulle part de sa pointe à sa nouvelle place, pas de l'ancienne
-  }
-  card.classList.toggle('open', open);
+  if (open && !playerOpen()) placeCard($('bar-player'), $('bar-music'));
+  $('bar-player').classList.toggle('open', open);
   $('bar-music').setAttribute('aria-expanded', String(open));
   clearInterval(spotifyTimer);
   if (open) {
@@ -787,14 +790,15 @@ function toggleCal(open = !calOpen()) {
   closeMenu(false);
   if (open && popOpen()) togglePop(false);
   if (open && playerOpen()) togglePlayer(false);
-  $('bar-cal').classList.toggle('open', open);
-  $('bar-clock').setAttribute('aria-expanded', String(open));
-  if (open) {
+  if (open && !calOpen()) {
     const now = new Date();
     calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     renderCal();
-    place($('bar-cal'), $('bar-clock'), $('bar'));
-  } else {
+    placeCard($('bar-cal'), $('bar-clock'));
+  }
+  $('bar-cal').classList.toggle('open', open);
+  $('bar-clock').setAttribute('aria-expanded', String(open));
+  if (!open) {
     autoHide();
   }
   reportRects();
