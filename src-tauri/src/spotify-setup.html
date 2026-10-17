@@ -1,0 +1,242 @@
+<!doctype html>
+<!-- Page de configuration de Spotify (spotify.rs, premier branchement) : tuto pour créer son
+     app Spotify, puis le Client ID à coller. Servie par le petit serveur local de la connexion ;
+     les noms entre doubles accolades sont remplacés par spotify.rs (setup_page). Les libellés de
+     developer.spotify.com sont en anglais, comme sur le site. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pastille · Connecter Spotify</title>
+{{favicon}}
+<style>
+{{fonts}}
+:root { --ink: #0f3b42; --ink-deep: #0a2a2f; --fill: #9fe0dc; --soft: rgba(15, 59, 66, .72); }
+* { box-sizing: border-box; }
+html { background: #e2f5f4; }
+body {
+  margin: 0; min-height: 100vh; padding: 40px 16px 64px;
+  background: linear-gradient(180deg, #e2f5f4, #f5fbfb 55%, #fff);
+  font-family: Nunito, 'Segoe UI', sans-serif; font-weight: 700; font-size: 15px; line-height: 1.5; color: var(--ink);
+}
+main { max-width: 660px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; align-items: center; gap: 14px; }
+header svg { width: 56px; height: 56px; flex: none; }
+h1 { margin: 0; font-size: 26px; font-weight: 900; line-height: 1.15; }
+.lead { margin: 2px 0 0; color: var(--soft); }
+.card { background: #fff; border: 2.5px solid var(--ink); border-radius: 24px; box-shadow: 0 3px 0 var(--ink); padding: 20px 24px; }
+.card > p { margin: 0 0 8px; }
+.card > p:last-child { margin-bottom: 0; }
+.soft { color: var(--soft); }
+.note {
+  display: flex; gap: 10px; align-items: center; margin-top: 12px; padding: 10px 14px;
+  border-radius: 18px; border: 2px solid var(--ink); font-weight: 800;
+}
+.note svg { flex: none; }
+.premium { background: #ffe08a; }
+
+/* Étapes : numéros dans des pastilles de la palette */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; }
+.steps > li { position: relative; padding-left: 52px; }
+.num {
+  position: absolute; left: 0; top: -4px; width: 36px; height: 36px; border-radius: 50%;
+  border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
+  display: grid; place-items: center; font-weight: 900; font-size: 16px;
+}
+h2 { margin: 0 0 4px; font-size: 17px; font-weight: 900; line-height: 1.3; }
+.steps p { margin: 0 0 6px; color: rgba(15, 59, 66, .78); }
+.steps p:last-child { margin-bottom: 0; }
+/* Libellés de Spotify, tels qu'à l'écran */
+.ui { color: var(--ink); font-weight: 900; }
+.val {
+  display: inline-block; padding: 0 10px; border-radius: 10px; border: 2px solid var(--ink);
+  background: #f5fbfb; color: var(--ink); font-weight: 900; line-height: 24px;
+}
+.fields { display: grid; grid-template-columns: minmax(0, 160px) 1fr; gap: 12px 16px; margin: 12px 0 0; align-items: start; }
+.fields dt { font-weight: 900; }
+.fields dd { margin: 0; color: rgba(15, 59, 66, .78); min-width: 0; }
+.warn { padding: 8px 12px; border-radius: 14px; border: 2px solid var(--ink); background: #f6c6da; color: var(--ink) !important; font-weight: 800; }
+
+/* Pilules et champs : ceux du lanceur (montent de 1 px au survol, s'enfoncent au clic) */
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 20px;
+  border: 2.5px solid var(--ink); background: #fff; color: var(--ink); box-shadow: 0 3px 0 var(--ink);
+  font: inherit; font-weight: 900; font-size: 14px; text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: transform .12s, box-shadow .12s, background .15s;
+}
+.pill:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink); }
+.pill:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.pill:focus-visible, .field:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.pill.done { background: var(--fill); }
+.pill.ink { background: var(--ink); color: #fff; box-shadow: 0 3px 0 var(--ink-deep); }
+.pill.ink:hover { box-shadow: 0 4px 0 var(--ink-deep); }
+.pill.ink:active { box-shadow: 0 1px 0 var(--ink-deep); }
+.link { margin: 4px 0 8px; }
+.row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.field {
+  flex: 1; min-width: 0; height: 44px; padding: 0 16px; border-radius: 22px;
+  border: 2.5px solid var(--ink); background: #fff; box-shadow: 0 3px 0 var(--ink);
+  color: var(--ink); font: inherit; font-weight: 800; font-size: 15px; outline: none;
+  transition: background .15s;
+}
+.field:focus { background: color-mix(in srgb, var(--fill) 45%, #fff); }
+.field::placeholder { color: rgba(15, 59, 66, .55); }
+.address {
+  display: flex; align-items: center; overflow-x: auto; white-space: nowrap; user-select: all;
+  font-family: Consolas, 'Cascadia Mono', monospace; font-weight: 700; font-size: 13.5px; height: 40px; box-shadow: none;
+  background: color-mix(in srgb, var(--fill) 45%, #fff);
+}
+.paste .pill { height: 44px; border-radius: 22px; padding: 0 22px; font-size: 15px; }
+.error {
+  margin: 12px 0 0 !important; padding: 10px 14px; border-radius: 18px; border: 2px solid var(--ink);
+  background: #ffe08a; color: var(--ink) !important; font-weight: 800;
+}
+
+/* Un souci ? */
+.help h2 { margin-bottom: 10px; }
+.help ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.help li { padding-left: 18px; position: relative; color: rgba(15, 59, 66, .78); }
+.help li::before {
+  content: ''; position: absolute; left: 0; top: .55em; width: 8px; height: 8px; border-radius: 50%;
+  border: 2px solid var(--ink); background: var(--fill);
+}
+footer { text-align: center; font-size: 13px; color: rgba(15, 59, 66, .55); }
+
+@media (max-width: 560px) {
+  body { padding-top: 24px; }
+  .card { padding: 18px 16px; }
+  .steps > li { padding-left: 46px; }
+  .fields { grid-template-columns: 1fr; gap: 2px; }
+  .fields dd { margin-bottom: 10px; }
+  .row { flex-wrap: wrap; }
+  .row .field { flex-basis: 100%; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg viewBox="0 0 1024 1024" aria-hidden="true">
+      <rect x="80" y="103" width="864" height="864" rx="290" fill="#0f3b42"/>
+      <rect x="80" y="58" width="864" height="864" rx="290" fill="#9fe0dc" stroke="#0f3b42" stroke-width="37"/>
+      <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" transform="translate(248 226) scale(22)"
+            fill="none" stroke="#0f3b42" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <h1>Connecter Spotify</h1>
+      <p class="lead">à Pastille, en cinq étapes</p>
+    </div>
+  </header>
+
+  <section class="card">
+    <p>Pastille montre déjà le morceau en cours et règle le volume de Spotify dans Windows. Une fois Spotify connecté, Pastille règle aussi le volume de Spotify lui-même (même quand la musique joue sur ton téléphone), l'aléatoire et la répétition.</p>
+    <p class="soft">Spotify demande à chacun de créer sa propre «&nbsp;app&nbsp;» de développeur&nbsp;: c'est gratuit, ça prend deux minutes, et Pastille n'utilise que son identifiant.</p>
+    <div class="note premium">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+      <span>Il faut un compte Spotify Premium&nbsp;: Spotify l'exige pour piloter la lecture.</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <ol class="steps">
+      <li>
+        <span class="num" style="background:#9fe0dc">1</span>
+        <h2>Ouvre le tableau de bord de Spotify</h2>
+        <p class="link">
+          <a class="pill" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">
+            developer.spotify.com/dashboard
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
+          </a>
+        </p>
+        <p>Connecte-toi avec ton compte Spotify. La première fois, Spotify te fait accepter ses conditions (<span class="ui">«&nbsp;Accept the terms&nbsp;»</span>) et parfois confirmer ton adresse e-mail&nbsp;: clique sur le lien du mail reçu, puis reviens au tableau de bord.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#f6c6da">2</span>
+        <h2>Crée une app</h2>
+        <p>En haut à droite du tableau de bord, clique sur <span class="ui">«&nbsp;Create app&nbsp;»</span>.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#c9d8ff">3</span>
+        <h2>Remplis le formulaire</h2>
+        <dl class="fields">
+          <dt>App name</dt>
+          <dd><span class="val">Pastille</span></dd>
+          <dt>App description</dt>
+          <dd><span class="val">Lanceur Pastille</span></dd>
+          <dt>Website</dt>
+          <dd>Laisse vide.</dd>
+          <dt>Redirect URIs</dt>
+          <dd>
+            Colle exactement cette adresse, puis clique sur <span class="ui">«&nbsp;Add&nbsp;»</span>&nbsp;:
+            <span class="row">
+              <span class="field address" id="redirect">{{redirect}}</span>
+              <button class="pill" type="button" data-copy="redirect">Copier</button>
+            </span>
+          </dd>
+          <dt>Which API/SDKs are you planning to use?</dt>
+          <dd>Coche <span class="ui">«&nbsp;Web API&nbsp;»</span>.</dd>
+        </dl>
+        <p style="margin-top:12px">En bas, coche <span class="ui">«&nbsp;I understand and agree…&nbsp;»</span>, puis clique sur <span class="ui">«&nbsp;Save&nbsp;»</span>.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#ffe08a">4</span>
+        <h2>Copie le Client ID</h2>
+        <p>La page de ton app s'ouvre. Dans <span class="ui">«&nbsp;Basic Information&nbsp;»</span> (sinon, bouton <span class="ui">«&nbsp;Settings&nbsp;»</span>), copie le <span class="ui">«&nbsp;Client ID&nbsp;»</span>&nbsp;: 32 lettres et chiffres.</p>
+        <p class="warn">Pas le «&nbsp;Client secret&nbsp;» (derrière «&nbsp;View client secret&nbsp;»)&nbsp;: Pastille n'en a pas besoin, et il ne se donne à personne.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#9fe0dc">5</span>
+        <h2>Colle-le ici</h2>
+        <form class="paste row" action="/identifiant" method="get" autocomplete="off">
+          <input type="hidden" name="n" value="{{nonce}}">
+          <input class="field" id="id" name="id" value="{{id}}" placeholder="Client ID" spellcheck="false" maxlength="100" aria-label="Client ID">
+          <button class="pill ink" type="submit">Connecter</button>
+        </form>
+        {{error}}
+        <p style="margin-top:12px">Spotify te demande ensuite d'autoriser Pastille&nbsp;: clique sur <span class="ui">«&nbsp;Accepter&nbsp;»</span>. C'est fini&nbsp;!</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="card help">
+    <h2>Un souci&nbsp;?</h2>
+    <ul>
+      <li>Spotify affiche <span class="ui">«&nbsp;INVALID_CLIENT: Invalid redirect URI&nbsp;»</span>&nbsp;: sur le tableau de bord, ouvre ton app, <span class="ui">«&nbsp;Settings&nbsp;»</span> puis <span class="ui">«&nbsp;Edit&nbsp;»</span>, et mets dans <span class="ui">«&nbsp;Redirect URIs&nbsp;»</span> l'adresse de l'étape 3 (bouton Copier), <span class="ui">«&nbsp;Add&nbsp;»</span>, puis <span class="ui">«&nbsp;Save&nbsp;»</span> en bas. Reviens ensuite ici avec la flèche ← du navigateur et clique à nouveau sur Connecter.</li>
+      <li>Spotify affiche <span class="ui">«&nbsp;INVALID_CLIENT: Invalid client&nbsp;»</span>&nbsp;: ce n'est pas le bon identifiant (souvent le Client secret à sa place). Reviens ici avec ←, colle le Client ID de l'étape 4 et clique à nouveau sur Connecter.</li>
+      <li>Le bouton <span class="ui">«&nbsp;Create app&nbsp;»</span> ne marche pas&nbsp;: confirme d'abord ton adresse e-mail (lien dans le mail de Spotify), puis recharge le tableau de bord.</li>
+      <li>Cette page attend 15 minutes. Passé ce délai, ou si tu fermes l'onglet, rouvre-la depuis le menu de Pastille (clic droit sur son icône, près de l'heure)&nbsp;: <span class="ui">«&nbsp;Connecter Spotify…&nbsp;»</span>.</li>
+    </ul>
+  </section>
+
+  <footer>Cette page vient de Pastille, sur ton PC&nbsp;: ton identifiant ne part que chez Spotify.</footer>
+</main>
+<script>
+  // Copier : presse-papiers (adresse locale : contexte sûr), sinon sélection classique
+  for (const button of document.querySelectorAll('[data-copy]')) {
+    button.addEventListener('click', async () => {
+      const source = document.getElementById(button.dataset.copy);
+      try {
+        await navigator.clipboard.writeText(source.textContent.trim());
+      } catch {
+        getSelection().selectAllChildren(source);
+        document.execCommand('copy');
+      }
+      button.classList.add('done');
+      button.textContent = 'Copiée';
+      clearTimeout(button.timer);
+      button.timer = setTimeout(() => {
+        button.classList.remove('done');
+        button.textContent = 'Copier';
+      }, 1600);
+    });
+  }
+  // Identifiant refusé : le champ, prêt à corriger
+  if (document.querySelector('.error')) {
+    const input = document.getElementById('id');
+    input.focus();
+    input.select();
+    input.scrollIntoView({ block: 'center' });
+  }
+</script>
+</body>
+</html>

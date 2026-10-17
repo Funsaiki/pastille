@@ -17,8 +17,7 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
     let edit = MenuItem::with_id(app, "edit", "Modifier apps.json", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, "reload", "Recharger la config", true, None::<&str>)?;
     // Volume interne de Spotify par son API web (spotify.rs) : connexion dans le navigateur
-    let (label, enabled) = spotify::menu_label(app);
-    let spotify_item = MenuItem::with_id(app, "spotify", label, enabled, None::<&str>)?;
+    let spotify_item = MenuItem::with_id(app, "spotify", spotify::menu_label(app), true, None::<&str>)?;
     spotify::set_menu_item(app, spotify_item.clone());
     // Barre pastel à la place de celle de Windows (bar.rs) : seul Funsaiki la coche
     let bar_item = CheckMenuItem::with_id(app, "bar", "Barre pastel", true, bar::is_active(app), None::<&str>)?;

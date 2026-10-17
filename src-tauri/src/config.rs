@@ -393,8 +393,9 @@ fn ensure_file(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// Développement seulement : le premier lancement d'un nouvel utilisateur (l'exemple, la
-/// bienvenue), sans toucher à apps.json ($env:PASTILLE_EXEMPLE = 1 avant npm run tauri dev)
-fn example_mode() -> bool {
+/// bienvenue, Spotify à brancher), sans toucher à apps.json ni à spotify.json
+/// ($env:PASTILLE_EXEMPLE = 1 avant npm run tauri dev)
+pub(crate) fn example_mode() -> bool {
     cfg!(debug_assertions) && std::env::var_os("PASTILLE_EXEMPLE").is_some()
 }
 
