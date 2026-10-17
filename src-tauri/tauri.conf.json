@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Lanceur pastel",
-  "version": "1.6.0",
+  "productName": "Pastille",
+  "mainBinaryName": "pastille",
+  "version": "1.7.0",
   "identifier": "dev.lanceur.pastel",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -13,7 +14,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "Lanceur pastel",
+        "title": "Pastille",
         "width": 1440,
         "height": 900,
         "center": true,

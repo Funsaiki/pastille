@@ -251,7 +251,7 @@ mod tests {
         assert!(!is_app("PostgreSQL documentation", r"file://F:\Program Files\PostgreSQL\17/doc/index.html"));
         assert!(!is_app("README", r"{6D809377-6AF0-444B-8957-A3773F02200E}\MKVToolNix\doc\README.txt"));
         assert!(!is_app("PuTTY Web Site", r"{6D809377-6AF0-444B-8957-A3773F02200E}\PuTTY\website.url"));
-        assert!(!is_app("Lanceur pastel", "dev.lanceur.pastel"));
+        assert!(!is_app("Pastille", "dev.lanceur.pastel"));
     }
 
     /// Diagnostic sur le PC (lecture seule, rien n'est lancé) :

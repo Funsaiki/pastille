@@ -327,7 +327,7 @@ fn page(result: &Result<(), String>) -> String {
         Err(e) => ("Connexion à Spotify impossible", e.as_str()),
     };
     format!(
-        r#"<!doctype html><html lang="fr"><meta charset="utf-8"><title>Lanceur pastel</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#e2f5f4;font-family:Nunito,'Segoe UI',sans-serif;color:#0f3b42"><div style="max-width:420px;padding:26px 32px;border:3px solid #0f3b42;border-radius:26px;background:#fff;box-shadow:0 4px 0 #0f3b42"><h1 style="margin:0 0 8px;font-size:22px">{title}</h1><p style="margin:0;font-weight:600">{}</p></div></body></html>"#,
+        r#"<!doctype html><html lang="fr"><meta charset="utf-8"><title>Pastille</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#e2f5f4;font-family:Nunito,'Segoe UI',sans-serif;color:#0f3b42"><div style="max-width:420px;padding:26px 32px;border:3px solid #0f3b42;border-radius:26px;background:#fff;box-shadow:0 4px 0 #0f3b42"><h1 style="margin:0 0 8px;font-size:22px">{title}</h1><p style="margin:0;font-weight:600">{}</p></div></body></html>"#,
         escape(text)
     )
 }

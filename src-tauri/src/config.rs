@@ -392,8 +392,8 @@ fn apply_shortcut(app: &AppHandle, s: &mut ConfigState) {
 
 pub fn tooltip(s: &ConfigState) -> String {
     match &s.registered {
-        Some(shortcut) => format!("Lanceur pastel ({shortcut})"),
-        None => "Lanceur pastel (aucun raccourci)".into(),
+        Some(shortcut) => format!("Pastille ({shortcut})"),
+        None => "Pastille (aucun raccourci)".into(),
     }
 }
 
