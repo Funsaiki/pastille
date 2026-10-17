@@ -188,15 +188,30 @@ button { font-family: inherit; }
 .bar-cal-notif:hover { background: var(--fill); }
 
 /* ── Lecteur : la carte de lecture du téléphone (styles.css, mêmes tailles), au-dessus de la
-   tuile de Spotify comme le calendrier au-dessus de l'heure ── */
+   tuile de Spotify comme le calendrier au-dessus de l'heure. Ouverture (demande de Funsaiki) :
+   en plus du fondu et de la montée des autres cartes, la bulle part d'un rond de 68 px au-dessus
+   de la tuile (sa pointe) et s'ouvre en largeur vers les côtés, avec un léger rebond ; le contenu
+   apparaît une fois la bulle presque ouverte. Fermeture : la bulle se referme vers sa pointe.
+   La bulle (fond, bord, ombre) est dessinée par ::before : le contenu ne se déforme pas. ── */
 .bar-player {
-  position: fixed; width: 354px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 9px;
-  border-radius: 24px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
-  opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+  position: fixed; width: 354px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 11.5px 12.5px 11.5px 11.5px;
+  opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .1s ease .15s, translate .25s var(--ease), visibility 0s .25s;
 }
 .bar-player.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
+.bar-player::before {
+  content: ''; position: absolute; z-index: -1; top: 0; bottom: 0;
+  left: calc(var(--arrow, 50%) - 34px); right: calc(100% - var(--arrow, 50%) - 34px);
+  box-sizing: border-box; border-radius: 34px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
+  transition: left .25s cubic-bezier(.4, -.3, .7, .3), right .25s cubic-bezier(.4, -.3, .7, .3), border-radius .25s ease;
+}
+.bar-player.open::before {
+  left: 0; right: 0; border-radius: 24px;
+  transition: left .45s cubic-bezier(.34, 1.4, .64, 1), right .45s cubic-bezier(.34, 1.4, .64, 1), border-radius .3s var(--ease);
+}
+.bar-player > * { opacity: 0; transition: opacity .1s ease; }
+.bar-player.open > * { opacity: 1; transition: opacity .2s ease .15s; }
 .bar-player::after {
-  content: ''; position: absolute; bottom: -9px; left: calc(var(--arrow, 50%) - 7px); width: 14px; height: 14px;
+  content: ''; position: absolute; bottom: -6.5px; left: calc(var(--arrow, 50%) - 7px); width: 14px; height: 14px;
   box-sizing: border-box; border: solid var(--ink); border-width: 0 2.5px 2.5px 0; border-radius: 0 0 3px 0;
   background: #ffffff; rotate: 45deg;
 }

@@ -634,14 +634,18 @@ function togglePlayer(open = !playerOpen()) {
   closeMenu(false);
   if (open && popOpen()) togglePop(false);
   if (open && calOpen()) toggleCal(false);
-  $('bar-player').classList.toggle('open', open);
+  const card = $('bar-player');
+  if (open && !playerOpen()) {
+    place(card, $('bar-music'), $('bar'));
+    void card.offsetWidth;   // la bulle part de sa pointe à sa nouvelle place, pas de l'ancienne
+  }
+  card.classList.toggle('open', open);
   $('bar-music').setAttribute('aria-expanded', String(open));
   clearInterval(spotifyTimer);
   if (open) {
     renderMedia();
     refreshSpotify();
     spotifyTimer = window.setInterval(refreshSpotify, SPOTIFY_MS);
-    place($('bar-player'), $('bar-music'), $('bar'));
   } else {
     $('bar-player-eq').classList.remove('on');
     autoHide();
