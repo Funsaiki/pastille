@@ -88,6 +88,7 @@ async function refreshWindows() {
     windows = list.map((w) => ({ ...w, icon: icons.get(w.key) ?? null }));
   }
   renderWindows();
+  updatePreview();
 }
 
 function groups(): Group[] {
@@ -194,8 +195,9 @@ const PREVIEW_SETTLE = 200;  // arrivée de la carte (.bar-preview)
 const PREVIEW_MAX = 5;
 const THUMB_H = 112;
 const THUMB_INSET = 6;       // la vignette de Windows est rectangulaire : dans le cadre arrondi
+const CLOSING_MS = 1500;     // fenêtre qui ne se ferme pas (elle demande d'enregistrer) : plus grisée
 
-let preview: { tile: HTMLElement } | null = null;
+let preview: { tile: HTMLElement; group: Group } | null = null;
 let previewAsked = false;    // vignettes demandées à Rust, à libérer
 let previewRun = 0;
 let previewTimer = 0;
@@ -219,17 +221,31 @@ async function openPreview(g: Group, tile: HTMLElement) {
   const sizes = await host.barPreview(list.map((w) => w.id)).catch(() => null);
   // Autre tuile survolée, souris partie, menu ou carte ouverts, pilule rentrée entre-temps
   if (run !== previewRun) return;
-  if (!sizes || menu || cardOpen() || !shown || !tile.isConnected || !tile.matches(':hover')) {
+  const card = $('bar-preview');
+  const hovered = tile.matches(':hover') || card.matches(':hover');
+  if (!sizes || menu || cardOpen() || !shown || !tile.isConnected || !hovered) {
     closePreview();
     return;
   }
-  const card = $('bar-preview');
+  // Refaite carte ouverte (fenêtre fermée depuis l'aperçu) : vignettes posées tout de suite
+  const settled = card.classList.contains('open');
   card.replaceChildren(...list.map((w, i) => previewItem(w, sizes[i], i)));
-  preview = { tile };
+  preview = { tile, group: g };
   card.classList.add('open');
   place(card, tile);
   reportRects();
-  window.setTimeout(() => run === previewRun && placeThumbs(), PREVIEW_SETTLE);
+  window.setTimeout(() => run === previewRun && placeThumbs(), settled ? 0 : PREVIEW_SETTLE);
+}
+
+/* Fenêtres du programme de l'aperçu changées (une fermée depuis l'aperçu, une nouvelle) :
+   l'aperçu est refait, ou fermé s'il n'en reste plus */
+function updatePreview() {
+  if (!preview) return;
+  const { tile, group } = preview;
+  const now = windows.filter((w) => w.key === group.key);
+  if (now.map((w) => w.id).join() === group.windows.map((w) => w.id).join()) return;
+  if (now.length) openPreview({ ...group, windows: now }, tile);
+  else closePreview();
 }
 
 /* `render` : listes arrivées pendant l'aperçu, sauf quand un menu s'ouvre (il s'accroche à sa
@@ -269,8 +285,18 @@ function previewItem(w: BarWindow, size: [number, number] | null, i: number) {
   item.setAttribute('aria-label', windowLabel(w));
   const badge = el('span', 'bar-shot-icon');
   fillTile(badge, w.app, w.icon, w.glyph, i, 14);
+  // Pas de bouton dans un bouton : le × est un rond cliquable (la barre ne prend pas le clavier)
+  const close = el('span', 'bar-shot-close');
+  close.title = 'Fermer la fenêtre';
+  close.append(icon(CLOSE, 11, 2.8));
+  close.addEventListener('click', (e) => {
+    e.stopPropagation();
+    item.classList.add('closing');
+    window.setTimeout(() => item.classList.remove('closing'), CLOSING_MS);
+    act(() => host.closeWindow(w.id));
+  });
   item.append(el('span', 'bar-shot-head'));
-  item.firstElementChild!.append(badge, el('span', 'bar-shot-title', w.title));
+  item.firstElementChild!.append(badge, el('span', 'bar-shot-title', w.title), close);
   const box = el('span', 'bar-thumb');
   box.style.width = (size ? Math.min(200, Math.max(84, (THUMB_H * size[0]) / Math.max(1, size[1]))) : 150) + 'px';
   if (!size || PREVIEW) {

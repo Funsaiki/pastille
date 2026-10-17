@@ -292,7 +292,7 @@ button { font-family: inherit; }
 
 /* ── Aperçu au survol d'une tuile : carte blanche au-dessus d'elle, pointe vers elle ; un cadre
    par fenêtre, à sa proportion, où Windows dessine la vignette en direct (6 px à l'intérieur) ;
-   cadre accent au survol ── */
+   cadre accent au survol, et un × pour la fermer à côté de son titre ── */
 .bar-preview {
   position: fixed; z-index: 1; display: flex; gap: 10px; padding: 10px 10px 12px; border-radius: 20px;
   border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
@@ -316,6 +316,17 @@ button { font-family: inherit; }
 }
 .bar-shot-icon canvas { width: 16px; height: 16px; }
 .bar-shot-title { min-width: 0; flex: 1; width: 0; font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Fermer (demande de Funsaiki) : rond de 18 px au survol du cadre, rose sous la souris comme
+   Fermer dans les menus ; pas sur la vignette, que Windows dessine par-dessus la page */
+.bar-shot-close {
+  width: 18px; height: 18px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .15s, background .15s;
+}
+.bar-shot:hover .bar-shot-close { opacity: 1; }
+.bar-shot-close:hover { background: #f6c6da; }
+.bar-shot-close:active { translate: 0 1px; }
+/* Fermeture demandée : grisée le temps que la fenêtre se ferme (ou demande d'enregistrer) */
+.bar-shot.closing { opacity: .45; pointer-events: none; transition: opacity .15s; }
 .bar-thumb {
   height: 112px; box-sizing: border-box; border-radius: 12px; border: 2px solid var(--ink);
   background: color-mix(in srgb, var(--fill) 28%, #ffffff); box-shadow: 0 3px 0 var(--ink);
