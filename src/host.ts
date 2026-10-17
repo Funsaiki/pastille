@@ -70,6 +70,7 @@ export interface SpotifyState {
   shuffle: ShuffleMode | null;    // aléatoire et répétition : Spotify connecté seulement
   repeat: RepeatMode | null;
   problem: string | null;         // dernier échec de connexion, pour les notifications
+  reconnect: boolean;             // connexion d'avant les playlists : à refaire
 }
 
 /* Fenêtre ouverte, pour la recherche (open_windows.rs) */
@@ -249,8 +250,17 @@ export const host = {
     else await invoke('set_app_volume', { key, level });
   },
   async spotifyState(): Promise<SpotifyState> {
-    if (PREVIEW) return { volume: { source: 'app', key: '', volume: 80 }, shuffle: previewShuffle, repeat: previewRepeat, problem: null };
+    if (PREVIEW) {
+      // ?reconnecter : connexion d'avant les playlists
+      const reconnect = new URLSearchParams(location.search).has('reconnecter');
+      return { volume: { source: 'app', key: '', volume: 80 }, shuffle: previewShuffle, repeat: previewRepeat, problem: null, reconnect };
+    }
     return invoke<SpotifyState>('spotify_state');
+  },
+  /* Connexion à refaire (playlists) : autorisation dans le navigateur, comme l'entrée du menu */
+  async spotifyReconnect() {
+    if (PREVIEW) console.info('[aperçu] reconnecter Spotify');
+    else await invoke('spotify_reconnect');
   },
   async setSpotifyShuffle(on: boolean) {
     if (PREVIEW) previewShuffle = on ? 'on' : 'off';

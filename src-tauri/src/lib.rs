@@ -95,6 +95,7 @@ pub fn run() {
             mixer::mixer,
             mixer::set_app_volume,
             spotify::spotify_state,
+            spotify::spotify_reconnect,
             spotify::set_spotify_shuffle,
             spotify::set_spotify_repeat,
             open_windows::open_windows,

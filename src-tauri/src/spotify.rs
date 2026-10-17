@@ -176,6 +176,19 @@ fn update_menu(app: &AppHandle) {
     }
 }
 
+/// Clic sur la notification « Reconnecter » : comme l'entrée du menu, sans jamais déconnecter
+#[tauri::command]
+pub fn spotify_reconnect(app: AppHandle) -> Result<(), String> {
+    match status(&app) {
+        Status::Outdated | Status::Disconnected => {
+            toggle(&app);
+            Ok(())
+        }
+        Status::Connected => Err("Spotify est déjà connecté.".into()),
+        Status::NoClient => Err("Identifiant de l'app Spotify absent de spotify.json.".into()),
+    }
+}
+
 /// Clic sur l'entrée : connexion dans le navigateur (hors du fil principal), ou déconnexion
 pub fn toggle(app: &AppHandle) {
     match status(app) {
@@ -487,6 +500,8 @@ pub struct PlayerState {
     repeat: Option<String>,
     /// Dernier échec de connexion, pour les notifications
     problem: Option<String>,
+    /// Connexion d'avant les playlists (Status::Outdated) : notification « Reconnecter »
+    reconnect: bool,
 }
 
 /// Appareil où Spotify joue (ce PC, ou le téléphone par Spotify Connect) ; None sans appareil actif
@@ -499,7 +514,7 @@ struct Player {
 #[tauri::command]
 pub async fn spotify_state(app: AppHandle) -> PlayerState {
     crate::blocking(move || {
-        let mut state = PlayerState { volume: None, shuffle: None, repeat: None, problem: None };
+        let mut state = PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false };
         if connected(&app) {
             match player(&app) {
                 Ok(Some(player)) => {
@@ -515,10 +530,12 @@ pub async fn spotify_state(app: AppHandle) -> PlayerState {
                 .map(|(key, volume)| Volume { source: "windows", key, volume });
         }
         state.problem = app.state::<Spotify>().auth.lock().unwrap().problem.clone();
+        // Connu après le premier jeton (ses portées) : la lecture ci-dessus en demande un
+        state.reconnect = status(&app) == Status::Outdated;
         state
     })
     .await
-    .unwrap_or(PlayerState { volume: None, shuffle: None, repeat: None, problem: None })
+    .unwrap_or(PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false })
 }
 
 /// Volume de Spotify lui-même (connecté seulement ; sinon le front passe par le mélangeur)

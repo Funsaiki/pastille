@@ -482,6 +482,7 @@ let spotifyVolume: SpotifyVolume | null = null;
 // Aléatoire et répétition (demandés par Funsaiki) : Spotify connecté et appareil actif seulement
 let spotifyModes: { shuffle: ShuffleMode; repeat: RepeatMode } | null = null;
 let spotifyProblem: string | null = null;   // échec de connexion, montré dans Notifs
+let spotifyReconnect = false;               // connexion d'avant les playlists, montrée dans Notifs
 let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
 let spotifyHold = 0;          // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
 let spotifyReading = false;   // une lecture à la fois (une requête lente ne s'empile pas)
@@ -500,8 +501,9 @@ async function refreshSpotifyVolume() {
   spotifyVolume = now.volume;
   spotifyModes = now.shuffle != null && now.repeat ? { shuffle: now.shuffle, repeat: now.repeat } : null;
   renderSpotifyVolume();
-  if (now.problem !== spotifyProblem) {
+  if (now.problem !== spotifyProblem || now.reconnect !== spotifyReconnect) {
     spotifyProblem = now.problem;
+    spotifyReconnect = now.reconnect;
     renderNotifs();
   }
 }
@@ -665,6 +667,10 @@ function allNotifs(): Notif[] {
   const problems: Notif[] = configProblems.map((p) => ({ id: 'config:' + p, title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
   if (actionError) problems.unshift({ id: 'action:' + actionError.text, title: actionError.title, when: 'à l’instant', body: actionError.text, d: ALERT, bg: '#ffe08a' });
   if (spotifyProblem) problems.push({ id: 'spotify:' + spotifyProblem, title: 'Spotify', when: '', body: spotifyProblem, d: ALERT, bg: '#ffe08a' });
+  // Connexion d'avant les playlists (demandé par Funsaiki) : un clic la refait dans le navigateur
+  if (spotifyReconnect) {
+    problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: 'Reconnecter pour voir les playlists', d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
+  }
   return [...problems, ...feed.map(feedNotif)];
 }
 
