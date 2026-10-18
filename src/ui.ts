@@ -10,7 +10,7 @@ import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { EYE, ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
 import { el, iconCanvas, latestOnly } from './dom';
-import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp, type Welcome } from './host';
+import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp, type TrayClick, type Welcome } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
@@ -838,7 +838,9 @@ function stopPaneAnimations() {
 
 /* ── Applications de la zone de notification (onglet Apps) : relues à l'affichage de la vue
    réglages puis toutes les 5 s. Clic : ouvrir ; clic droit : le menu du lanceur (ceux des
-   icônes ne sont pas accessibles, voir tray_apps.rs). ── */
+   icônes ne sont pas accessibles, voir tray_apps.rs). Barre pastel cochée, Pastille tient la
+   zone de notification (tray_host.rs) : clics et clic droit vont à l'application, comme sur son
+   icône ; Maj+clic droit ou touche Menu : le menu du lanceur. ── */
 const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
 const CLOSE = 'M6 6l12 12M18 6L6 18';
 
@@ -893,7 +895,7 @@ function renderTrayApps() {
 function trayTile(app: TrayApp, i: number) {
   const b = el('button', 'tp-press tray-app');
   b.dataset.key = app.key;
-  b.title = app.name;
+  b.title = app.tip ?? app.name;
   b.setAttribute('aria-label', app.name);
   // Icône du programme ; à défaut, son initiale sur une couleur de la palette
   if (app.icon) {
@@ -902,10 +904,33 @@ function trayTile(app: TrayApp, i: number) {
     b.textContent = app.name.charAt(0).toUpperCase();
     b.style.setProperty('--tile', palette()[i % 4]);
   }
-  b.addEventListener('click', () => runAction('Lancement', () => host.trayAppAction(app.key, 'open')));
+  if (!app.clicks) {
+    b.addEventListener('click', () => runAction('Lancement', () => host.trayAppAction(app.key, 'open')));
+    b.addEventListener('contextmenu', (e) => {
+      e.preventDefault();   // pas le menu de WebView2
+      openTrayMenu(app, b);
+    });
+    return b;
+  }
+  // Le lanceur se masque quand l'application passe au premier plan (sa fenêtre, son menu) ;
+  // il reste ouvert pour le second clic d'une application qui attend un double clic
+  const send = (kind: TrayClick) => host.trayClick(app.key, kind).catch((e) => report('Lancement', e));
+  b.addEventListener('click', (e) => send(e.detail === 0 ? 'key' : e.detail > 1 ? 'double' : 'left'));
+  b.addEventListener('mousedown', (e) => {
+    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+  });
+  b.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    send('middle');
+  });
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();   // pas le menu de WebView2
-    openTrayMenu(app, b);
+    if (e.shiftKey || e.button !== 2) {
+      openTrayMenu(app, b);
+    } else {
+      send('right');
+    }
   });
   return b;
 }

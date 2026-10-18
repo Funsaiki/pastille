@@ -5,7 +5,8 @@
 //! les 250 ms pour un Explorateur relancé). Essai du 16/10/2026 chez Funsaiki : jamais visible.
 //! Rien dans le registre ; elles reviennent à l'arrêt (`restore`), et au démarrage si la barre
 //! pastel est coupée. Arrêt brutal du lanceur (plantage, Gestionnaire des tâches) : un processus
-//! de garde les réaffiche (`spawn_guard`, demande de Funsaiki).
+//! de garde les réaffiche (`spawn_guard`, demande de Funsaiki). Pendant ce temps, Pastille tient
+//! aussi la zone de notification (tray_host.rs), sur le même fil.
 
 use std::os::windows::process::CommandExt;
 use std::process::{Command, Stdio};
@@ -52,10 +53,12 @@ pub fn hide() {
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
             );
             let timer = SetTimer(None, 0, 250, Some(on_tick));
+            crate::tray_host::start();
             let mut msg = MSG::default();
             while GetMessageW(&mut msg, None, 0, 0).as_bool() {
                 DispatchMessageW(&msg);
             }
+            crate::tray_host::stop();
             let _ = KillTimer(None, timer);
             if !hook.is_invalid() {
                 let _ = UnhookWinEvent(hook);
@@ -139,12 +142,14 @@ fn is_bar(hwnd: HWND) -> bool {
 }
 
 /// Demandées à Windows par leur classe, sans passer en revue toutes les fenêtres (326 chez
-/// Funsaiki : 0,25 ms à chaque relevé, contre 7 µs)
+/// Funsaiki : 0,25 ms à chaque relevé, contre 7 µs). Pas la « Shell_TrayWnd » de Pastille.
 fn for_each_bar(mut f: impl FnMut(HWND)) {
     for class in [w!("Shell_TrayWnd"), w!("Shell_SecondaryTrayWnd")] {
         let mut after = None;
         while let Ok(bar) = unsafe { FindWindowExW(None, after, class, None) } {
-            f(bar);
+            if !crate::tray_host::own(bar) {
+                f(bar);
+            }
             after = Some(bar);
         }
     }
@@ -165,11 +170,13 @@ unsafe extern "system" fn on_show(
     }
 }
 
-/// Barre réapparue sans événement (Explorateur relancé, nouvel écran)
+/// Barre réapparue sans événement (Explorateur relancé, nouvel écran) ; zone de notification
+/// de Pastille passée derrière celle de Windows
 unsafe extern "system" fn on_tick(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
     for_each_bar(|bar| unsafe {
         if IsWindowVisible(bar).as_bool() {
             let _ = ShowWindow(bar, SW_HIDE);
         }
     });
+    crate::tray_host::keep_first();
 }

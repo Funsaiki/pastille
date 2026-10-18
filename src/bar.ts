@@ -425,20 +425,60 @@ function renderTray() {
 
 function trayTile(app: TrayApp, i: number) {
   const b = el('button', 'bar-tile tp-press');
-  b.title = app.name;
+  b.title = app.tip ?? app.name;
   b.setAttribute('aria-label', app.name);
   fillTile(b, app.name, app.icon, undefined, i, 24);
-  b.addEventListener('click', () => {
-    togglePop(false);
-    act(() => host.trayAppAction(app.key, 'open'));
-  });
-  b.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    // Pas d'emplacement pour une app du Store : son dossier est fermé
+  // Pas d'emplacement pour une app du Store : son dossier est fermé
+  const pastilleMenu = () => {
     const items = TRAY_ITEMS.filter((it) => !(it.action === 'location' && app.packaged));
     openMenu(b, app.name, items.map((it) => trayItem(app, it)));
+  };
+  if (!app.clicks) {
+    b.addEventListener('click', () => {
+      togglePop(false);
+      act(() => host.trayAppAction(app.key, 'open'));
+    });
+    b.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      pastilleMenu();
+    });
+    return b;
+  }
+  // Clics envoyés à l'application, comme sur son icône dans la barre de Windows (tray_host.rs).
+  // La zone se referme après le temps d'un double clic : certaines ne s'ouvrent qu'ainsi.
+  b.addEventListener('click', (e) => {
+    act(() => host.trayClick(app.key, e.detail === 0 ? 'key' : e.detail > 1 ? 'double' : 'left'));
+    closePopSoon();
+  });
+  b.addEventListener('mousedown', (e) => {
+    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+  });
+  b.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    act(() => host.trayClick(app.key, 'middle'));
+  });
+  // Clic droit : le menu de l'application ; Maj+clic droit (ou touche Menu) : celui de Pastille,
+  // comme Maj+clic droit sur un bouton de la barre de Windows
+  b.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (e.shiftKey || e.button !== 2) {
+      pastilleMenu();
+      return;
+    }
+    togglePop(false);
+    act(() => host.trayClick(app.key, 'right'));
   });
   return b;
+}
+
+let popTimer = 0;
+
+function closePopSoon() {
+  clearTimeout(popTimer);
+  popTimer = window.setTimeout(() => {
+    if (popOpen() && !menu) togglePop(false);
+  }, 500);
 }
 
 /* Forcer à quitter : le premier clic demande confirmation ; la zone reste ouverte et l'app

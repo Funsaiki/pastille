@@ -112,13 +112,17 @@ export interface PinnedApp {
 
 /* Application de la zone de notification (tray_apps.rs) */
 export interface TrayApp {
-  key: string;        // chemin du programme, renvoyé pour agir (Rust vérifie qu'il est dans la liste)
+  key: string;        // chemin du programme ou « #n » (icône), renvoyé pour agir (Rust vérifie qu'il est dans la liste)
   name: string;
   icon: AppIcon | null;
   packaged: boolean;  // Microsoft Store : pas d'emplacement de fichier
+  clicks: boolean;    // ses clics vont à l'application, comme sur son icône (barre pastel cochée, tray_host.rs)
+  tip: string | null; // infobulle actuelle de son icône
 }
 
 export type TrayAction = 'open' | 'location' | 'quit';
+/* Clic sur une icône : double, le second clic d'un double clic ; key, Entrée */
+export type TrayClick = 'left' | 'double' | 'right' | 'middle' | 'key';
 
 /* Clic droit sur une application de la vue applications (app_menu.rs) : ce qu'elle permet en
    plus d'Ouvrir */
@@ -200,9 +204,17 @@ const previewSound: AudioState = { volume: 62, muted: false, mic_muted: true };
 let previewShuffle: ShuffleMode = 'smart';
 let previewRepeat: RepeatMode = 'off';
 
-/* Aperçu navigateur : applications de la zone de notification, sans leurs icônes */
-let previewTray: TrayApp[] = ['Discord', 'G HUB', 'Lightshot', 'Riot Client', 'Spotify', 'Steam', 'TranslucentTB', 'Wallpaper Engine']
-  .map((name) => ({ key: name, name, icon: null, packaged: name === 'Spotify' || name === 'TranslucentTB' }));
+/* Aperçu navigateur : applications de la zone de notification, sans leurs icônes ; leurs clics
+   vont à l'application (barre pastel cochée) */
+let previewTray: TrayApp[] = ['Discord', 'EarTrumpet', 'G HUB', 'Lightshot', 'Riot Client', 'Spotify', 'Steam', 'Wallpaper Engine']
+  .map((name) => ({
+    key: name,
+    name,
+    icon: null,
+    packaged: name === 'Spotify' || name === 'EarTrumpet',
+    clicks: true,
+    tip: name === 'EarTrumpet' ? 'EarTrumpet\nHaut-parleurs : 42 %' : name,
+  }));
 
 /* Aperçu navigateur : fenêtres des deux écrans de Funsaiki, sans leurs icônes */
 let previewBar: BarWindow[] = [
@@ -351,6 +363,14 @@ export const host = {
   async trayApps(): Promise<TrayApp[]> {
     if (PREVIEW) return [...previewTray];
     return invoke<TrayApp[]>('tray_apps');
+  },
+  /* Clic sur une icône qui a ses clics : envoyé à son application */
+  async trayClick(key: string, kind: TrayClick) {
+    if (PREVIEW) {
+      console.info('[aperçu] zone de notification : clic', kind, key);
+    } else {
+      await invoke('tray_click', { key, kind });
+    }
   },
   /* « quit » : arrêt forcé, à confirmer avant */
   async trayAppAction(key: string, action: TrayAction) {

@@ -5,6 +5,8 @@
 //! (HKCU\Control Panel\NotifyIconSettings, lu seulement) : on garde ceux qui tournent, sauf les
 //! composants de Windows et le lanceur lui-même. Le menu de chaque icône n'est pas accessible
 //! non plus : le lanceur a le sien (ouvrir, emplacement du fichier, forcer à quitter).
+//! Barre pastel cochée, Pastille tient elle-même la zone de notification (tray_host.rs) : la
+//! liste est celle des icônes, et leurs clics vont à leur application (son menu compris).
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -30,12 +32,17 @@ use crate::mixer::exe_path;
 
 #[derive(Serialize)]
 pub struct TrayApp {
-    /// Chemin du programme : le front le renvoie pour agir, Rust vérifie qu'il est dans la liste
+    /// Chemin du programme, ou « #n » pour une icône de la zone de notification de Pastille : le
+    /// front le renvoie pour agir, Rust vérifie qu'il est dans la liste
     key: String,
     name: String,
     icon: Option<crate::icon::Icon>,
     /// Application du Microsoft Store : lancée par son identifiant, son dossier est fermé
     packaged: bool,
+    /// Ses clics vont à l'application, comme sur son icône (tray_host.rs)
+    clicks: bool,
+    /// Infobulle actuelle de son icône (EarTrumpet y met le volume)
+    tip: Option<String>,
 }
 
 /// Par nom
@@ -48,9 +55,10 @@ pub async fn tray_apps() -> Vec<TrayApp> {
 #[tauri::command]
 pub async fn tray_app_action(key: String, action: String) -> Result<(), String> {
     crate::blocking(move || {
-        // Seulement un programme de la liste : le front ne peut rien lancer ni arrêter d'autre
-        let program = programs().into_iter().find(|p| p.path == key).ok_or("Cette application n'est plus ouverte.")?;
+        let program = program_of(&key)?;
         match action.as_str() {
+            // Une icône qui a ses clics : comme un clic dessus
+            "open" if key.starts_with('#') && crate::tray_host::click(&key, "left")? => Ok(()),
             "open" => open(&program.path),
             "location" => show_in_folder(&program.path),
             "quit" => quit(&program.path, &name_of(&program)),
@@ -60,6 +68,34 @@ pub async fn tray_app_action(key: String, action: String) -> Result<(), String> 
     .await?
 }
 
+/// Clic sur une icône de la zone de notification de Pastille, envoyé à son application :
+/// `kind` left, double (second clic d'un double clic), right, middle ou key (Entrée)
+#[tauri::command]
+pub async fn tray_click(key: String, kind: String) -> Result<(), String> {
+    crate::blocking(move || {
+        let program = program_of(&key)?;
+        match crate::tray_host::click(&key, &kind)? {
+            // Pas de message de rappel : ouverte comme avant
+            false if kind == "left" || kind == "key" => open(&program.path),
+            _ => Ok(()),
+        }
+    })
+    .await?
+}
+
+/// Seulement un programme de la liste : le front ne peut rien lancer ni arrêter d'autre
+fn program_of(key: &str) -> Result<Program, String> {
+    let gone = || "Cette application n'est plus ouverte.".to_string();
+    if key.starts_with('#') {
+        let path = crate::tray_host::pid_of(key).and_then(exe_path).ok_or_else(gone)?;
+        return match Excluded::new().contains(&path.to_lowercase()) {
+            true => Err(gone()),
+            false => Ok(Program { path, tooltip: None }),
+        };
+    }
+    programs().into_iter().find(|p| p.path == key).ok_or_else(gone)
+}
+
 struct Program {
     path: String,
     /// Infobulle de sa première icône
@@ -67,17 +103,63 @@ struct Program {
 }
 
 fn list() -> Vec<TrayApp> {
-    let mut apps: Vec<TrayApp> = programs()
-        .into_iter()
-        .map(|p| TrayApp {
-            name: name_of(&p),
-            icon: crate::icon::of(&p.path),
-            packaged: is_packaged(&p.path),
-            key: p.path,
-        })
-        .collect();
+    let mut apps: Vec<TrayApp> = match crate::tray_host::icons() {
+        Some(icons) => live(icons),
+        None => programs()
+            .into_iter()
+            .map(|p| TrayApp {
+                name: name_of(&p),
+                icon: crate::icon::of(&p.path),
+                packaged: is_packaged(&p.path),
+                key: p.path,
+                clicks: false,
+                tip: None,
+            })
+            .collect(),
+    };
     apps.sort_by_key(|app| crate::steam::normalize(&app.name));
     apps
+}
+
+/// Icônes de la zone de notification de Pastille, sans celles de Windows ni la sienne ; une
+/// tuile par icône (une application peut en avoir deux), l'icône de son programme
+fn live(icons: Vec<crate::tray_host::Live>) -> Vec<TrayApp> {
+    let excluded = Excluded::new();
+    icons
+        .into_iter()
+        .filter_map(|icon| {
+            let path = exe_path(icon.pid)?;
+            if excluded.contains(&path.to_lowercase()) {
+                return None;
+            }
+            let tip = icon.tip.trim().to_string();
+            let tooltip = tip.lines().next().map(|line| line.trim().to_string()).filter(|t| !t.is_empty());
+            let program = Program { path, tooltip };
+            Some(TrayApp {
+                name: name_of(&program),
+                icon: crate::icon::of(&program.path),
+                packaged: is_packaged(&program.path),
+                key: icon.key,
+                clicks: icon.clicks,
+                tip: (!tip.is_empty()).then_some(tip),
+            })
+        })
+        .collect()
+}
+
+/// Processus des programmes qui ont déjà eu une icône, sauf Windows et le lanceur : ceux à qui
+/// tray_host.rs redemande leurs icônes
+pub(crate) fn tray_pids() -> HashSet<u32> {
+    let excluded = Excluded::new();
+    let registered: HashSet<String> = registered().into_iter().map(|(path, _)| path.to_lowercase()).collect();
+    processes()
+        .into_iter()
+        .filter(|(_, path)| {
+            let lower = path.to_lowercase();
+            registered.contains(&lower) && !excluded.contains(&lower)
+        })
+        .map(|(pid, _)| pid)
+        .collect()
 }
 
 /// Noms déjà lus, par chemin : la liste est relue toutes les 5 s

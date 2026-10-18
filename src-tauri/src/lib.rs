@@ -23,6 +23,7 @@ mod system;
 mod taskbar;
 mod tray;
 mod tray_apps;
+mod tray_host;
 mod usage;
 
 use tauri::{Manager, RunEvent, WindowEvent};
@@ -108,6 +109,7 @@ pub fn run() {
             feed::open_download,
             tray_apps::tray_apps,
             tray_apps::tray_app_action,
+            tray_apps::tray_click,
             bar::bar_windows,
             bar::bar_rects,
             bar::bar_hidden,
