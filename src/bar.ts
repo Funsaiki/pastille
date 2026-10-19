@@ -458,15 +458,16 @@ function trayTile(app: TrayApp, i: number) {
     e.preventDefault();
     act(() => host.trayClick(app.key, 'middle'));
   });
-  // Clic droit : le menu de l'application ; Maj+clic droit (ou touche Menu) : celui de Pastille,
-  // comme Maj+clic droit sur un bouton de la barre de Windows
+  // Clic droit : le menu de l'application, par-dessus la zone restée ouverte, à la souris
+  // (tray_host.rs lui dit que son icône est là) ; Maj+clic droit (ou touche Menu) : celui de
+  // Pastille, comme Maj+clic droit sur un bouton de la barre de Windows
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     if (e.shiftKey || e.button !== 2) {
       pastilleMenu();
       return;
     }
-    togglePop(false);
+    clearTimeout(popTimer);
     act(() => host.trayClick(app.key, 'right'));
   });
   return b;

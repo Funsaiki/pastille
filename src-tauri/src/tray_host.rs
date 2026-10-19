@@ -37,8 +37,10 @@ static ICONS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
 const TRAY_CLASS: PCWSTR = w!("Shell_TrayWnd");
-/// WM_COPYDATA de `Shell_NotifyIcon` (0 : barres d'applications, 3 : position d'une icône)
+/// WM_COPYDATA de `Shell_NotifyIcon` (0 : barres d'applications)
 const NOTIFY_ICON: usize = 1;
+/// WM_COPYDATA de `Shell_NotifyIconGetRect` : où est l'icône (pour y placer son menu)
+const ICON_RECT: usize = 3;
 /// Minuteur de la fenêtre : redemander les icônes après un redémarrage de l'Explorateur
 const ANNOUNCE: usize = 1;
 
@@ -67,6 +69,8 @@ struct Entry {
     version: u32,
     tip: String,
     hidden: bool,
+    /// La souris au dernier clic sur sa tuile : là où est l'icône pour l'application
+    clicked: Option<POINT>,
 }
 
 impl Entry {
@@ -120,14 +124,6 @@ fn parse(data: &[u8]) -> Option<Notify> {
             .collect();
         String::from_utf16_lossy(&units)
     };
-    let guid = data.get(NID + 936..NID + 952).map_or(GUID::zeroed(), |b| {
-        GUID::from_values(
-            u32::from_le_bytes([b[0], b[1], b[2], b[3]]),
-            u16::from_le_bytes([b[4], b[5]]),
-            u16::from_le_bytes([b[6], b[7]]),
-            [b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]],
-        )
-    });
     Some(Notify {
         message: word(4)?,
         // Handle sur 32 bits, étendu comme le fait Windows
@@ -139,8 +135,42 @@ fn parse(data: &[u8]) -> Option<Notify> {
         state: field(280),
         state_mask: field(284),
         version: field(800),
-        guid,
+        guid: guid_at(data, NID + 936),
     })
+}
+
+/// GUID zéro s'il manque (format plus ancien)
+fn guid_at(data: &[u8], at: usize) -> GUID {
+    data.get(at..at + 16).map_or(GUID::zeroed(), |b| {
+        GUID::from_values(
+            u32::from_le_bytes([b[0], b[1], b[2], b[3]]),
+            u16::from_le_bytes([b[4], b[5]]),
+            u16::from_le_bytes([b[6], b[7]]),
+            [b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]],
+        )
+    })
+}
+
+/// Réponse à `Shell_NotifyIconGetRect` : WINNOTIFYICONIDENTIFIER (signature, coin demandé :
+/// 1 en haut à gauche, 2 en bas à droite, taille, bourrage, fenêtre sur 32 bits, identifiant,
+/// GUID). Un pixel sous la souris du dernier clic sur sa tuile : son menu s'ouvre là, et pas au
+/// coin de la barre de Windows masquée. None : jamais cliquée, la barre de Windows répond.
+fn icon_corner(data: &[u8]) -> Option<isize> {
+    let word = |at: usize| data.get(at..at + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+    let (corner, hwnd, uid, guid) = (word(4)?, word(16)? as i32 as isize, word(20)?, guid_at(data, 24));
+    let icons = ICONS.lock().unwrap();
+    let entry = icons.iter().find(|e| match guid == GUID::zeroed() {
+        true => e.guid.is_none() && e.hwnd == hwnd && e.uid == uid,
+        false => e.guid == Some(guid),
+    })?;
+    let at = entry.clicked?;
+    let (x, y) = match corner {
+        1 => (at.x, at.y),
+        2 => (at.x + 1, at.y + 1),
+        _ => return None,
+    };
+    // Comme MAKELPARAM : x en bas, y en haut (négatifs sur un écran à gauche ou au-dessus)
+    Some(((y as u16 as u32) << 16 | x as u16 as u32) as i32 as isize)
 }
 
 /// Met à jour les icônes ; vrai si Pastille accepte le message
@@ -161,8 +191,17 @@ fn notify(n: &Notify) -> bool {
                         eprintln!("[lanceur] zone de notification : icône de {} ({})", pid_of_window(n.hwnd), n.tip.lines().next().unwrap_or(""));
                     }
                     let id = NEXT_ID.fetch_add(1, SeqCst);
-                    let entry =
-                        Entry { id, hwnd: 0, uid: 0, guid: None, callback: 0, version: 0, tip: String::new(), hidden: false };
+                    let entry = Entry {
+                        id,
+                        hwnd: 0,
+                        uid: 0,
+                        guid: None,
+                        callback: 0,
+                        version: 0,
+                        tip: String::new(),
+                        hidden: false,
+                        clicked: None,
+                    };
                     icons.push(entry);
                     icons.len() - 1
                 }
@@ -300,10 +339,16 @@ unsafe extern "system" fn on_message(hwnd: HWND, msg: u32, wparam: WPARAM, lpara
     match msg {
         WM_COPYDATA => {
             let copy = unsafe { &*(lparam.0 as *const COPYDATASTRUCT) };
-            let accepted = copy.dwData == NOTIFY_ICON
-                && !copy.lpData.is_null()
-                && parse(unsafe { std::slice::from_raw_parts(copy.lpData as *const u8, copy.cbData as usize) })
-                    .is_some_and(|n| notify(&n));
+            let data = match copy.lpData.is_null() {
+                true => &[][..],
+                false => unsafe { std::slice::from_raw_parts(copy.lpData as *const u8, copy.cbData as usize) },
+            };
+            if copy.dwData == ICON_RECT {
+                if let Some(corner) = icon_corner(data) {
+                    return LRESULT(corner);
+                }
+            }
+            let accepted = copy.dwData == NOTIFY_ICON && parse(data).is_some_and(|n| notify(&n));
             let answer = forward(msg, wparam, lparam);
             // Une icône que Pastille a prise est acceptée, même si Windows l'avait déjà (redemandée
             // par `announce`, il refuse de l'ajouter une seconde fois)
@@ -383,7 +428,12 @@ pub fn pid_of(key: &str) -> Option<u32> {
 /// second clic d'un double clic), right, middle, key (Entrée). Faux : elle n'a pas de message de
 /// rappel (rien ne se passerait non plus sous Windows).
 pub fn click(key: &str, kind: &str) -> Result<bool, String> {
-    let found = ICONS.lock().unwrap().iter().find(|e| key_of(e.id) == key).map(|e| (e.hwnd, e.uid, e.callback, e.version));
+    let mut at = POINT::default();
+    let _ = unsafe { GetCursorPos(&mut at) };
+    let found = ICONS.lock().unwrap().iter_mut().find(|e| key_of(e.id) == key).map(|e| {
+        e.clicked = Some(at);
+        (e.hwnd, e.uid, e.callback, e.version)
+    });
     let (hwnd, uid, callback, version) = found.ok_or("Cette icône n'est plus là.")?;
     if callback == 0 {
         return Ok(false);
@@ -392,13 +442,9 @@ pub fn click(key: &str, kind: &str) -> Result<bool, String> {
     if !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
         return Err("Cette application n'est plus ouverte.".into());
     }
-    let mut at = POINT::default();
-    unsafe {
-        let _ = GetCursorPos(&mut at);
-        // Elle peut passer au premier plan (son menu, sa fenêtre), comme après un clic dans la
-        // barre de Windows
-        let _ = AllowSetForegroundWindow(pid_of_window(hwnd.0 as isize));
-    }
+    // Elle peut passer au premier plan (son menu, sa fenêtre), comme après un clic dans la barre
+    // de Windows
+    let _ = unsafe { AllowSetForegroundWindow(pid_of_window(hwnd.0 as isize)) };
     for (wparam, lparam) in messages(kind, version, uid, at)? {
         // Sans attendre : une application occupée ne fige pas Pastille
         unsafe { SendNotifyMessageW(hwnd, callback, wparam, lparam) }.map_err(|e| e.message())?;
@@ -458,6 +504,22 @@ mod tests {
         data
     }
 
+    fn guid_bytes(guid: GUID) -> Vec<u8> {
+        [&guid.data1.to_le_bytes()[..], &guid.data2.to_le_bytes(), &guid.data3.to_le_bytes(), &guid.data4].concat()
+    }
+
+    /// WINNOTIFYICONIDENTIFIER comme l'envoie `Shell_NotifyIconGetRect`
+    fn identifier(corner: u32, hwnd: u32, uid: u32, guid: GUID) -> Vec<u8> {
+        let mut data = vec![0u8; 40];
+        data[0..4].copy_from_slice(&0x3475_3423u32.to_le_bytes());
+        data[4..8].copy_from_slice(&corner.to_le_bytes());
+        data[8..12].copy_from_slice(&40u32.to_le_bytes());
+        data[16..20].copy_from_slice(&hwnd.to_le_bytes());
+        data[20..24].copy_from_slice(&uid.to_le_bytes());
+        data[24..40].copy_from_slice(&guid_bytes(guid));
+        data
+    }
+
     fn entry(hwnd: isize) -> Option<(u32, u32, String, bool, u32)> {
         let icons = ICONS.lock().unwrap();
         icons.iter().find(|e| e.hwnd == hwnd).map(|e| (e.uid, e.callback, e.tip.clone(), e.hidden, e.version))
@@ -467,13 +529,7 @@ mod tests {
     fn shell_tray_data_is_read() {
         let mut data = tray_data(NIM_MODIFY, 0x0012_3456, 7, NIF_MESSAGE | NIF_TIP | NIF_GUID, 0x8001, "EarTrumpet : 42 %");
         let guid = GUID::from_u128(0x7820ae73_23e3_4229_82c1_e41cb67d5b9c);
-        data[8 + 936..8 + 952].copy_from_slice(&[
-            &guid.data1.to_le_bytes()[..],
-            &guid.data2.to_le_bytes(),
-            &guid.data3.to_le_bytes(),
-            &guid.data4,
-        ]
-        .concat());
+        data[8 + 936..8 + 952].copy_from_slice(&guid_bytes(guid));
         let n = parse(&data).unwrap();
         assert_eq!((n.message, n.hwnd, n.uid, n.callback), (NIM_MODIFY, 0x0012_3456, 7, 0x8001));
         assert_eq!(n.tip, "EarTrumpet : 42 %");
@@ -522,6 +578,33 @@ mod tests {
         assert!(entry(0x5A5A_0004).is_some());
         assert!(notify(&message(NIM_DELETE, 0)));
         assert!(entry(0x5A5A_0004).is_none());
+    }
+
+    #[test]
+    fn menus_open_where_the_icon_was_clicked() {
+        let hwnd = 0x5A5A_0005;
+        assert!(notify(&parse(&tray_data(NIM_ADD, hwnd as u32, 2, NIF_MESSAGE, 0x8001, "")).unwrap()));
+        let corner = |n| icon_corner(&identifier(n, hwnd as u32, 2, GUID::zeroed()));
+        let point = |l: isize| (l as u16 as i16, (l >> 16) as u16 as i16);
+        // Jamais cliquée : la barre de Windows répond
+        assert_eq!(corner(1), None);
+        ICONS.lock().unwrap().iter_mut().find(|e| e.hwnd == hwnd).unwrap().clicked = Some(POINT { x: -20, y: 1070 });
+        assert_eq!(corner(1).map(point), Some((-20, 1070)));
+        assert_eq!(corner(2).map(point), Some((-19, 1071)));
+        // Une autre icône de la même fenêtre : inconnue
+        assert_eq!(icon_corner(&identifier(1, hwnd as u32, 3, GUID::zeroed())), None);
+        assert!(notify(&parse(&tray_data(NIM_DELETE, hwnd as u32, 2, 0, 0, "")).unwrap()));
+
+        // Icône à GUID : trouvée par lui, sans fenêtre
+        let guid = GUID::from_u128(0x0a0b0c0d_0000_4000_8000_5a5a5a5a0006);
+        let mut added = parse(&tray_data(NIM_ADD, 0x5A5A_0006, 0, NIF_GUID | NIF_MESSAGE, 0x8001, "")).unwrap();
+        added.guid = guid;
+        assert!(notify(&added));
+        ICONS.lock().unwrap().iter_mut().find(|e| e.guid == Some(guid)).unwrap().clicked = Some(POINT { x: 900, y: 1040 });
+        assert_eq!(icon_corner(&identifier(1, 0, 0, guid)).map(point), Some((900, 1040)));
+        let mut deleted = parse(&tray_data(NIM_DELETE, 0, 0, NIF_GUID, 0, "")).unwrap();
+        deleted.guid = guid;
+        assert!(notify(&deleted));
     }
 
     #[test]
