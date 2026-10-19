@@ -7,8 +7,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { EXAMPLE, type AppItem, type Config, type Favorite } from './config';
+import type { Appearance } from './appearance';
 
 export const PREVIEW = !('__TAURI_INTERNALS__' in window);
+
+/* Apparence gardée (carte Personnaliser) et image choisie pour la breloque (data:…) */
+export interface AppearancePayload {
+  appearance: Appearance;
+  image: string | null;
+}
 
 export interface ConfigPayload {
   config: Config;
@@ -145,6 +152,26 @@ export type FeedEvent =
 export type Tool = 'settings' | 'taskmgr' | 'wifi' | 'bluetooth' | 'steam-downloads' | 'windows-update' | 'storage' | 'notifications';
 export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
+/* Aperçu navigateur : apparence gardée dans la page (pas encore branchée à Rust) */
+const PREVIEW_LOOK = 'apparence-apercu';
+const PREVIEW_IMAGE = 'apparence-apercu-image';
+
+function previewRead(key: string) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function previewWrite(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    console.info('[aperçu] pas de place pour', key);
+  }
+}
+
 /* Aperçu navigateur : l'exemple, avec quelques lancements pour la recherche et les récents */
 function previewConfig(): Config {
   const config: Config = structuredClone(EXAMPLE);
@@ -240,6 +267,32 @@ export const host = {
     const welcome = new URLSearchParams(location.search).has('bienvenue') ? { shortcut: 'Alt+Space', autostart: false } : null;
     if (PREVIEW) return { config: previewConfig(), problems: [], welcome };
     return invoke<ConfigPayload>('get_config');
+  },
+  /* Carte Personnaliser. Maquette : seulement dans l'aperçu, l'app garde l'apparence d'origine. */
+  async appearance(): Promise<AppearancePayload> {
+    if (!PREVIEW) return { appearance: {}, image: null };
+    return { appearance: JSON.parse(previewRead(PREVIEW_LOOK) ?? '{}'), image: previewRead(PREVIEW_IMAGE) };
+  },
+  async setAppearance(appearance: Appearance) {
+    if (PREVIEW) previewWrite(PREVIEW_LOOK, JSON.stringify(appearance));
+    else console.info('[maquette] apparence :', appearance);
+  },
+  /* Image de la breloque choisie sur le PC (data:…), null si rien n'est choisi */
+  async pickCharmImage(): Promise<string | null> {
+    const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/png,image/svg+xml,image/jpeg,image/webp,image/gif' });
+    const file = await new Promise<File | null>((resolve) => {
+      input.addEventListener('change', () => resolve(input.files?.[0] ?? null));
+      input.addEventListener('cancel', () => resolve(null));
+      input.click();
+    });
+    if (!file) return null;
+    const url = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+    if (PREVIEW) previewWrite(PREVIEW_IMAGE, url);
+    return url;
   },
   /* Premier lancement : Rust montre le téléphone une fois la page prête (une fois par démarrage) */
   async firstShow() {

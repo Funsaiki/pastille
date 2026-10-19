@@ -62,7 +62,8 @@ export function icon(d: string, size: number, weight: number, opts: { fill?: str
   svg.setAttribute('width', String(size));
   svg.setAttribute('height', String(size));
   svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('fill', opts.fill ?? 'none');
+  svg.setAttribute('fill', 'none');
+  if (opts.fill) svg.style.fill = opts.fill;   // en style : peut être une variable (l'accent, var(--fill))
   svg.setAttribute('stroke', 'currentColor');
   svg.setAttribute('stroke-width', String(weight));
   if (opts.caps !== false) svg.setAttribute('stroke-linecap', 'round');

@@ -1,0 +1,450 @@
+/* ══════════════════════════════════════════════════════════
+   Carte Personnaliser (demandée par Funsaiki le 19/10/2026) : deux onglets, Couleurs
+   (accent, coque, écran, encre) et Strap (breloque, perles). Un nuancier par couleur et
+   une pastille « Autre couleur » qui ouvre teinte, clarté et code. Tout change en direct
+   et est gardé (host.setAppearance). Ouverte par le bouton Personnaliser ou un clic sur le
+   strap ; ui.ts la ferme (Échap, clic à côté, autres panneaux).
+   ══════════════════════════════════════════════════════════ */
+import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Swatch } from './appearance';
+import { CONFIG } from './config';
+import { el } from './dom';
+import { icon } from './icons';
+import { host } from './host';
+
+const $ = (id: string) => document.getElementById(id) as HTMLElement;
+
+type Tab = 'colors' | 'strap';
+
+let tab: Tab = 'colors';
+let image: string | null = null;     // image choisie pour la breloque (data:…)
+let editing: string | null = null;   // rangée dont la couleur libre est ouverte (« accent »… « perle »)
+let bead = 0;                        // perle choisie, de haut en bas
+let paletteChanged = () => {};       // ui.ts refait ce qui prend les couleurs de la palette
+
+const LABELS: Record<ColorKey, string> = { accent: 'Accent', coque: 'Coque', ecran: 'Écran', encre: 'Encre' };
+const PLUS = 'M12 6v12M6 12h12';
+const PICTURE = 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9h.01';
+const NONE = 'M12 3a9 9 0 100 18 9 9 0 000-18zM5.6 5.6l12.8 12.8';
+
+/* ── Breloques : Miku (fournie par Funsaiki) et quatre dessins dans le style du lanceur, de
+   52 × 64 comme la place de Miku au bout du cordon. Chacune a son anneau en haut, au milieu,
+   prolongé jusqu'au cordon. ── */
+const ring = (cy: number, body: number) =>
+  `<path d="M26 0V${cy - 3.2}M26 ${cy + 3.2}V${body}" stroke-width="2.4"/><circle cx="26" cy="${cy}" r="3.2" stroke-width="2.4"/>`;
+
+function starPath(cx: number, cy: number, outer: number, inner: number) {
+  const points = Array.from({ length: 10 }, (_, i) => {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 ? inner : outer;
+    return `${(cx + r * Math.cos(a)).toFixed(1)} ${(cy + r * Math.sin(a)).toFixed(1)}`;
+  });
+  return 'M' + points.join('L') + 'z';
+}
+
+const DRAWN: Partial<Record<Charm, string>> = {
+  etoile: ring(7, 12)
+    + `<path d="${starPath(26, 35, 23, 11)}" fill="#ffe08a" stroke-width="2.5"/>`
+    + '<circle cx="20.5" cy="29.5" r="2.2" fill="#ffffff" stroke="none"/>',
+  coeur: ring(11, 18.3)
+    + '<path d="M26 56C14 47 5 39 5 27.5 5 19.5 11 13.5 18 13.5c3.7 0 6.6 1.9 8 4.8 1.4-2.9 4.3-4.8 8-4.8 7 0 13 6 13 14 0 11.5-9 19.5-21 28.5z" fill="#f6c6da" stroke-width="2.5"/>'
+    + '<circle cx="13.5" cy="24" r="2.2" fill="#ffffff" stroke="none"/>',
+  // La pastille du nom : une pilule mi-accent, mi-rose
+  pilule: ring(7, 14)
+    + '<path d="M15 36V25a11 11 0 0122 0v11z" style="fill: var(--fill)" stroke="none"/>'
+    + '<path d="M15 36h22v11a11 11 0 01-22 0z" fill="#f6c6da" stroke="none"/>'
+    + '<rect x="15" y="14" width="22" height="44" rx="11" stroke-width="2.5"/><path d="M15 36h22" stroke-width="2.5"/>'
+    + '<path d="M20.5 21v6" stroke="#ffffff" stroke-width="2.5"/>',
+  chat: ring(10.5, 17)
+    + '<path d="M7 32C7 24 9 18 10 11l9 7c2.2-.7 4.6-1 7-1s4.8.3 7 1l9-7c1 7 3 13 3 21 0 13-9 22-19 22S7 45 7 32z" fill="#c9d8ff" stroke-width="2.5"/>'
+    + '<circle cx="19" cy="33" r="2.6" fill="currentColor" stroke="none"/><circle cx="33" cy="33" r="2.6" fill="currentColor" stroke="none"/>'
+    + '<path d="M23.5 39h5L26 41.8z" fill="#f6c6da" stroke-width="1.6"/>'
+    + '<path d="M26 41.8c-.6 1.8-2.6 2.3-3.8 1.2M26 41.8c.6 1.8 2.6 2.3 3.8 1.2M16 39l-8-1.5M16 42.5l-8 2M36 39l8-1.5M36 42.5l8 2" stroke-width="1.8"/>',
+};
+
+const CHARMS: { key: Charm; name: string }[] = [
+  { key: 'miku', name: 'Miku' },
+  { key: 'etoile', name: 'Étoile' },
+  { key: 'coeur', name: 'Cœur' },
+  { key: 'pilule', name: 'Pastille' },
+  { key: 'chat', name: 'Chat' },
+  { key: 'image', name: 'Ton image' },
+  { key: 'aucune', name: 'Sans strap' },
+];
+
+const charmName = (key: Charm) => CHARMS.find((c) => c.key === key)!.name;
+
+/* La breloque `key` en image ; l'image choisie, à défaut Miku */
+function charmNode(key: Charm): Element {
+  const drawn = DRAWN[key];
+  if (drawn) {
+    const box = document.createElement('span');
+    box.innerHTML = `<svg viewBox="0 0 52 64" width="52" height="64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${drawn}</svg>`;
+    return box.firstElementChild!;
+  }
+  const img = el('img');
+  img.src = key === 'image' && image ? image : '/assets/SvgMiku3.svg';
+  img.alt = '';
+  img.draggable = false;
+  return img;
+}
+
+const charmOf = (): Charm => appearance().breloque ?? 'miku';
+
+/* Strap du téléphone : sa breloque, ou rien */
+export function applyStrap() {
+  const charm = charmOf();
+  $('strap').hidden = charm === 'aucune';
+  $('strap-charm').classList.toggle('own', charm === 'image' && !!image);
+  $('strap-charm').replaceChildren(charmNode(charm));
+}
+
+/* ── Changements : appliqués, carte remise à jour, gardés ── */
+let saveTimer = 0;
+let shownPalette = '';
+
+function changed() {
+  applyColors();
+  applyStrap();
+  updateAll();
+  const next = palette().join();
+  if (next !== shownPalette) {
+    shownPalette = next;
+    paletteChanged();
+  }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => host.setAppearance(appearance()).catch(console.error), 250);
+}
+
+/* Une couleur égale à celle d'origine n'est pas gardée : la maquette revient telle quelle */
+function setColor(key: ColorKey, color: string) {
+  const a = { ...appearance() };
+  const base = key === 'accent' ? CONFIG.accent : SWATCHES[key][0].color;
+  if (color.toLowerCase() === base.toLowerCase()) delete a[key];
+  else a[key] = color.toLowerCase();
+  setAppearance(a);
+  changed();
+}
+
+function setBead(i: number, color: string) {
+  const perles = beadColors().slice();
+  perles[i] = color.toLowerCase();
+  setAppearance({ ...appearance(), perles });
+  changed();
+}
+
+function setCharm(key: Charm) {
+  const a = { ...appearance() };
+  if (key === 'miku') delete a.breloque;
+  else a.breloque = key;
+  setAppearance(a);
+  changed();
+}
+
+async function chooseImage() {
+  const picked = await host.pickCharmImage().catch((e) => {
+    console.error(e);
+    return null;
+  });
+  if (!picked) return;
+  image = picked;
+  setCharm('image');
+}
+
+/* ── Rangées ── */
+interface Row {
+  node: HTMLElement;
+  update: () => void;
+}
+let rows: Row[] = [];
+
+function updateAll() {
+  for (const row of rows) row.update();
+}
+
+function radio(className: string, label: string) {
+  const b = el('button', className);
+  b.type = 'button';
+  b.setAttribute('role', 'radio');
+  b.setAttribute('aria-label', label);
+  b.title = label;
+  return b;
+}
+
+/* Titre d'une rangée : « Accent · Menthe » */
+function rowLabel(text: string) {
+  const label = el('div', 'custom-label');
+  const value = el('span', 'custom-value');
+  label.append(el('span', '', text), value);
+  return { label, value };
+}
+
+/* Nuancier : les couleurs, puis « Autre couleur » (sa couleur une fois choisie) qui ouvre
+   l'éditeur dessous. `key` : la rangée, pour l'éditeur. */
+function swatchRow(key: string, swatches: Swatch[], value: () => string, choose: (c: string) => void) {
+  const group = el('div', 'swatches');
+  group.setAttribute('role', 'radiogroup');
+  const buttons = swatches.map((s) => {
+    const b = radio('swatch', s.name);
+    b.style.setProperty('--c', s.color);
+    b.addEventListener('click', () => {
+      editing = null;
+      choose(s.color);
+    });
+    return b;
+  });
+  const free = radio('swatch swatch-free', 'Autre couleur');
+  free.append(icon(PLUS, 14, 2.8));
+  const editor = freeEditor(value, choose);
+  free.addEventListener('click', () => {
+    editing = editing === key ? null : key;
+    if (editing) editor.open();
+    updateAll();
+  });
+  group.append(...buttons, free);
+  const update = () => {
+    const c = value().toLowerCase();
+    const match = swatches.find((s) => s.color === c);
+    buttons.forEach((b, i) => b.setAttribute('aria-checked', String(swatches[i] === match)));
+    free.setAttribute('aria-checked', String(!match));
+    free.classList.toggle('chosen', !match);
+    free.style.setProperty('--c', c);
+    free.setAttribute('aria-expanded', String(editing === key));
+    editor.node.hidden = editing !== key;
+  };
+  return { group, editor: editor.node, update, name: () => swatches.find((s) => s.color === value().toLowerCase())?.name ?? value().toLowerCase() };
+}
+
+/* Couleur libre : teinte et clarté (la saturation de la couleur de départ est gardée), code
+   #rrggbb. Ouvert sur la couleur en cours ; ses curseurs ne sont pas remis à jour pendant
+   qu'on les fait glisser (l'arrondi les ferait sauter). */
+function freeEditor(value: () => string, choose: (c: string) => void) {
+  const node = el('div', 'free');
+  const range = (min: number, max: number, label: string) => {
+    const r = el('input', 'tp-range');
+    r.type = 'range';
+    r.min = String(min);
+    r.max = String(max);
+    r.setAttribute('aria-label', label);
+    r.title = label;
+    return r;
+  };
+  const hue = range(0, 359, 'Teinte');
+  const light = range(5, 95, 'Clarté');
+  const hex = el('input', 'free-hex');
+  hex.maxLength = 7;
+  hex.spellcheck = false;
+  hex.setAttribute('aria-label', 'Code de la couleur');
+  let hsl: Hsl = [0, 50, 50];
+  const tracks = () => {
+    const [h, s, l] = hsl;
+    const S = Math.max(s, 35);
+    const L = Math.min(85, Math.max(25, l));
+    hue.style.setProperty('--track', `linear-gradient(90deg, ${[0, 60, 120, 180, 240, 300, 360].map((x) => `hsl(${x} ${S}% ${L}%)`).join(', ')})`);
+    light.style.setProperty('--track', `linear-gradient(90deg, hsl(${h} ${s}% 5%), hsl(${h} ${s}% 50%), hsl(${h} ${s}% 95%))`);
+  };
+  const send = () => {
+    tracks();
+    const c = toHex(hsl);
+    hex.value = c;
+    choose(c);
+  };
+  hue.addEventListener('input', () => {
+    // Un gris n'a pas de teinte : il en prend une, assez colorée pour se voir
+    hsl = [Number(hue.value), hsl[1] < 15 ? 55 : hsl[1], hsl[2]];
+    send();
+  });
+  light.addEventListener('input', () => {
+    hsl = [hsl[0], hsl[1], Number(light.value)];
+    send();
+  });
+  hex.addEventListener('input', () => {
+    const v = (hex.value.trim().startsWith('#') ? '' : '#') + hex.value.trim();
+    if (!isHex(v)) return;
+    hsl = toHsl(v.toLowerCase());
+    hue.value = String(Math.round(hsl[0]));
+    light.value = String(Math.round(hsl[2]));
+    tracks();
+    choose(v.toLowerCase());
+  });
+  hex.addEventListener('blur', () => (hex.value = value().toLowerCase()));
+  hex.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') hex.blur();
+  });
+  node.append(hue, hex, light);
+  return {
+    node,
+    open() {
+      hsl = toHsl(value().toLowerCase());
+      hue.value = String(Math.round(hsl[0]));
+      light.value = String(Math.round(hsl[2]));
+      hex.value = value().toLowerCase();
+      tracks();
+    },
+  };
+}
+
+function colorRow(key: ColorKey): Row {
+  const node = el('div', 'custom-row');
+  const { label, value } = rowLabel(LABELS[key]);
+  const row = swatchRow(key, SWATCHES[key], () => colorOf(key), (c) => setColor(key, c));
+  node.append(label, row.group, row.editor);
+  return {
+    node,
+    update() {
+      row.update();
+      value.textContent = row.name();
+    },
+  };
+}
+
+function charmRow(): Row {
+  const node = el('div', 'custom-row');
+  const { label, value } = rowLabel('Breloque');
+  const group = el('div', 'charms');
+  group.setAttribute('role', 'radiogroup');
+  const tiles = CHARMS.map((c) => {
+    const b = radio('charm', c.name);
+    b.dataset.key = c.key;
+    b.addEventListener('click', () => {
+      // Ton image : la choisir la première fois, ou en changer quand elle est déjà mise
+      if (c.key === 'image' && (!image || charmOf() === 'image')) chooseImage();
+      else setCharm(c.key);
+    });
+    return b;
+  });
+  group.append(...tiles);
+  node.append(label, group);
+  return {
+    node,
+    update() {
+      const charm = charmOf();
+      value.textContent = charmName(charm);
+      tiles.forEach((b, i) => {
+        const key = CHARMS[i].key;
+        b.setAttribute('aria-checked', String(key === charm));
+        if (key === 'image') b.title = image ? (charm === 'image' ? 'Changer d’image' : 'Ton image') : 'Choisir une image…';
+        const drawn = key === 'aucune' ? icon(NONE, 18, 2.4) : key === 'image' && !image ? icon(PICTURE, 18, 2.2) : charmNode(key);
+        if (b.dataset.shown !== (key === 'image' ? image ?? '' : key)) {
+          b.dataset.shown = key === 'image' ? image ?? '' : key;
+          b.replaceChildren(drawn);
+        }
+      });
+    },
+  };
+}
+
+function beadRow(): Row {
+  const node = el('div', 'custom-row');
+  const { label, value } = rowLabel('Perles');
+  const strand = el('div', 'beads');
+  strand.setAttribute('role', 'radiogroup');
+  strand.setAttribute('aria-label', 'Perle à changer');
+  const beads = [0, 1, 2].map((i) => {
+    const b = radio('bead', `Perle ${i + 1}`);
+    b.addEventListener('click', () => {
+      bead = i;
+      editing = null;
+      updateAll();
+    });
+    return b;
+  });
+  strand.append(...beads);
+  const row = swatchRow('perle', BEAD_SWATCHES, () => beadColors()[bead], (c) => setBead(bead, c));
+  node.append(label, strand, row.group, row.editor);
+  return {
+    node,
+    update() {
+      const colors = beadColors();
+      beads.forEach((b, i) => {
+        b.style.setProperty('--c', colors[i]);
+        b.setAttribute('aria-checked', String(i === bead));
+      });
+      row.update();
+      value.textContent = `Perle ${bead + 1} · ${row.name()}`;
+      node.classList.toggle('off', charmOf() === 'aucune');
+    },
+  };
+}
+
+/* ── Onglets : mêmes pastille et curseur que la carte des notifications ── */
+function showTab(next: Tab, animate: boolean) {
+  const changedTab = next !== tab;
+  tab = next;
+  $('custom-tabs').dataset.pane = tab;
+  for (const [id, t] of [['custom-tab-colors', 'colors'], ['custom-tab-strap', 'strap']] as const) {
+    $(id).setAttribute('aria-selected', String(t === tab));
+    $(id).tabIndex = t === tab ? 0 : -1;
+  }
+  const shown = $(tab === 'colors' ? 'custom-colors' : 'custom-strap');
+  $('custom-colors').hidden = tab !== 'colors';
+  $('custom-strap').hidden = tab !== 'strap';
+  if (animate && changedTab) {
+    const name = tab === 'colors' ? 'tp-in-l' : 'tp-in-r';
+    shown.classList.remove('tp-in-l', 'tp-in-r');
+    void shown.offsetWidth;
+    shown.classList.add(name);
+    shown.addEventListener('animationend', () => shown.classList.remove(name), { once: true });
+  }
+}
+
+/* Réinitialiser : l'onglet ouvert revient à la maquette (l'image choisie reste proposée) */
+function reset() {
+  const a = { ...appearance() };
+  if (tab === 'colors') for (const key of Object.keys(LABELS) as ColorKey[]) delete a[key];
+  else {
+    delete a.breloque;
+    delete a.perles;
+  }
+  editing = null;
+  setAppearance(a);
+  changed();
+}
+
+export const customOpen = () => $('custom').classList.contains('open');
+
+export function openCustom(next: Tab = 'colors') {
+  editing = null;
+  showTab(next, customOpen());
+  updateAll();
+  $('custom').classList.add('open');
+  $('custom-toggle')?.setAttribute('aria-expanded', 'true');
+}
+
+export function closeCustom() {
+  $('custom').classList.remove('open');
+  $('custom-toggle')?.setAttribute('aria-expanded', 'false');
+  editing = null;
+}
+
+/* Carte construite une fois ; `onPalette` : les couleurs de la palette ont changé */
+export function initCustom(onPalette: () => void) {
+  paletteChanged = onPalette;
+  shownPalette = palette().join();
+  const colors = (Object.keys(LABELS) as ColorKey[]).map(colorRow);
+  const strap = [charmRow(), beadRow()];
+  rows = [...colors, ...strap];
+  $('custom-colors').replaceChildren(...colors.map((r) => r.node));
+  $('custom-strap').replaceChildren(...strap.map((r) => r.node));
+  $('custom-tab-colors').addEventListener('click', () => showTab('colors', true));
+  $('custom-tab-strap').addEventListener('click', () => showTab('strap', true));
+  $('custom-tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    showTab(e.key === 'ArrowRight' ? 'strap' : 'colors', true);
+    $(tab === 'colors' ? 'custom-tab-colors' : 'custom-tab-strap').focus();
+  });
+  $('custom-reset').addEventListener('click', reset);
+}
+
+/* Au démarrage : l'apparence gardée, posée avant la première ouverture */
+export async function loadAppearance() {
+  const saved = await host.appearance().catch((e) => {
+    console.error(e);
+    return { appearance: {}, image: null };
+  });
+  setAppearance(saved.appearance);
+  image = saved.image;
+  applyColors();
+  applyStrap();
+  shownPalette = palette().join();
+}

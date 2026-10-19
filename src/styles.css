@@ -10,10 +10,27 @@
   --ink: #0f3b42;
   --ink-deep: #0a2a2f;
   --fill: #9fe0dc;   /* accent, remplacé par celui de apps.json */
-  --soft: rgba(15, 59, 66, .72);
+  --soft: rgb(from var(--ink) r g b / .72);
   --ease: cubic-bezier(.2, .8, .2, 1);
   --turn: cubic-bezier(.45, .05, .25, 1);
-  --edge-bg: linear-gradient(180deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%);
+  /* Coque et écran de la maquette ; la carte Personnaliser les remplace (appearance.ts déduit
+     les nuances d'une seule couleur) */
+  --coque-top: #2d7a84;
+  --coque: #1f5f68;
+  --coque-bottom: #174b52;
+  --edge-1: #2a727c;
+  --edge-hi: #5a9ca4;
+  --edge-2: #1b5760;
+  --edge-3: #143f45;
+  --btn-hi: #4a96a0;
+  --lens-ring: #164a51;
+  --screen-top: #e2f5f4;
+  --screen-mid: #f5fbfb;
+  --screen-dot: #f0f6f6;
+  --bead-1: var(--fill);
+  --bead-2: #f6c6da;
+  --bead-3: #c9d8ff;
+  --edge-bg: linear-gradient(180deg, var(--edge-1) 0px, var(--edge-1) 7px, var(--edge-hi) 7px, var(--edge-hi) 10px, var(--edge-1) 10px, var(--edge-2) 55%, var(--edge-3) 100%);
 }
 
 /* Transparence : la fenêtre Tauri l'est aussi (tauri.conf.json) */
@@ -89,12 +106,17 @@ button, input { font-family: 'Nunito', sans-serif; }
 .landscape .strap { transform: translateZ(3px) rotate(90deg); }
 .strap-swing { position: relative; width: 100%; height: 100%; transform-origin: 31px 10px; animation: strap-swing 1.8s .2s both; }
 .strap-swing svg { display: block; }
-/* Breloque : Miku (assets/SvgMiku3.svg), le haut du crâne au bout du cordon, avec l'ombre
-   d'encre de 3 px des autres éléments */
+/* Breloque : Miku (assets/SvgMiku3.svg) par défaut, le haut du crâne au bout du cordon, avec
+   l'ombre d'encre de 3 px des autres éléments ; les autres (customize.ts) ont leur anneau au même
+   endroit */
 .strap-charm {
-  position: absolute; left: 5px; top: 134px; width: 52px; height: auto; user-select: none;
-  filter: drop-shadow(0 3px 0 #0f3b42);
+  position: absolute; left: 5px; top: 134px; width: 52px; user-select: none;
+  filter: drop-shadow(0 3px 0 var(--ink));
 }
+.strap-charm > * { display: block; width: 100%; height: auto; }
+/* Dessins de customize.ts (52 × 64) réduits à la hauteur de Miku (47 px, un peu plus avec
+   l'anneau) : téléphone couché, une breloque plus haute sortirait par le bas de l'écran */
+.strap-charm > svg { width: 44px; height: 54px; margin: 0 auto; }
 @keyframes strap-swing {
   0%, 100% { rotate: 0deg; animation-timing-function: ease-in-out; }
   14% { rotate: 14deg; animation-timing-function: ease-in-out; }
@@ -114,7 +136,7 @@ button, input { font-family: 'Nunito', sans-serif; }
     radial-gradient(circle 420px at 62% 12%, #d9ecfa, transparent 70%),
     #f4f7f8;
 }
-.wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgba(15, 59, 66, .55); }
+.wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgb(from var(--ink) r g b / .55); }
 .preview .wallpaper-hint { display: block; }
 
 /* ── Téléphone : incliné et debout, ou à plat et couché (.landscape sur la scène) ──
@@ -161,12 +183,12 @@ button, input { font-family: 'Nunito', sans-serif; }
 .edge-side {
   position: absolute; left: 409px; top: 64px; width: 40px; height: 702px; box-sizing: border-box;
   border-left: 4px solid var(--ink); border-right: 4px solid var(--ink);
-  background: linear-gradient(90deg, #2a727c 0px, #2a727c 7px, #5a9ca4 7px, #5a9ca4 10px, #2a727c 10px, #1b5760 55%, #143f45 100%);
+  background: linear-gradient(90deg, var(--edge-1) 0px, var(--edge-1) 7px, var(--edge-hi) 7px, var(--edge-hi) 10px, var(--edge-1) 10px, var(--edge-2) 55%, var(--edge-3) 100%);
   transform-origin: left center; transform: translateZ(2px) rotateY(90deg); transform-style: preserve-3d;
 }
 .side-btn {
   position: absolute; left: 10px; width: 14px; box-sizing: border-box; border-radius: 8px;
-  border: 3px solid var(--ink); background: linear-gradient(90deg, #4a96a0, #2d7a84);
+  border: 3px solid var(--ink); background: linear-gradient(90deg, var(--btn-hi), var(--coque-top));
   box-shadow: 2px 0 0 var(--ink); transform: translateZ(5px);
 }
 .side-btn.pink { background: linear-gradient(90deg, #f6c6da, #e9a9c4); }
@@ -175,20 +197,20 @@ button, input { font-family: 'Nunito', sans-serif; }
 .phone-body {
   position: absolute; inset: 0; transform: translateZ(1px); box-sizing: border-box; padding: 13px;
   border-radius: 66px; border: 5px solid var(--ink);
-  background: linear-gradient(160deg, #2d7a84 0%, #1f5f68 45%, #174b52 100%);
-  box-shadow: 30px 44px 70px rgba(15, 59, 66, .28), inset 0 2px 0 rgba(255, 255, 255, .25);
+  background: linear-gradient(160deg, var(--coque-top) 0%, var(--coque) 45%, var(--coque-bottom) 100%);
+  box-shadow: 30px 44px 70px rgb(from var(--ink) r g b / .28), inset 0 2px 0 rgba(255, 255, 255, .25);
 }
 .screen {
   position: relative; width: 100%; height: 100%; box-sizing: border-box; border-radius: 52px;
   border: 3px solid var(--ink); overflow: hidden;
-  background: linear-gradient(180deg, #e2f5f4 0%, #f5fbfb 34%, #ffffff 100%);
+  background: linear-gradient(180deg, var(--screen-top) 0%, var(--screen-mid) 34%, #ffffff 100%);
 }
 .island {
   position: absolute; left: 50%; top: 14px; transform: translateX(-50%); width: 104px; height: 30px;
   border-radius: 15px; background: var(--ink); display: flex; align-items: center; justify-content: flex-end;
   padding-right: 12px; box-sizing: border-box; z-index: 2;
 }
-.island span { width: 10px; height: 10px; border-radius: 50%; background: #2d7a84; border: 2px solid #164a51; }
+.island span { width: 10px; height: 10px; border-radius: 50%; background: var(--coque-top); border: 2px solid var(--lens-ring); }
 
 /* ══ Vue réglages ══ */
 .view-settings { position: absolute; inset: 0; box-sizing: border-box; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
@@ -211,7 +233,7 @@ button, input { font-family: 'Nunito', sans-serif; }
   box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 24px;
 }
 .user-text { display: flex; flex-direction: column; min-width: 0; }
-.user-name { font-weight: 900; font-size: 19px; }
+.user-name { font-weight: 900; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-os { font-weight: 700; font-size: 13px; color: var(--soft); }
 
 /* Paramètres et Alimentation à droite du nom (demande de Funsaiki, à la place de la rangée de
@@ -234,13 +256,13 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .qtile[aria-pressed="true"] { background: var(--fill); }
 .qtile-dot {
-  width: 38px; height: 38px; flex: none; border-radius: 50%; border: 2.5px solid var(--ink); background: #f0f6f6;
+  width: 38px; height: 38px; flex: none; border-radius: 50%; border: 2.5px solid var(--ink); background: var(--screen-dot);
   display: flex; align-items: center; justify-content: center; box-sizing: border-box;
 }
 .qtile[aria-pressed="true"] .qtile-dot { background: #ffffff; }
 .qtile-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .qtile-label { font-weight: 900; font-size: 15px; }
-.qtile-sub { font-weight: 700; font-size: 12px; color: rgba(15, 59, 66, .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qtile-sub { font-weight: 700; font-size: 12px; color: rgb(from var(--ink) r g b / .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Toute la largeur depuis le retrait de la tuile Bluetooth (essai de Funsaiki) ; il apparaît
    juste après les deux tuiles (délais .45 et .51 dans ui.ts) */
 .qtile-apps { grid-column: 1 / -1; padding: 0 10px 0 8px; background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep); animation-delay: .57s; }
@@ -280,7 +302,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 .mixer {
   position: absolute; left: -2.5px; right: -2.5px; top: calc(100% + 12px); z-index: 2; box-sizing: border-box;
   padding: 12px 10px 10px; border-radius: 24px; border: 2.5px solid var(--ink); background: var(--ink); color: #ffffff;
-  box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgba(15, 59, 66, .25);
+  box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgb(from var(--ink) r g b / .25);
   opacity: 0; visibility: hidden; translate: 0 -6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
 }
 .mixer.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
@@ -349,9 +371,9 @@ button, input { font-family: 'Nunito', sans-serif; }
 .media-volume i { flex: none; width: 6px; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
 .media-volume i::before {
   content: ''; width: 4px; height: var(--h); border-radius: 2px;
-  background: linear-gradient(0deg, var(--ink) var(--p, 0%), rgba(15, 59, 66, .18) var(--p, 0%));
+  background: linear-gradient(0deg, var(--ink) var(--p, 0%), rgb(from var(--ink) r g b / .18) var(--p, 0%));
 }
-.media-volume:hover i::before { box-shadow: 0 0 0 .5px rgba(15, 59, 66, .25); }
+.media-volume:hover i::before { box-shadow: 0 0 0 .5px rgb(from var(--ink) r g b / .25); }
 .media-volume:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .media-volume[aria-disabled="true"] { opacity: .4; cursor: default; pointer-events: none; }
 /* Aléatoire et répétition (demandés par Funsaiki, Spotify connecté) : petits ronds sans bordure
@@ -359,7 +381,7 @@ button, input { font-family: 'Nunito', sans-serif; }
    Répétition d'un seul titre : un « 1 » au milieu. */
 .media-mode {
   width: 15px; height: 15px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
-  color: rgba(15, 59, 66, .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  color: rgb(from var(--ink) r g b / .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
   transition: background .15s, color .15s;
 }
 .media-controls .media-mode:first-of-type { margin-left: 3px; }
@@ -386,7 +408,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 /* Notifications */
 .notifs {
   position: relative; flex: 1; min-height: 0; margin-top: 10px; border-radius: 26px; border: 2.5px solid var(--ink);
-  background: #f5fbfb; padding: 26px 12px 12px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--screen-mid); padding: 26px 12px 12px; display: flex; flex-direction: column; gap: 8px;
 }
 .notifs-title {
   position: absolute; left: 50%; top: -15px; transform: translateX(-50%); height: 28px; padding: 0 14px;
@@ -399,7 +421,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .notifs-clear {
   position: absolute; right: 10px; top: 0; height: 26px; padding: 0 6px; background: transparent; border: none;
-  cursor: pointer; font-weight: 900; font-size: 12px; color: rgba(15, 59, 66, .8);
+  cursor: pointer; font-weight: 900; font-size: 12px; color: rgb(from var(--ink) r g b / .8);
 }
 .notifs-list { display: flex; flex-direction: column; gap: 8px; }
 .notif { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; border: 2px solid var(--ink); background: #ffffff; }
@@ -417,8 +439,8 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 }
 .notif-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
 .notif-title { font-weight: 900; font-size: 13px; }
-.notif-when { font-weight: 700; color: rgba(15, 59, 66, .68); }
-.notif-body { font-weight: 700; font-size: 12px; color: rgba(15, 59, 66, .78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif-when { font-weight: 700; color: rgb(from var(--ink) r g b / .68); }
+.notif-body { font-weight: 700; font-size: 12px; color: rgb(from var(--ink) r g b / .78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notifs-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--soft); }
 .notifs-empty-text { font-weight: 800; font-size: 13px; }
 .notifs-restore {
@@ -436,13 +458,13 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   border-radius: 11px; border: 2px solid var(--ink); background: var(--fill);
   transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
 }
-.notifs-tabs[data-pane="notifs"] .tabs-thumb {
+.notifs-tabs[data-pane="notifs"] .tabs-thumb, .notifs-tabs[data-pane="strap"] .tabs-thumb {
   left: 50%; right: 2px;
   transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
 }
 .notifs-tab {
   position: relative; height: 21px; padding: 0 3px 0 7px; border-radius: 11px; border: none; background: transparent;
-  color: rgba(15, 59, 66, .55); display: flex; align-items: center; justify-content: center; gap: 4px;
+  color: rgb(from var(--ink) r g b / .55); display: flex; align-items: center; justify-content: center; gap: 4px;
   font-weight: 900; font-size: 13px; cursor: pointer; transition: color .2s, scale .12s;
 }
 .notifs-tab[aria-selected="true"] { color: var(--ink); cursor: default; }
@@ -450,7 +472,7 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 .notifs-tab[aria-selected="false"]:active { scale: .94; }
 .notifs-tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 /* Pastilles de nombre plus petites, pâles sur l'onglet fermé ; celle de l'onglet choisi rebondit */
-.notifs-tab .notifs-count { min-width: 17px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 11px; background: rgba(15, 59, 66, .4); transition: background .2s; }
+.notifs-tab .notifs-count { min-width: 17px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 11px; background: rgb(from var(--ink) r g b / .4); transition: background .2s; }
 .notifs-tab[aria-selected="true"] .notifs-count { background: var(--ink); }
 /* Liste des apps pas encore lue (premier affichage) : pas de « 0 » */
 .notifs-tab .notifs-count:empty { visibility: hidden; }
@@ -478,7 +500,7 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
    Mêmes pastilles de couleur que le menu d'alimentation. */
 .tray-menu {
   position: absolute; z-index: 2; width: 214px; box-sizing: border-box; padding: 10px 8px 8px; border-radius: 20px;
-  background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgba(15, 59, 66, .25);
+  background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgb(from var(--ink) r g b / .25);
   display: flex; flex-direction: column; gap: 4px;
   opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
 }
@@ -506,6 +528,97 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 /* Forcer à quitter : le premier clic demande confirmation, l'élément passe au rose */
 .tray-item.confirm, .tray-item.confirm:hover { background: #f6c6da; color: var(--ink); }
 .tray-item.confirm .tray-dot { border-color: var(--ink); }
+
+/* ══ Carte Personnaliser (demandée par Funsaiki, pas dans la maquette) : sous la ligne du nom,
+   par-dessus les tuiles, le volume et la lecture, pointe vers son bouton (le premier des trois,
+   centré à 230 px). Blanche plutôt qu'à l'encre comme le mélangeur : les couleurs s'y jugent
+   mieux, et l'encre y change aussi. Apparaît comme le mélangeur. ══ */
+.custom {
+  position: absolute; left: 20px; right: 20px; top: 140px; z-index: 2; box-sizing: border-box;
+  padding: 14px 14px 16px; border-radius: 24px; border: 2.5px solid var(--ink); background: #ffffff;
+  box-shadow: 0 3px 0 var(--ink), 0 14px 30px rgb(from var(--ink) r g b / .25);
+  display: flex; flex-direction: column; gap: 14px;
+  opacity: 0; visibility: hidden; translate: 0 -6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+}
+.custom.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
+.custom::before {
+  content: ''; position: absolute; top: -9.5px; left: 200.5px; width: 14px; height: 14px; box-sizing: border-box;
+  border-radius: 3px 0 0 0; border-top: 2.5px solid var(--ink); border-left: 2.5px solid var(--ink); background: #ffffff; rotate: 45deg;
+}
+.custom-head { display: flex; align-items: center; justify-content: space-between; }
+/* Pastille des onglets de la carte des notifications, posée dans la carte */
+.custom-tabs {
+  position: relative; width: 168px; height: 28px; box-sizing: border-box; align-items: center;
+  border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
+}
+.custom-tabs .notifs-tab { padding: 0 5px; }
+.custom-reset {
+  height: 26px; padding: 0 4px; background: transparent; border: none; cursor: pointer;
+  font-weight: 900; font-size: 12px; color: rgb(from var(--ink) r g b / .8);
+}
+.custom-pane { display: flex; flex-direction: column; gap: 12px; }
+.custom-row { display: flex; flex-direction: column; gap: 7px; }
+.custom-row.off { opacity: .4; pointer-events: none; }
+.custom-label { display: flex; align-items: baseline; gap: 6px; font-weight: 900; font-size: 13px; }
+.custom-value { font-weight: 800; font-size: 12px; color: var(--soft); }
+.custom-value::before { content: '· '; }
+
+/* Nuancier : pastilles de 32 px, celle choisie cerclée d'encre ; la dernière, « Autre couleur »,
+   en arc-en-ciel pastel avec un +, à sa couleur une fois choisie */
+.swatches { display: flex; gap: 8px; }
+.swatch {
+  width: 32px; height: 32px; flex: none; padding: 0; box-sizing: border-box; border-radius: 50%;
+  border: 2.5px solid var(--ink); background: var(--c); color: var(--ink); box-shadow: 0 2px 0 var(--ink);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .12s, box-shadow .12s;
+}
+.swatch:hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--ink); }
+.swatch:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--ink); }
+.swatch[aria-checked="true"], .swatch[aria-checked="true"]:hover { transform: none; box-shadow: 0 0 0 2.5px #ffffff, 0 0 0 5px var(--ink); }
+.swatch:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
+.swatch-free { background: conic-gradient(#f6c6da, #ffe08a, #9fe0dc, #c9d8ff, #d9c9f7, #f6c6da); }
+.swatch-free.chosen { background: var(--c); }
+.swatch-free.chosen svg { display: none; }
+
+/* Couleur libre : teinte et clarté (curseurs du volume, piste aux couleurs possibles), code à droite */
+.free { display: grid; grid-template-columns: minmax(0, 1fr) 86px; align-items: center; gap: 10px 12px; padding: 4px 0 2px; }
+.free .tp-range { background: var(--track); }
+.free-hex {
+  grid-row: span 2; width: 100%; height: 30px; box-sizing: border-box; padding: 0 10px; border-radius: 15px;
+  border: 2.5px solid var(--ink); background: #ffffff; color: var(--ink); box-shadow: 0 2px 0 var(--ink);
+  font-weight: 800; font-size: 13px; outline: none; transition: background .15s;
+}
+.free-hex:focus { background: color-mix(in srgb, var(--fill) 45%, #ffffff); }
+
+/* Breloques : tuiles de 36 px, fond accent pour celle choisie */
+.charms { display: flex; gap: 6px; }
+.charm {
+  width: 36px; height: 36px; flex: none; padding: 0; box-sizing: border-box; border-radius: 12px;
+  border: 2.5px solid var(--ink); background: #ffffff; color: var(--ink); box-shadow: 0 2px 0 var(--ink);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer;
+  transition: transform .12s, box-shadow .12s, background .15s;
+}
+.charm:hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--ink); }
+.charm:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--ink); }
+.charm[aria-checked="true"] { background: var(--fill); }
+.charm:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.charm > img, .charm > svg[viewBox="0 0 52 64"] { width: auto; height: 27px; max-width: 27px; object-fit: contain; }
+
+/* Perles : les trois du strap sur leur cordon, celle à changer cerclée */
+.beads { position: relative; display: flex; gap: 14px; align-self: flex-start; }
+.beads::before { content: ''; position: absolute; left: 14px; right: 14px; top: 50%; height: 2.5px; translate: 0 -50%; background: var(--ink); }
+.bead {
+  position: relative; width: 28px; height: 28px; padding: 0; box-sizing: border-box; border-radius: 50%;
+  border: 2.5px solid var(--ink); background: var(--c); box-shadow: 0 2px 0 var(--ink); cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+}
+.bead::after { content: ''; position: absolute; left: 4px; top: 4px; width: 5px; height: 5px; border-radius: 50%; background: #ffffff; }
+.bead:hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--ink); }
+.bead[aria-checked="true"], .bead[aria-checked="true"]:hover { transform: none; box-shadow: 0 0 0 2.5px #ffffff, 0 0 0 5px var(--ink); }
+.bead:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
+
+/* Image choisie comme breloque : dans 52 × 52 px, le haut contre le cordon (plus haute, elle
+   sortirait par le bas de l'écran, téléphone couché) */
+.strap-charm.own > img { max-height: 52px; object-fit: contain; object-position: top; }
 
 /* ══ Vue applications : couchée dans l'écran (pivotée de 90°, le téléphone l'est de -90°) ══ */
 .view-apps {
@@ -601,7 +714,7 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
    disparaissant ; la vue réglages passe en inert tant qu'il est ouvert (ui.ts). ══ */
 .power {
   position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center;
-  background: rgba(10, 42, 47, .62); backdrop-filter: blur(3px);
+  background: rgb(from var(--ink-deep) r g b / .62); backdrop-filter: blur(3px);
   opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility 0s .2s;
 }
 .power.open { opacity: 1; visibility: visible; transition: opacity .2s ease; }
