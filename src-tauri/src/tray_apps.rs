@@ -6,7 +6,7 @@
 //! composants de Windows et le lanceur lui-même. Le menu de chaque icône n'est pas accessible
 //! non plus : le lanceur a le sien (ouvrir, emplacement du fichier, forcer à quitter).
 //! Barre pastel cochée, Pastille tient elle-même la zone de notification (tray_host.rs) : la
-//! liste est celle des icônes, et leurs clics vont à leur application (son menu compris).
+//! liste commence par ses icônes, dont les clics vont à leur application (son menu compris).
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -102,28 +102,28 @@ struct Program {
     tooltip: Option<String>,
 }
 
+/// Barre pastel cochée : les icônes reçues par Pastille, puis, comme avant, les programmes qui
+/// tournent sans lui en avoir donné : sans icône en ce moment (Spotify), ou qui ne répondent
+/// pas à « TaskbarCreated » (Riot, Java : vérifié) et ne la redonnent qu'en la changeant
 fn list() -> Vec<TrayApp> {
-    let mut apps: Vec<TrayApp> = match crate::tray_host::icons() {
-        Some(icons) => live(icons),
-        None => programs()
-            .into_iter()
-            .map(|p| TrayApp {
-                name: name_of(&p),
-                icon: crate::icon::of(&p.path),
-                packaged: is_packaged(&p.path),
-                key: p.path,
-                clicks: false,
-                tip: None,
-            })
-            .collect(),
-    };
+    let mut shown = HashSet::new();
+    let mut apps = crate::tray_host::icons().map(|icons| live(icons, &mut shown)).unwrap_or_default();
+    apps.extend(programs().into_iter().filter(|p| !shown.contains(&p.path.to_lowercase())).map(|p| TrayApp {
+        name: name_of(&p),
+        icon: crate::icon::of(&p.path),
+        packaged: is_packaged(&p.path),
+        key: p.path,
+        clicks: false,
+        tip: None,
+    }));
     apps.sort_by_key(|app| crate::steam::normalize(&app.name));
     apps
 }
 
 /// Icônes de la zone de notification de Pastille, sans celles de Windows ni la sienne ; une
-/// tuile par icône (une application peut en avoir deux), l'icône de son programme
-fn live(icons: Vec<crate::tray_host::Live>) -> Vec<TrayApp> {
+/// tuile par icône (une application peut en avoir deux), l'icône de son programme. `shown` :
+/// leurs programmes, en minuscules
+fn live(icons: Vec<crate::tray_host::Live>, shown: &mut HashSet<String>) -> Vec<TrayApp> {
     let excluded = Excluded::new();
     icons
         .into_iter()
@@ -132,6 +132,7 @@ fn live(icons: Vec<crate::tray_host::Live>) -> Vec<TrayApp> {
             if excluded.contains(&path.to_lowercase()) {
                 return None;
             }
+            shown.insert(path.to_lowercase());
             let tip = icon.tip.trim().to_string();
             let tooltip = tip.lines().next().map(|line| line.trim().to_string()).filter(|t| !t.is_empty());
             let program = Program { path, tooltip };

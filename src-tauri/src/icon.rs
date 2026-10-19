@@ -28,6 +28,10 @@ pub struct Icon {
 }
 
 static CACHE: Mutex<Option<HashMap<String, Option<Icon>>>> = Mutex::new(None);
+/// Une icône lue à la fois : SHGetFileInfoW échoue quand deux fils lisent la même en même
+/// temps (vérifié : les pilules et le téléphone la demandent ensemble au démarrage), et
+/// l'échec resterait en mémoire
+static READING: Mutex<()> = Mutex::new(());
 
 /// À appeler avec COM initialisé (com_task)
 pub fn of(path: &str) -> Option<Icon> {
@@ -50,8 +54,13 @@ pub fn of_start_app(target: &str) -> Option<Icon> {
 }
 
 fn cached(key: &str, extract: impl FnOnce() -> Option<Icon>) -> Option<Icon> {
-    if let Some(cached) = CACHE.lock().unwrap().get_or_insert_with(HashMap::new).get(key) {
-        return cached.clone();
+    let known = || CACHE.lock().unwrap().get_or_insert_with(HashMap::new).get(key).cloned();
+    if let Some(cached) = known() {
+        return cached;
+    }
+    let _reading = READING.lock().unwrap();
+    if let Some(cached) = known() {
+        return cached; // lue par un autre fil pendant l'attente
     }
     let icon = extract();
     CACHE.lock().unwrap().get_or_insert_with(HashMap::new).insert(key.to_string(), icon.clone());
@@ -167,5 +176,25 @@ mod tests {
         assert_eq!(bytes.len() as u32, icon.width * icon.height * 4);
         assert!(bytes.chunks(4).any(|p| p[3] == 255), "des pixels opaques");
         assert!(bytes.chunks(4).any(|p| p[3] == 0), "des pixels transparents");
+    }
+
+    #[test]
+    fn same_icon_read_together_is_read_by_all() {
+        let path = format!(r"{}\regedit.exe", std::env::var("SystemRoot").unwrap());
+        let start = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let readers: Vec<_> = (0..4)
+            .map(|_| {
+                let (path, start) = (path.clone(), start.clone());
+                std::thread::spawn(move || {
+                    crate::com::with_com(|| {
+                        start.wait();
+                        of(&path)
+                    })
+                })
+            })
+            .collect();
+        for reader in readers {
+            assert!(reader.join().unwrap().is_some(), "icône de regedit");
+        }
     }
 }
