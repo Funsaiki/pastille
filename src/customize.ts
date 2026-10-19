@@ -2,7 +2,7 @@
    Carte Personnaliser (demandée par Funsaiki le 19/10/2026) : deux onglets, Couleurs
    (accent, coque, écran, encre) et Strap (breloque, perles). Un nuancier par couleur et
    une pastille « Autre couleur » qui ouvre teinte, clarté et code. Tout change en direct
-   et est gardé (host.setAppearance). Ouverte par le bouton Personnaliser ou un clic sur le
+   et est gardé (host.setAppearance : apparence.json). Ouverte par le bouton Personnaliser ou un clic sur le
    strap ; ui.ts la ferme (Échap, clic à côté, autres panneaux).
    ══════════════════════════════════════════════════════════ */
 import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Swatch } from './appearance';
@@ -20,6 +20,7 @@ let image: string | null = null;     // image choisie pour la breloque (data:…
 let editing: string | null = null;   // rangée dont la couleur libre est ouverte (« accent »… « perle »)
 let bead = 0;                        // perle choisie, de haut en bas
 let paletteChanged = () => {};       // ui.ts refait ce qui prend les couleurs de la palette
+let report = (e: unknown) => console.error(e);   // ui.ts : dans les notifications
 
 const LABELS: Record<ColorKey, string> = { accent: 'Accent', coque: 'Coque', ecran: 'Écran', encre: 'Encre' };
 const PLUS = 'M12 6v12M6 12h12';
@@ -112,7 +113,7 @@ function changed() {
     paletteChanged();
   }
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => host.setAppearance(appearance()).catch(console.error), 250);
+  saveTimer = setTimeout(() => host.setAppearance(appearance()).catch(report), 250);
 }
 
 /* Une couleur égale à celle d'origine n'est pas gardée : la maquette revient telle quelle */
@@ -142,7 +143,7 @@ function setCharm(key: Charm) {
 
 async function chooseImage() {
   const picked = await host.pickCharmImage().catch((e) => {
-    console.error(e);
+    report(e);
     return null;
   });
   if (!picked) return;
@@ -416,9 +417,11 @@ export function closeCustom() {
   editing = null;
 }
 
-/* Carte construite une fois ; `onPalette` : les couleurs de la palette ont changé */
-export function initCustom(onPalette: () => void) {
+/* Carte construite une fois ; `onPalette` : les couleurs de la palette ont changé ; `onError` :
+   apparence pas enregistrée, image refusée */
+export function initCustom(onPalette: () => void, onError: (e: unknown) => void) {
   paletteChanged = onPalette;
+  report = onError;
   shownPalette = palette().join();
   const colors = (Object.keys(LABELS) as ColorKey[]).map(colorRow);
   const strap = [charmRow(), beadRow()];

@@ -11,10 +11,10 @@
 :root {
   --ink: #0f3b42;
   --ink-deep: #0a2a2f;
-  --fill: #9fe0dc;   /* accent, remplacé par celui de apps.json */
-  --soft: rgba(15, 59, 66, .72);
+  --fill: #9fe0dc;   /* accent, remplacé par celui de apps.json ou de la carte Personnaliser */
+  --soft: rgb(from var(--ink) r g b / .72);
   --ease: cubic-bezier(.2, .8, .2, 1);
-  --float: 0 3px 0 var(--ink), 0 14px 30px rgba(15, 59, 66, .25);
+  --float: 0 3px 0 var(--ink), 0 14px 30px rgb(from var(--ink) r g b / .25);
 }
 
 html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
@@ -24,9 +24,9 @@ button { font-family: inherit; }
 [hidden] { display: none !important; }
 
 /* Aperçu navigateur : la place du fond d'écran, comme pour le téléphone */
-.wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgba(15, 59, 66, .55); }
+.wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgb(from var(--ink) r g b / .55); }
 .preview .wallpaper-hint { display: block; }
-.preview-help { position: absolute; left: 48px; top: 64px; margin: 0; font-size: 13px; font-weight: 800; color: rgba(15, 59, 66, .55); }
+.preview-help { position: absolute; left: 48px; top: 64px; margin: 0; font-size: 13px; font-weight: 800; color: rgb(from var(--ink) r g b / .55); }
 
 /* ── Survols, comme le téléphone ── */
 .tp-press { transition: transform .12s, box-shadow .12s, background .15s; }
@@ -95,7 +95,7 @@ button { font-family: inherit; }
 
 .bar-windows { display: flex; gap: 8px; }
 .bar-windows:empty, .bar-windows:empty + .bar-sep { display: none; }
-.bar-sep { width: 2.5px; height: 26px; flex: none; border-radius: 2px; background: rgba(15, 59, 66, .16); }
+.bar-sep { width: 2.5px; height: 26px; flex: none; border-radius: 2px; background: rgb(from var(--ink) r g b / .16); }
 
 /* ^ et haut-parleur : ronds sans bord comme Paramètres et Alimentation, accent au survol et une
    fois ouverts */
@@ -203,7 +203,7 @@ button { font-family: inherit; }
 .qtile[aria-pressed="true"] .qtile-dot { background: #ffffff; }
 .qtile-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .qtile-label { font-weight: 900; font-size: 15px; }
-.qtile-sub { font-weight: 700; font-size: 12px; color: rgba(15, 59, 66, .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qtile-sub { font-weight: 700; font-size: 12px; color: rgb(from var(--ink) r g b / .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Calendrier : carte au-dessus de l'heure, comme la zone de notification ; six semaines du
    lundi au dimanche, aujourd'hui en rond accent bordé d'encre ── */
@@ -222,7 +222,7 @@ button { font-family: inherit; }
 .bar-cal-month:hover { background: color-mix(in srgb, var(--fill) 45%, #ffffff); }
 .bar-cal-nav:focus-visible, .bar-cal-month:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .bar-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; justify-items: center; }
-.bar-cal-wd { height: 24px; display: flex; align-items: center; font-weight: 900; font-size: 11px; color: rgba(15, 59, 66, .55); }
+.bar-cal-wd { height: 24px; display: flex; align-items: center; font-weight: 900; font-size: 11px; color: rgb(from var(--ink) r g b / .55); }
 .bar-cal-day {
   width: 32px; height: 30px; box-sizing: border-box; border-radius: 15px; display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 13px;
@@ -231,7 +231,7 @@ button { font-family: inherit; }
 .bar-cal-day.today { background: var(--fill); border: 2px solid var(--ink); box-shadow: 0 2px 0 var(--ink); font-weight: 900; }
 .bar-cal-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 10px;
-  border-top: 2px solid rgba(15, 59, 66, .1);
+  border-top: 2px solid rgb(from var(--ink) r g b / .1);
 }
 .bar-cal-today { min-width: 0; font-weight: 800; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-cal-notif {
@@ -263,16 +263,16 @@ button { font-family: inherit; }
 .media-volume i { flex: none; width: 6px; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
 .media-volume i::before {
   content: ''; width: 4px; height: var(--h); border-radius: 2px;
-  background: linear-gradient(0deg, var(--ink) var(--p, 0%), rgba(15, 59, 66, .18) var(--p, 0%));
+  background: linear-gradient(0deg, var(--ink) var(--p, 0%), rgb(from var(--ink) r g b / .18) var(--p, 0%));
 }
-.media-volume:hover i::before { box-shadow: 0 0 0 .5px rgba(15, 59, 66, .25); }
+.media-volume:hover i::before { box-shadow: 0 0 0 .5px rgb(from var(--ink) r g b / .25); }
 .media-volume:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .media-volume[aria-disabled="true"] { opacity: .4; cursor: default; pointer-events: none; }
 /* Aléatoire et répétition (Spotify connecté) ; « 1 » : répétition du titre ; étincelle et fond
    rose : aléatoire intelligent */
 .media-mode {
   width: 15px; height: 15px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
-  color: rgba(15, 59, 66, .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  color: rgb(from var(--ink) r g b / .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
   transition: background .15s, color .15s;
 }
 .media-controls .media-mode:first-of-type { margin-left: 3px; }
@@ -345,7 +345,7 @@ button { font-family: inherit; }
 /* ── Menus (clic droit, fenêtres d'un programme) : ceux de l'onglet Apps du téléphone ── */
 .bar-menu {
   position: fixed; z-index: 2; width: 240px; box-sizing: border-box; padding: 10px 8px 8px; border-radius: 20px;
-  background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgba(15, 59, 66, .25);
+  background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgb(from var(--ink) r g b / .25);
   display: flex; flex-direction: column; gap: 4px;
   opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
 }

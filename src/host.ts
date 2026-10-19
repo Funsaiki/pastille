@@ -152,7 +152,7 @@ export type FeedEvent =
 export type Tool = 'settings' | 'taskmgr' | 'wifi' | 'bluetooth' | 'steam-downloads' | 'windows-update' | 'storage' | 'notifications';
 export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
-/* Aperçu navigateur : apparence gardée dans la page (pas encore branchée à Rust) */
+/* Aperçu navigateur : apparence gardée dans la page (localStorage, partagé avec barre.html) */
 const PREVIEW_LOOK = 'apparence-apercu';
 const PREVIEW_IMAGE = 'apparence-apercu-image';
 
@@ -268,17 +268,21 @@ export const host = {
     if (PREVIEW) return { config: previewConfig(), problems: [], welcome };
     return invoke<ConfigPayload>('get_config');
   },
-  /* Carte Personnaliser. Maquette : seulement dans l'aperçu, l'app garde l'apparence d'origine. */
-  async appearance(): Promise<AppearancePayload> {
-    if (!PREVIEW) return { appearance: {}, image: null };
-    return { appearance: JSON.parse(previewRead(PREVIEW_LOOK) ?? '{}'), image: previewRead(PREVIEW_IMAGE) };
+  /* Carte Personnaliser : apparence gardée (apparence.json, à côté de apps.json) ; `image` : avec
+     celle de la breloque (la barre pastel ne la demande pas) */
+  async appearance(image = true): Promise<AppearancePayload> {
+    if (!PREVIEW) return invoke<AppearancePayload>('get_appearance', { image });
+    return { appearance: JSON.parse(previewRead(PREVIEW_LOOK) ?? '{}'), image: image ? previewRead(PREVIEW_IMAGE) : null };
   },
+  /* Rust envoie la nouvelle apparence aux pages de la barre pastel */
   async setAppearance(appearance: Appearance) {
     if (PREVIEW) previewWrite(PREVIEW_LOOK, JSON.stringify(appearance));
-    else console.info('[maquette] apparence :', appearance);
+    else await invoke('set_appearance', { appearance });
   },
-  /* Image de la breloque choisie sur le PC (data:…), null si rien n'est choisi */
+  /* Image de la breloque choisie sur le PC (data:…), null si rien n'est choisi. App : la boîte
+     « Ouvrir » de Windows, l'image copiée à côté de apps.json ; rejette avec un message en français. */
   async pickCharmImage(): Promise<string | null> {
+    if (!PREVIEW) return invoke<string | null>('pick_charm_image');
     const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/png,image/svg+xml,image/jpeg,image/webp,image/gif' });
     const file = await new Promise<File | null>((resolve) => {
       input.addEventListener('change', () => resolve(input.files?.[0] ?? null));
@@ -291,7 +295,7 @@ export const host = {
       reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
-    if (PREVIEW) previewWrite(PREVIEW_IMAGE, url);
+    previewWrite(PREVIEW_IMAGE, url);
     return url;
   },
   /* Premier lancement : Rust montre le téléphone une fois la page prête (une fois par démarrage) */
@@ -673,5 +677,9 @@ export const host = {
   onConfigChanged(fn: () => void) {
     if (PREVIEW) previewConfigListeners.push(fn);
     else listen('config:changed', fn);
+  },
+  /* Apparence changée dans le téléphone (barre pastel) */
+  onAppearanceChanged(fn: (appearance: Appearance) => void) {
+    if (!PREVIEW) listen<Appearance>('appearance:changed', (e) => fn(e.payload));
   },
 };

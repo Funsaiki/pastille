@@ -1911,7 +1911,7 @@ export async function init() {
   renderActions();
   renderPowerChoices();
   renderTiles();
-  initCustom(refreshPalette);
+  initCustom(refreshPalette, (e) => report('Personnaliser', e));
   bindEvents();
   await loadAppearance();
   host.profile().then(renderProfile).catch(console.error);

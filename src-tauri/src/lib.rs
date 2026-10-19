@@ -1,4 +1,5 @@
 mod app_menu;
+mod appearance;
 mod audio;
 mod bar;
 mod bar_pins;
@@ -81,6 +82,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             config::get_config,
+            appearance::get_appearance,
+            appearance::set_appearance,
+            appearance::pick_charm_image,
             tray::enable_autostart,
             launcher::first_show,
             launcher::hide_window,

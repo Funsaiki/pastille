@@ -20,6 +20,14 @@ use windows::Win32::{
 
 use crate::config;
 
+/// Boîte de dialogue du lanceur ouverte (choix de l'image de la breloque) : il lui laisse le
+/// focus sans se masquer, et le raccourci attend qu'elle soit fermée
+static DIALOG: AtomicBool = AtomicBool::new(false);
+
+pub fn set_dialog(open: bool) {
+    DIALOG.store(open, Ordering::SeqCst);
+}
+
 /// Dernière demande de masquage
 static LAST_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
 /// Le raccourci arrive parfois juste après un masquage par perte de focus (ex. le menu Démarrer
@@ -138,6 +146,10 @@ pub fn hide(app: &AppHandle) {
 
 pub fn toggle(app: &AppHandle) {
     let Some(w) = window(app) else { return };
+    if DIALOG.load(Ordering::SeqCst) {
+        debug_log("raccourci ignoré : boîte de dialogue ouverte");
+        return;
+    }
     let just_hidden = LAST_HIDE.lock().unwrap().is_some_and(|t| t.elapsed() < REOPEN_GUARD);
     if is_visible(&w) {
         debug_log("raccourci : masquer");
@@ -152,7 +164,7 @@ pub fn toggle(app: &AppHandle) {
 
 pub fn on_blur(app: &AppHandle) {
     let Some(w) = window(app) else { return };
-    if !is_visible(&w) {
+    if !is_visible(&w) || DIALOG.load(Ordering::SeqCst) {
         return;
     }
     // En debug, ouvrir les outils de développement fait perdre le focus : rester affiché

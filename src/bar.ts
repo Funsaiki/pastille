@@ -10,6 +10,8 @@
    ══════════════════════════════════════════════════════════ */
 import { ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
+import { applyColors, palette, setAppearance } from './appearance';
+import { setConfig } from './config';
 import {
   PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type PinnedApp, type RepeatMode,
   type ShuffleMode, type SpotifyVolume, type TrayAction, type TrayApp,
@@ -21,7 +23,6 @@ const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const SCREEN = host.barScreen();
 const MAIN = SCREEN === 0;
 
-const PALETTE = ['var(--fill)', '#f6c6da', '#c9d8ff', '#ffe08a'];
 const GRID = 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z';
 const CHEVRON = 'M6 15l6-6 6 6';
 const PLUS = 'M12 5v14M5 12h14';
@@ -38,7 +39,7 @@ function fillTile(tile: HTMLElement, name: string, picture: AppIcon | null, glyp
     tile.append(icon(ICONS[glyph], size, 2.4));
   } else {
     tile.append(name.charAt(0).toUpperCase());
-    tile.style.setProperty('--tile', PALETTE[i % 4]);
+    tile.style.setProperty('--tile', palette()[i % 4]);
   }
 }
 
@@ -1092,6 +1093,32 @@ function moveCal(step: number) {
   renderCal();
 }
 
+/* ── Couleurs : accent (apps.json, ou celui choisi dans le téléphone) et encre de la carte
+   Personnaliser du téléphone (appearance.ts) ── */
+let shownPalette = palette().join();
+
+function paint() {
+  applyColors();
+  const next = palette().join();
+  if (next === shownPalette) return;
+  // Tuiles à l'initiale refaites avec les nouvelles couleurs
+  shownPalette = next;
+  windowsShown = '';
+  trayShown = '';
+  renderWindows();
+  renderTray();
+}
+
+function loadColors() {
+  Promise.all([host.getConfig(), host.appearance(false)])
+    .then(([{ config }, { appearance }]) => {
+      setConfig(config);
+      setAppearance(appearance);
+      paint();
+    })
+    .catch(() => {});
+}
+
 /* ── Événements ── */
 function init() {
   if (PREVIEW) {
@@ -1102,12 +1129,11 @@ function init() {
       : 'Barre pastel, second écran : souris tout en bas pour la faire sortir. Écran principal : sans ?ecran=2';
     help.hidden = false;
   }
-  host.getConfig()
-    .then(({ config }) => document.documentElement.style.setProperty('--fill', config.accent))
-    .catch(() => {});
-
-  host.onConfigChanged(() => {
-    host.getConfig().then(({ config }) => document.documentElement.style.setProperty('--fill', config.accent)).catch(() => {});
+  loadColors();
+  host.onConfigChanged(loadColors);
+  host.onAppearanceChanged((appearance) => {
+    setAppearance(appearance);
+    paint();
   });
 
   $('bar-apps').append(icon(GRID, 22, 2.4));
