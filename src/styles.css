@@ -516,9 +516,14 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 .apps-title { width: 150px; flex: none; display: flex; flex-direction: column; line-height: 1.1; }
 .apps-sup { font-weight: 800; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .apps-name { font-weight: 900; font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Peinte après le reste de la vue (z-index, sous les menus) : WebView2 155 met le curseur du champ
+   dans un calque à part, et tout ce qui était peint après lui (compte, heure, grille) passait dans
+   un second calque, dessiné pendant la rotation puis étiré : texte flou jusqu'au premier clic
+   (remarque de Funsaiki, 19/10/2026) */
 .search {
   flex: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 22px;
   border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center; gap: 10px;
+  position: relative; z-index: 1;
 }
 .search input {
   flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; border: none; outline: none;
