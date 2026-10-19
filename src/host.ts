@@ -142,7 +142,7 @@ export type FeedEvent =
   | { kind: 'reboot' }
   | { kind: 'disk'; drive: string; free: number };
 
-export type Tool = 'settings' | 'taskmgr' | 'steam-downloads' | 'windows-update' | 'storage' | 'notifications';
+export type Tool = 'settings' | 'taskmgr' | 'wifi' | 'bluetooth' | 'steam-downloads' | 'windows-update' | 'storage' | 'notifications';
 export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
 /* Aperçu navigateur : l'exemple, avec quelques lancements pour la recherche et les récents */

@@ -81,6 +81,10 @@ pub async fn open_tool(tool: String) -> Result<(), String> {
     let target = match tool.as_str() {
         "settings" => "ms-settings:",
         "taskmgr" => "taskmgr.exe",
+        // Barre d'état : la liste des réseaux de la barre de Windows ; pour le Bluetooth, Windows
+        // n'a pas de lien fiable vers son panneau rapide, ce sont ses Paramètres
+        "wifi" => "ms-availablenetworks:",
+        "bluetooth" => "ms-settings:bluetooth",
         // Notifications
         "steam-downloads" => "steam://open/downloads",
         "windows-update" => "ms-settings:windowsupdate",

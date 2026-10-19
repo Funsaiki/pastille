@@ -198,6 +198,11 @@ button, input { font-family: 'Nunito', sans-serif; }
 .status-time .time { font-weight: 900; font-size: 21px; }
 .status-time .date { font-weight: 700; font-size: 12px; color: var(--soft); }
 .status-net { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; font-weight: 800; font-size: 12px; }
+/* Wi-Fi et Bluetooth (ajout) : les boutons à droite du nom, réduits en icônes de barre d'état
+   (entre l'île et le débit, il reste ~106 px, le débit en prend jusqu'à 62) */
+.status-right { display: flex; align-items: center; gap: 4px; }
+.status-links { display: flex; }
+.user-action.status-link { width: 20px; height: 20px; }
 .soft { color: var(--soft); }
 
 .user { display: flex; align-items: center; gap: 14px; }

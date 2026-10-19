@@ -70,6 +70,13 @@ const ACTIONS = [
   { label: 'Alimentation', d: POWER, hover: '#f6c6da', run: () => openPowerMenu() },
 ];
 
+/* Barre d'état, à gauche du débit (demandés par Funsaiki le 19/10/2026) : les panneaux de Windows,
+   affichés même sans adaptateur (Windows le dit alors lui-même). Couleur du rond au survol. */
+const LINKS = [
+  { label: 'Wi-Fi : réseaux disponibles', d: 'M2.5 9a14 14 0 0119 0M5.5 12.5a9.5 9.5 0 0113 0M8.7 16a5 5 0 016.6 0M12 19.5h.01', hover: 'var(--fill)', tool: 'wifi' as const },
+  { label: 'Bluetooth et appareils', d: 'M7 7l10 10-5 5V2l5 5L7 17', hover: '#c9d8ff', tool: 'bluetooth' as const },
+];
+
 /* Menu d'alimentation, dans l'ordre de celui de Windows */
 const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string }[] = [
   { action: 'sleep', label: 'Mettre en veille', d: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z', bg: 'var(--fill)' },
@@ -174,6 +181,15 @@ function renderActions() {
     b.style.setProperty('--hover', a.hover);
     b.append(icon(a.d, 22, 2.4));
     b.addEventListener('click', a.run);
+    return b;
+  }));
+  $('links').replaceChildren(...LINKS.map((l) => {
+    const b = el('button', 'user-action status-link');
+    b.setAttribute('aria-label', l.label);
+    b.title = l.label;
+    b.style.setProperty('--hover', l.hover);
+    b.append(icon(l.d, 14, 2.6));
+    b.addEventListener('click', () => runAction('Lancement', () => host.openTool(l.tool)));
     return b;
   }));
 }
