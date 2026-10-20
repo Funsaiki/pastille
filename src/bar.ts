@@ -94,6 +94,7 @@ async function refreshWindows() {
   }
   renderWindows();
   updatePreview();
+  updateWindowMenu();
 }
 
 /* Tuile d'une fenêtre : celle de son application épinglée, sinon celle de son programme */
@@ -149,7 +150,7 @@ function latest(g: Group): BarWindow[] {
 }
 
 /* Clic : ramène la fenêtre, ou la réduit si elle est déjà au premier plan ; plusieurs fenêtres :
-   leur liste. Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. Survol :
+   leur liste (chacune avec son ×). Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. Survol :
    aperçu des fenêtres (il remplace l'infobulle). */
 function groupTile(g: Group, i: number) {
   if (!g.windows.length) return pinTile(g, i);
@@ -169,7 +170,7 @@ function groupTile(g: Group, i: number) {
   b.addEventListener('click', () => {
     const list = latest(g);
     if (list.length > 1) {
-      openMenu(b, g.app, list.map(windowItem));
+      openMenu(b, g.app, list.map(windowItem), g);
     } else {
       closePreview();
       act(() => (list[0].active ? host.minimizeWindow(list[0].id) : host.focusWindow(list[0].id)));
@@ -388,14 +389,48 @@ function previewItem(w: BarWindow, size: [number, number] | null, i: number) {
   return item;
 }
 
-/* Une fenêtre dans la liste d'un programme ; celle du premier plan est surlignée */
+/* Une fenêtre dans la liste d'un programme ; celle du premier plan est surlignée. Son ×
+   (demande de Funsaiki, 20/10/2026) la ferme sans refermer la liste : comme le bouton de
+   fermeture, l'app peut demander d'enregistrer ; la ligne reste grisée le temps qu'elle se
+   ferme, puis disparaît (updateWindowMenu). */
 function windowItem(w: BarWindow, i: number) {
   const dot = el('span', 'bar-dot');
   fillTile(dot, w.app, w.icon, w.glyph, i, 16);
   const item = menuItem(w.title, dot, () => act(() => host.focusWindow(w.id)));
+  item.dataset.id = w.id;
   item.classList.toggle('current', w.active);
   item.classList.toggle('alert', w.attention);
+  // Pas de bouton dans un bouton, comme le × de l'aperçu
+  const close = el('span', 'bar-item-close');
+  close.title = 'Fermer la fenêtre';
+  close.append(icon(CLOSE, 12, 2.8));
+  close.addEventListener('click', (e) => {
+    e.stopPropagation();
+    item.classList.add('closing');
+    window.setTimeout(() => item.classList.remove('closing'), CLOSING_MS);
+    host.closeWindow(w.id).catch(console.error).then(refreshWindows);
+  });
+  item.append(close);
   return item;
+}
+
+/* Fenêtres relues, liste d'un programme ouverte : les fermées en disparaissent ; plus aucune :
+   la liste se referme */
+function updateWindowMenu() {
+  const group = menu?.group;
+  if (!group) return;
+  const ids = new Set(windows.filter((w) => groupKey(w) === group.key).map((w) => w.id));
+  if (!ids.size) {
+    closeMenu(false);
+    return;
+  }
+  const rows = Array.from($('bar-menu-items').querySelectorAll<HTMLElement>('.bar-item'));
+  for (const row of rows.filter((r) => !ids.has(r.dataset.id!))) {
+    // Le focus ne part pas avec elle : la liste se refermerait (focusout)
+    if (row.contains(document.activeElement)) rows.find((r) => ids.has(r.dataset.id!))?.focus({ preventScroll: true });
+    row.remove();
+  }
+  reportRects();
 }
 
 /* ══ Zone de notification (écran principal) : l'onglet Apps du téléphone, mêmes actions ══ */
@@ -517,7 +552,7 @@ function togglePop(open = !popOpen()) {
 }
 
 /* ══ Menus : fond encre, au-dessus de leur tuile, pointe vers elle ══ */
-let menu: { tile: HTMLElement } | null = null;
+let menu: { tile: HTMLElement; group?: Group } | null = null;   // group : liste des fenêtres d'un programme
 
 function actionDot(d: string, bg: string) {
   const dot = el('span', 'bar-dot');
@@ -529,7 +564,7 @@ function actionDot(d: string, bg: string) {
 function menuItem(label: string, dot: HTMLElement, run: (item: HTMLButtonElement, text: HTMLElement) => void) {
   const b = el('button', 'bar-item');
   b.setAttribute('role', 'menuitem');
-  const text = el('span', '', label);
+  const text = el('span', 'bar-item-text', label);
   b.append(dot, text);
   b.addEventListener('click', () => run(b, text));
   return b;
@@ -537,7 +572,7 @@ function menuItem(label: string, dot: HTMLElement, run: (item: HTMLButtonElement
 
 /* Un second clic sur la même tuile referme son menu. Les tuiles ne sont pas refaites avant
    l'ouverture : le menu se place au-dessus de celle-ci (refaites à sa fermeture). */
-function openMenu(tile: HTMLElement, name: string, items: HTMLElement[]) {
+function openMenu(tile: HTMLElement, name: string, items: HTMLElement[], group?: Group) {
   const again = menu?.tile === tile;
   closePreview(false);
   closeMenu(false, false);
@@ -550,7 +585,7 @@ function openMenu(tile: HTMLElement, name: string, items: HTMLElement[]) {
   if (!$('bar-pop').contains(tile)) closeCards();
   $('bar-menu-name').textContent = name;
   $('bar-menu-items').replaceChildren(...items);
-  menu = { tile };
+  menu = { tile, group };
   tile.classList.add('menu-open');
   place($('bar-menu'), tile);
   $('bar-menu').classList.add('open');

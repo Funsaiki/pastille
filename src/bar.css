@@ -364,7 +364,7 @@ button { font-family: inherit; }
   display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 13px; text-align: left; cursor: pointer;
   transition: background .15s, color .15s;
 }
-.bar-item > span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-item-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-item:hover { background: rgba(255, 255, 255, .14); }
 .bar-item:focus-visible { outline: 3px solid #ffffff; outline-offset: -2px; }
 .bar-item.current { background: rgba(255, 255, 255, .14); }
@@ -378,3 +378,13 @@ button { font-family: inherit; }
 /* Forcer à quitter : le premier clic demande confirmation, l'élément passe au rose */
 .bar-item.confirm, .bar-item.confirm:hover { background: #f6c6da; color: var(--ink); }
 .bar-item.confirm .bar-dot { border-color: var(--ink); }
+/* Fermer une fenêtre de la liste d'un programme (demande de Funsaiki, 20/10/2026) : le × de
+   l'aperçu, au survol de la ligne, rose sous la souris ; ligne grisée le temps qu'elle se ferme */
+.bar-item-close {
+  width: 24px; height: 24px; flex: none; margin-right: -4px; border-radius: 50%; color: #ffffff;
+  display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s, background .15s, color .15s;
+}
+.bar-item:hover .bar-item-close { opacity: 1; }
+.bar-item-close:hover { background: #f6c6da; color: var(--ink); }
+.bar-item-close:active { translate: 0 1px; }
+.bar-item.closing { opacity: .45; pointer-events: none; transition: opacity .15s; }
