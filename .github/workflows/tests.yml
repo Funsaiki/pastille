@@ -1,7 +1,6 @@
-# Tests (demandés par Funsaiki le 21/10/2026 : « laisser le CI/CD gérer ») : à chaque push sur
-# main, à chaque pull request, et avant chaque release (appelé par installateur.yml). Front :
-# types et compilation (`npm run build`) ; Rust : `cargo test`, sur Windows. Les diagnostics
-# marqués #[ignore] lisent le vrai PC de Funsaiki : ils ne tournent pas ici.
+# Tests: on every push to main, on every pull request, and before every release (called by
+# release.yml). Front end: types and build (`npm run build`); Rust: `cargo test`, on Windows.
+# Diagnostics marked #[ignore] read the maintainer's own PC: they don't run here.
 name: Tests
 
 on:
@@ -23,7 +22,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      # Cache partagé avec la vérification de la release (même profil de compilation)
+      # Cache shared with the release check (same build profile)
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target

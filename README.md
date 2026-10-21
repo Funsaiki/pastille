@@ -114,7 +114,7 @@ The development build shares its config and shortcut with the installed version:
 - `maquette/`: the reference mockup of the phone.
 - `CLAUDE.md`: the project brief (in French), developed with [Claude Code](https://claude.com/claude-code).
 
-Pushing a `vX.Y.Z` tag matching the version in `src-tauri/tauri.conf.json` runs the "Installateur" workflow, which builds and publishes the release (installer, signature and the `latest.json` read by installed copies).
+Pushing a `vX.Y.Z` tag matching the version in `src-tauri/tauri.conf.json` runs the "Release" workflow, which builds and publishes the release (installer, signature and the `latest.json` read by installed copies).
 
 ## Credits
 
