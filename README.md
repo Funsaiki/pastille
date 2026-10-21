@@ -120,3 +120,7 @@ Pushing a `vX.Y.Z` tag matching the version in `src-tauri/tauri.conf.json` runs 
 - Design inspired by [u/Single-Flamingo-8194's post](https://www.reddit.com/r/unixporn/comments/1x37y28/hyprland_project_sekai_inspired_quickshell/) on r/unixporn, with their permission.
 - [Nunito](https://fonts.google.com/specimen/Nunito) font (SIL Open Font License).
 - Built with [Tauri](https://tauri.app/).
+
+## License
+
+© 2026 Funsaiki. All rights reserved. The source code is public to read, but it is not licensed for reuse. You're welcome to install and use Pastille from the [releases](https://github.com/Funsaiki/pastille/releases/latest).
