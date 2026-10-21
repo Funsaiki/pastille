@@ -40,8 +40,8 @@
 
     <!-- Strap (demandé par Funsaiki, pas dans la maquette) : anneau dans le bord gauche, cordon,
          trois perles pastel et une breloque (la pastille par défaut ; au choix dans la carte
-         Personnaliser, posée par customize.ts). Le point d'accroche est le centre de l'anneau.
-         Un clic ouvre la carte Personnaliser. -->
+         Apparence de la page Paramètres, posée par customize.ts). Le point d'accroche est le centre
+         de l'anneau. Un clic ouvre la page Paramètres, à l'onglet Strap. -->
     <div class="strap" id="strap" aria-hidden="true" title="Personnaliser le strap">
       <div class="strap-swing" id="strap-swing">
         <svg width="62" height="186" viewBox="0 0 44 132" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -88,7 +88,8 @@
             <span class="user-name" id="user-name"></span>
             <span class="user-os" id="user-os"></span>
           </div>
-          <!-- Paramètres et Alimentation (la rangée de boutons de la maquette est retirée, demande de Funsaiki) -->
+          <!-- Paramètres de Pastille, de Windows et Alimentation (la rangée de boutons de la maquette
+               est retirée, demande de Funsaiki) -->
           <div class="user-actions" id="actions"></div>
         </div>
 
@@ -201,19 +202,60 @@
           </div>
         </div>
 
-        <!-- Carte Personnaliser (demandée par Funsaiki, pas dans la maquette) : sous la ligne du nom,
-             pointe vers son bouton ; rangées ajoutées par customize.ts -->
-        <div class="custom" id="custom" role="dialog" aria-label="Personnaliser">
-          <div class="custom-head">
-            <div class="notifs-tabs custom-tabs" id="custom-tabs" role="tablist" data-pane="colors">
-              <span class="tabs-thumb" aria-hidden="true"></span>
-              <button class="notifs-tab" id="custom-tab-colors" role="tab" aria-selected="true" aria-controls="custom-colors">Couleurs</button>
-              <button class="notifs-tab" id="custom-tab-strap" role="tab" aria-selected="false" aria-controls="custom-strap" tabindex="-1">Strap</button>
+        <!-- Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026, pas dans la maquette) :
+             glisse à la place du reste de la vue, sous la barre d'état. Rangées ajoutées par
+             prefs.ts ; la section Apparence est l'ancienne carte Personnaliser (customize.ts). -->
+        <div class="prefs" id="prefs" role="region" aria-labelledby="prefs-title">
+          <div class="prefs-head">
+            <button class="tp-press back" id="prefs-back" aria-label="Retour">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+            </button>
+            <div class="apps-title">
+              <span class="apps-sup">Pastille</span>
+              <span class="apps-name" id="prefs-title">Paramètres</span>
             </div>
-            <button class="tp-link custom-reset" id="custom-reset">Réinitialiser</button>
           </div>
-          <div class="custom-pane" id="custom-colors" role="tabpanel" aria-labelledby="custom-tab-colors"></div>
-          <div class="custom-pane" id="custom-strap" role="tabpanel" aria-labelledby="custom-tab-strap" hidden></div>
+          <div class="prefs-body" id="prefs-body">
+            <!-- Action ratée : en tête de la page (les notifications sont derrière) -->
+            <div class="notif prefs-problem" id="prefs-problem" role="alert" hidden>
+              <span class="notif-icon" id="prefs-problem-icon" style="background: #ffe08a" aria-hidden="true"></span>
+              <span class="notif-text">
+                <span class="notif-title" id="prefs-problem-title"></span>
+                <span class="notif-body" id="prefs-problem-text"></span>
+              </span>
+            </div>
+            <section class="prefs-section" aria-labelledby="prefs-general-title">
+              <h2 class="prefs-title" id="prefs-general-title">Général</h2>
+              <div class="prefs-list" id="prefs-general"></div>
+            </section>
+            <section class="prefs-section" id="prefs-look" aria-labelledby="prefs-look-title">
+              <h2 class="prefs-title" id="prefs-look-title">Apparence</h2>
+              <div class="card custom">
+                <div class="custom-head">
+                  <div class="notifs-tabs custom-tabs" id="custom-tabs" role="tablist" data-pane="colors">
+                    <span class="tabs-thumb" aria-hidden="true"></span>
+                    <button class="notifs-tab" id="custom-tab-colors" role="tab" aria-selected="true" aria-controls="custom-colors">Couleurs</button>
+                    <button class="notifs-tab" id="custom-tab-strap" role="tab" aria-selected="false" aria-controls="custom-strap" tabindex="-1">Strap</button>
+                  </div>
+                  <button class="tp-link custom-reset" id="custom-reset">Réinitialiser</button>
+                </div>
+                <div class="custom-pane" id="custom-colors" role="tabpanel" aria-labelledby="custom-tab-colors"></div>
+                <div class="custom-pane" id="custom-strap" role="tabpanel" aria-labelledby="custom-tab-strap" hidden></div>
+              </div>
+            </section>
+            <section class="prefs-section" aria-labelledby="prefs-spotify-title">
+              <h2 class="prefs-title" id="prefs-spotify-title">Spotify</h2>
+              <div class="prefs-list" id="prefs-spotify"></div>
+            </section>
+            <section class="prefs-section" aria-labelledby="prefs-apps-title">
+              <h2 class="prefs-title" id="prefs-apps-title">Applications</h2>
+              <div class="prefs-list" id="prefs-apps"></div>
+            </section>
+            <section class="prefs-section" aria-labelledby="prefs-about-title">
+              <h2 class="prefs-title" id="prefs-about-title">Pastille</h2>
+              <div class="prefs-list" id="prefs-about"></div>
+            </section>
+          </div>
         </div>
       </div>
 

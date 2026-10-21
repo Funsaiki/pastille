@@ -1,9 +1,9 @@
 /* ══════════════════════════════════════════════════════════
-   Carte Personnaliser (demandée par Funsaiki le 19/10/2026) : deux onglets, Couleurs
+   Personnaliser (demandé par Funsaiki le 19/10/2026) : deux onglets, Couleurs
    (accent, coque, écran, encre) et Strap (breloque, perles). Un nuancier par couleur et
    une pastille « Autre couleur » qui ouvre teinte, clarté et code. Tout change en direct
-   et est gardé (host.setAppearance : apparence.json). Ouverte par le bouton Personnaliser ou un clic sur le
-   strap ; ui.ts la ferme (Échap, clic à côté, autres panneaux).
+   et est gardé (host.setAppearance : apparence.json). D'abord une carte à part, puis la
+   section Apparence de la page Paramètres (21/10/2026, prefs.ts).
    ══════════════════════════════════════════════════════════ */
 import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Swatch } from './appearance';
 import { CONFIG } from './config';
@@ -13,7 +13,7 @@ import { host } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
-type Tab = 'colors' | 'strap';
+export type Tab = 'colors' | 'strap';
 
 let tab: Tab = 'colors';
 let image: string | null = null;     // image choisie pour la breloque (data:…)
@@ -400,23 +400,15 @@ function reset() {
   changed();
 }
 
-export const customOpen = () => $('custom').classList.contains('open');
-
-export function openCustom(next: Tab = 'colors') {
+/* Page Paramètres ouverte ou refermée : sans couleur libre ouverte ; `next` : à cet onglet
+   (clic sur le strap), en glissant si la page est déjà là */
+export function refreshCustom(next?: Tab, animate = false) {
   editing = null;
-  showTab(next, customOpen());
+  if (next) showTab(next, animate);
   updateAll();
-  $('custom').classList.add('open');
-  $('custom-toggle')?.setAttribute('aria-expanded', 'true');
 }
 
-export function closeCustom() {
-  $('custom').classList.remove('open');
-  $('custom-toggle')?.setAttribute('aria-expanded', 'false');
-  editing = null;
-}
-
-/* Carte construite une fois ; `onPalette` : les couleurs de la palette ont changé ; `onError` :
+/* Section construite une fois ; `onPalette` : les couleurs de la palette ont changé ; `onError` :
    apparence pas enregistrée, image refusée */
 export function initCustom(onPalette: () => void, onError: (e: unknown) => void) {
   paletteChanged = onPalette;

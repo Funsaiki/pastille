@@ -7,11 +7,12 @@
    et les notifications (alertes du PC, Steam, téléchargements) sont réels.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
-import { EYE, ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { ALERT, EYE, ICONS, MIC, MIC_OFF, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
 import { el, iconCanvas, latestOnly } from './dom';
 import { applyColors, palette } from './appearance';
-import { closeCustom, customOpen, initCustom, loadAppearance, openCustom } from './customize';
+import { initCustom, loadAppearance } from './customize';
+import { closePrefs, initPrefs, keyLabel, openPrefs, prefsOpen, showPrefsProblem } from './prefs';
 import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp, type TrayClick, type Welcome } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -60,17 +61,15 @@ let stats: Stats | null = null;
 let media: NowPlaying | null = null;
 
 /* ══ Vue réglages ══ */
-const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
-const RESTART = 'M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5';
 
 /* Boutons à droite du nom. Funsaiki a retiré la rangée de la maquette (capture d'écran,
-   explorateur, verrouiller) ; il garde ces deux-là, et Personnaliser s'y ajoute (19/10/2026).
+   explorateur, verrouiller) ; il garde ces deux-là, et Personnaliser s'y ajoute (19/10/2026),
+   remplacé par les Paramètres de Pastille (21/10/2026 : un interrupteur, ceux de sa page).
    Couleur du rond au survol. */
-const PALETTE = 'M12 3a9 9 0 000 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7h2A4.5 4.5 0 0021 10.7C21 6.4 17 3 12 3z'
-  + '|M7.6 10.4a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8zM10.6 6.4a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8zM15.2 7a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8z';
+const SWITCH = 'M7 6h10a6 6 0 010 12H7A6 6 0 017 6z|M16 9a3 3 0 100 6 3 3 0 000-6z';
 const ACTIONS: { id?: string; label: string; d: string; hover: string; run: () => void }[] = [
-  { id: 'custom-toggle', label: 'Personnaliser', d: PALETTE, hover: '#ffe08a', run: () => toggleCustom() },
-  { label: 'Paramètres', d: ICONS.parametres, hover: 'var(--fill)', run: () => runAction('Lancement', () => host.openTool('settings')) },
+  { id: 'prefs-toggle', label: 'Paramètres de Pastille', d: SWITCH, hover: '#ffe08a', run: () => showPrefs() },
+  { label: 'Paramètres de Windows', d: ICONS.parametres, hover: 'var(--fill)', run: () => runAction('Lancement', () => host.openTool('settings')) },
   { label: 'Alimentation', d: POWER, hover: '#f6c6da', run: () => openPowerMenu() },
 ];
 
@@ -183,7 +182,7 @@ function renderActions() {
     if (a.id) {
       b.id = a.id;
       b.setAttribute('aria-expanded', 'false');
-      b.setAttribute('aria-controls', 'custom');
+      b.setAttribute('aria-controls', 'prefs');
     }
     b.setAttribute('aria-label', a.label);
     b.title = a.label;
@@ -223,7 +222,6 @@ const powerOpen = () => $('power').classList.contains('open');
 
 function openPowerMenu() {
   closeMixer();
-  closeCustom();
   closeTrayMenu(false);
   $('power-error').hidden = true;
   $('settings').inert = true;   // ni clic ni Tab derrière le menu
@@ -400,7 +398,6 @@ let mixerRun = 0;   // change à chaque fermeture : une liste arrivée après es
 
 async function openMixer() {
   closeTrayMenu(false);
-  closeCustom();
   const run = ++mixerRun;
   $('mixer-toggle').setAttribute('aria-expanded', 'true');
   const apps = await host.mixer().catch(() => []);
@@ -415,15 +412,12 @@ function closeMixer() {
   $('mixer-toggle').setAttribute('aria-expanded', 'false');
 }
 
-/* ── Carte Personnaliser (customize.ts) : une carte à la fois, comme le mélangeur ── */
-function toggleCustom(tab: 'colors' | 'strap' = 'colors') {
-  if (customOpen() && tab === 'colors') {
-    closeCustom();
-    return;
-  }
+/* ── Page Paramètres de Pastille (prefs.ts) : le mélangeur et le menu du clic droit, cachés
+   derrière, se ferment ── */
+function showPrefs(tab?: 'colors' | 'strap') {
   closeMixer();
   closeTrayMenu(false);
-  openCustom(tab);
+  openPrefs(tab);
 }
 
 /* Couleurs de la palette changées (l'accent a pris celle d'un pastel) : tuiles à l'initiale et
@@ -688,7 +682,6 @@ let feed: FeedEvent[] = [];
 let welcome: Welcome | null = null;   // premier lancement
 let greeted = false;                  // bienvenue déjà montrée dans l'onglet Notifs
 
-const ALERT = 'M12 7v6M12 17h.01';
 const DOWNLOAD = 'M12 4v11M7 10l5 5 5-5M5 20h14';
 const DISK = 'M3 14h18v6H3zM5 14l2.5-9h9L19 14M7 17h.01';
 const GO = 1024 ** 3;
@@ -765,12 +758,6 @@ async function installUpdate() {
     updating = false;
     renderNotifs();
   }
-}
-
-/* « Alt+Space » (apps.json) → « Alt+Espace » */
-function keyLabel(shortcut: string) {
-  const names: Record<string, string> = { space: 'Espace', shift: 'Maj', control: 'Ctrl', commandorcontrol: 'Ctrl', cmdorctrl: 'Ctrl', super: 'Win', meta: 'Win', escape: 'Échap', enter: 'Entrée' };
-  return shortcut.split('+').map((k) => names[k.toLowerCase()] ?? k.replace(/^(Key|Digit)/, '')).join('+');
 }
 
 /* Notifications effacées : gardées d'une ouverture à l'autre (stockage de la fenêtre) */
@@ -1476,7 +1463,7 @@ function showApps(query = '') {
   settleTimer = setTimeout(() => setSettled(true), TURN_MS + 50);
   $('settings').hidden = true;
   closeMixer();
-  closeCustom();
+  closePrefs();
   closeTrayMenu(false);
   stopStats();
   $('apps').hidden = false;
@@ -1606,9 +1593,9 @@ function bindEvents() {
     setVolume(sound.volume + wheelStep(e));
   }, { passive: true });
   $('strap').addEventListener('pointerenter', swingStrap);
-  // Clic sur le strap : la carte Personnaliser, sur son onglet
+  // Clic sur le strap : la page Paramètres, à son onglet de la section Apparence
   $('strap').addEventListener('click', () => {
-    if (state.view === 'settings' && !leaving && !powerOpen()) toggleCustom('strap');
+    if (state.view === 'settings' && !leaving && !powerOpen()) showPrefs('strap');
   });
   // Balancement fini (il revient à 0°) : retiré, sinon il garde le strap dans un calque à part
   // qui oblige ses voisins (le corps du téléphone) à en être aussi ; playEntrance le remet
@@ -1708,7 +1695,6 @@ function bindEvents() {
   document.addEventListener('pointerdown', (e) => {
     const target = e.target as Element;
     if (mixerOpen() && !target.closest('#mixer, #mixer-toggle')) closeMixer();
-    if (customOpen() && !target.closest('#custom, #custom-toggle, #strap')) closeCustom();
     if (trayMenu && !target.closest('#tray-menu')) closeTrayMenu(false);
     if (!target.closest('#app-menu')) closeAppMenu(false);   // aussi un menu encore attendu
     if (!target.closest('.phone-body, .strap')) hideLauncher();
@@ -1746,11 +1732,10 @@ function bindEvents() {
       }
       return;   // ni recherche ni flèches de la grille derrière le menu
     }
-    if (customOpen()) {
+    if (prefsOpen()) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        closeCustom();
-        $('custom-toggle').focus({ preventScroll: true });
+        closePrefs(true);
       }
       return;   // pas de recherche en tapant un code de couleur
     }
@@ -1830,7 +1815,7 @@ function playEntrance() {
   $('phone').classList.remove('leaving');
   closePowerMenu(false);
   closeMixer();
-  closeCustom();
+  closePrefs();
   // Un problème de config se voit tout de suite, la bienvenue à la première ouverture ; ferme
   // aussi le menu du clic droit
   const greet = welcome !== null && !greeted;
@@ -1932,7 +1917,8 @@ export async function init() {
   renderActions();
   renderPowerChoices();
   renderTiles();
-  initCustom(refreshPalette, (e) => report('Personnaliser', e));
+  initCustom(refreshPalette, (e) => showPrefsProblem('Personnaliser', e));
+  initPrefs(hideLauncher);
   bindEvents();
   await loadAppearance();
   host.profile().then(renderProfile).catch(console.error);

@@ -51,6 +51,11 @@ export const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
 export const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
 export const MIC_OFF = MIC + 'M3 3l18 18';
 
+/* Téléphone (alimentation, notifications) et page Paramètres */
+export const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
+export const RESTART = 'M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5';
+export const ALERT = 'M12 7v6M12 17h.01';
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /* Icône à trait (fill: 'none') ; `fill` sert au dossier coloré de la rangée Dossiers.

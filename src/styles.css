@@ -457,7 +457,7 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   border-radius: 11px; border: 2px solid var(--ink); background: var(--fill);
   transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
 }
-.notifs-tabs[data-pane="notifs"] .tabs-thumb, .notifs-tabs[data-pane="strap"] .tabs-thumb {
+.notifs-tabs[data-pane="notifs"] .tabs-thumb, .notifs-tabs[data-pane="strap"] .tabs-thumb, .notifs-tabs[data-pane="en"] .tabs-thumb {
   left: 50%; right: 2px;
   transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
 }
@@ -528,22 +528,90 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 .tray-item.confirm, .tray-item.confirm:hover { background: #f6c6da; color: var(--ink); }
 .tray-item.confirm .tray-dot { border-color: var(--ink); }
 
-/* ══ Carte Personnaliser (demandée par Funsaiki, pas dans la maquette) : sous la ligne du nom,
-   par-dessus les tuiles, le volume et la lecture, pointe vers son bouton (le premier des trois,
-   centré à 230 px). Blanche plutôt qu'à l'encre comme le mélangeur : les couleurs s'y jugent
-   mieux, et l'encre y change aussi. Apparaît comme le mélangeur. ══ */
-.custom {
-  position: absolute; left: 20px; right: 20px; top: 140px; z-index: 2; box-sizing: border-box;
-  padding: 14px 14px 16px; border-radius: 24px; border: 2.5px solid var(--ink); background: #ffffff;
-  box-shadow: 0 3px 0 var(--ink), 0 14px 30px rgb(from var(--ink) r g b / .25);
-  display: flex; flex-direction: column; gap: 14px;
-  opacity: 0; visibility: hidden; translate: 0 -6px; transition: opacity .18s ease, translate .25s var(--ease), visibility 0s .25s;
+/* ══ Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026, pas dans la maquette) :
+   comme une page de téléphone, elle arrive de la droite pendant que le reste de la vue part à
+   gauche ; la barre d'état reste. En-tête de la vue applications (retour, sur-titre et titre),
+   sections au titre des dossiers, rangées des notifications. Le bas du téléphone sort de
+   l'écran : la page défile, avec de quoi remonter la dernière rangée au-dessus du bord. ══ */
+.view-settings > :not(.status, .prefs) { transition: opacity .18s ease, translate .3s var(--ease); }
+.view-settings.prefs-open > :not(.status, .prefs) {
+  opacity: 0; translate: -36px 0; visibility: hidden;
+  transition: opacity .18s ease, translate .3s var(--ease), visibility 0s .3s;
 }
-.custom.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease, translate .25s var(--ease); }
-.custom::before {
-  content: ''; position: absolute; top: -9.5px; left: 200.5px; width: 14px; height: 14px; box-sizing: border-box;
-  border-radius: 3px 0 0 0; border-top: 2.5px solid var(--ink); border-left: 2.5px solid var(--ink); background: #ffffff; rotate: 45deg;
+.prefs {
+  position: absolute; left: 0; right: 0; top: 64px; bottom: 0; display: flex; flex-direction: column; gap: 4px;
+  opacity: 0; visibility: hidden; translate: 36px 0;
+  transition: opacity .18s ease, translate .3s var(--ease), visibility 0s .3s;
 }
+.prefs-open .prefs { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease .05s, translate .3s var(--ease); }
+.prefs-head { display: flex; align-items: center; gap: 12px; height: 46px; flex: none; padding: 0 20px; }
+.prefs-body {
+  position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;
+  padding: 12px 20px 170px; display: flex; flex-direction: column; gap: 16px;
+  mask-image: linear-gradient(transparent, #000 12px);   /* fondu sous l'en-tête en défilant */
+}
+.prefs-section { display: flex; flex-direction: column; gap: 8px; }
+.prefs-title { margin: 0 0 0 4px; font-weight: 900; font-size: 14px; }
+.prefs-list { display: flex; flex-direction: column; gap: 8px; }
+.prefs-row { flex: none; }
+.prefs-row.off .notif-icon, .prefs-row.off .notif-text { opacity: .55; }
+div.prefs-row:has(> .switch:not(:disabled)) { cursor: pointer; }
+button.prefs-row > svg:last-child { flex: none; }
+/* Quitter : le premier clic demande confirmation, la rangée passe au rose */
+.prefs-row.confirm { background: #f6c6da; }
+
+/* Interrupteur : rond qui glisse avec un léger rebond, fond accent et rond blanc une fois
+   activé (comme les tuiles) */
+.switch {
+  position: relative; width: 46px; height: 26px; flex: none; padding: 0; box-sizing: border-box; border-radius: 13px;
+  border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink); cursor: pointer;
+  transition: background .2s, transform .12s, box-shadow .12s;
+}
+.switch::after {
+  content: ''; position: absolute; left: 2px; top: 2px; width: 17px; height: 17px; box-sizing: border-box;
+  border-radius: 50%; border: 2.5px solid var(--ink); background: var(--screen-dot);
+  transition: translate .35s cubic-bezier(.34, 1.56, .64, 1), background .2s;
+}
+.switch[aria-checked="true"] { background: var(--fill); }
+.switch[aria-checked="true"]::after { translate: 20px 0; background: #ffffff; }
+.switch:not(:disabled):hover, .prefs-row:hover > .switch:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 0 var(--ink); }
+.switch:not(:disabled):active { transform: translateY(1px); box-shadow: 0 1px 0 var(--ink); }
+.switch:disabled { opacity: .4; cursor: default; }
+.switch:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+/* Langue : la pastille des onglets, posée dans la rangée */
+.prefs-lang {
+  position: relative; width: 148px; height: 28px; margin-left: auto; flex: none; box-sizing: border-box; align-items: center;
+  border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
+}
+.prefs-lang .notifs-tab { padding: 0 5px; }
+.prefs-lang .notifs-tab[aria-checked="true"] { color: var(--ink); cursor: default; }
+.prefs-lang .notifs-tab[aria-checked="false"]:hover { color: var(--ink); }
+.prefs-lang.off { opacity: .4; pointer-events: none; }
+
+/* Petit bouton en pilule (Connecter, Vérifier…), fond accent pour l'action proposée */
+.prefs-btn {
+  height: 30px; flex: none; padding: 0 12px; border-radius: 15px; border: 2.5px solid var(--ink); background: #ffffff;
+  color: var(--ink); box-shadow: 0 2px 0 var(--ink); font-weight: 900; font-size: 12px; white-space: nowrap; cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+}
+.prefs-btn.primary { background: var(--fill); }
+.prefs-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--ink); }
+.prefs-btn:not(:disabled):active { transform: translateY(1px); box-shadow: 0 1px 0 var(--ink); }
+.prefs-btn:disabled { opacity: .55; cursor: default; }
+.prefs-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+/* Raccourci en touches */
+.keys { display: flex; align-items: center; gap: 4px; flex: none; font-weight: 900; font-size: 12px; }
+.key {
+  height: 24px; min-width: 24px; box-sizing: border-box; padding: 0 7px; border-radius: 8px; border: 2px solid var(--ink);
+  background: #ffffff; box-shadow: 0 2px 0 var(--ink); display: flex; align-items: center; justify-content: center;
+}
+.keys-plus { color: var(--soft); }
+
+/* Section Apparence : l'ancienne carte Personnaliser (blanche plutôt qu'à l'encre : les couleurs
+   s'y jugent mieux, et l'encre y change aussi) */
+.custom { padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 14px; }
 .custom-head { display: flex; align-items: center; justify-content: space-between; }
 /* Pastille des onglets de la carte des notifications, posée dans la carte */
 .custom-tabs {

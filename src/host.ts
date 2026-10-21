@@ -153,6 +153,22 @@ export type FeedEvent =
 export type Tool = 'settings' | 'taskmgr' | 'wifi' | 'bluetooth' | 'steam-downloads' | 'windows-update' | 'storage' | 'notifications';
 export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
+/* Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026) : ce que réglait le menu de
+   l'icône, et la langue */
+export type Language = 'fr' | 'en';
+export type SpotifyLink = 'connected' | 'disconnected' | 'outdated';   // outdated : d'avant les playlists
+export interface Prefs {
+  language: Language;
+  autostart: boolean | null;   // null : version de développement (seule la version installée s'inscrit)
+  bar: boolean;
+  shortcut: string;            // celui de apps.json (« Alt+Space »)
+  spotify: SpotifyLink;
+  version: string;
+  update: string | null;       // version proposée
+}
+export type PrefSwitch = 'autostart' | 'bar';
+export type PrefAction = 'spotify' | 'edit-config' | 'reload' | 'check-update' | 'quit';
+
 /* Aperçu navigateur : apparence gardée dans la page (localStorage, partagé avec barre.html) */
 const PREVIEW_LOOK = 'apparence-apercu';
 const PREVIEW_IMAGE = 'apparence-apercu-image';
@@ -261,6 +277,18 @@ let previewPins: Omit<PinnedApp, 'icon'>[] = [
   { exe: 'brave.exe', name: 'Brave', glyph: 'navigateur' },
   { exe: 'epicgameslauncher.exe', name: 'Epic Games Launcher', glyph: 'epic' },
 ];
+
+/* Aperçu navigateur : réglages de la page Paramètres ; ?maj : une mise à jour trouvée par
+   « Vérifier » */
+const previewPrefs: Prefs = {
+  language: navigator.language.startsWith('fr') ? 'fr' : 'en',
+  autostart: false,
+  bar: true,
+  shortcut: 'Alt+Space',
+  spotify: 'connected',
+  version: '1.11.0',
+  update: null,
+};
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
@@ -410,7 +438,7 @@ export const host = {
   async feed(): Promise<FeedEvent[]> {
     if (PREVIEW) {
       // ?maj : une mise à jour proposée
-      const update: FeedEvent[] = new URLSearchParams(location.search).has('maj') ? [{ kind: 'update', version: '1.11.0' }] : [];
+      const update: FeedEvent[] = new URLSearchParams(location.search).has('maj') ? [{ kind: 'update', version: '1.12.0' }] : [];
       return [
         ...update,
         { kind: 'steam', game: 'Street Fighter 6', progress: 62, paused: false, age: null },
@@ -483,6 +511,35 @@ export const host = {
       console.info('[aperçu] installer la mise à jour');
       await new Promise((resolve) => setTimeout(resolve, 1500));
     } else await invoke('install_update');
+  },
+  async prefs(): Promise<Prefs> {
+    if (PREVIEW) return { ...previewPrefs };
+    return invoke<Prefs>('prefs');
+  },
+  async setLanguage(language: Language) {
+    if (PREVIEW) previewPrefs.language = language;
+    else await invoke('set_language', { language });
+  },
+  /* « Démarrer avec Windows » écrit dans le registre (HKCU\…\Run) : seul Funsaiki le coche */
+  async setPrefSwitch(key: PrefSwitch, on: boolean) {
+    if (PREVIEW) {
+      console.info('[aperçu] paramètres :', key, on);
+      previewPrefs[key] = on;
+    } else await invoke('set_pref_switch', { key, on });
+  },
+  /* Spotify : connecter (navigateur), reconnecter ou déconnecter selon l'état ; quit : Pastille
+     quitte pendant l'appel */
+  async prefAction(action: PrefAction) {
+    if (!PREVIEW) {
+      await invoke('pref_action', { action });
+      return;
+    }
+    console.info('[aperçu] paramètres :', action);
+    if (action === 'spotify') previewPrefs.spotify = previewPrefs.spotify === 'connected' ? 'disconnected' : 'connected';
+    if (action === 'check-update') {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      previewPrefs.update = new URLSearchParams(location.search).has('maj') ? '1.12.0' : null;
+    }
   },
   /* Le nom du fichier seulement : Rust le cherche dans Téléchargements */
   async openDownload(name: string) {
