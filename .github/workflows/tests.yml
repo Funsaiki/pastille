@@ -1,0 +1,37 @@
+# Tests (demandés par Funsaiki le 21/10/2026 : « laisser le CI/CD gérer ») : à chaque push sur
+# main, à chaque pull request, et avant chaque release (appelé par installateur.yml). Front :
+# types et compilation (`npm run build`) ; Rust : `cargo test`, sur Windows. Les diagnostics
+# marqués #[ignore] lisent le vrai PC de Funsaiki : ils ne tournent pas ici.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Cache partagé avec la vérification de la release (même profil de compilation)
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: tests
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: cargo test
+        working-directory: src-tauri
