@@ -14,6 +14,7 @@ Utilisateur : Funsaiki, développeur (TypeScript, Vite, Lit). Il parle français
 - `apps.example.json` : exemple de configuration, même format que le premier lanceur.
 - `src/` : le front (Vite + TypeScript) ; `src-tauri/` : Rust.
 - `barre.html` : la barre pastel (en cours) ; aperçu `http://localhost:1420/barre.html` avec `npm run dev`.
+- `README.md` : la présentation du dépôt public (21/10/2026), en français. Elle crédite l'inspiration du design, avec l'autorisation de son auteur : le post de u/Single-Flamingo-8194 sur r/unixporn. Les captures de `docs/` (WebP) viennent de l'aperçu navigateur, avec ses données d'exemple : rien de personnel. Les refaire si le design change.
 
 ## Règles (à respecter impérativement)
 
