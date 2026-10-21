@@ -12,6 +12,7 @@ import { ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
 import { applyColors, palette, setAppearance } from './appearance';
 import { setConfig } from './config';
+import { LANGUAGE, LOCALE, percent, rememberLanguage, tr, translatePage } from './i18n';
 import {
   PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type PinnedApp, type RepeatMode,
   type ShuffleMode, type SpotifyVolume, type TrayAction, type TrayApp,
@@ -160,8 +161,8 @@ function groupTile(g: Group, i: number) {
   const calling = g.windows.some((w) => w.attention);
   b.classList.toggle('active', g.windows.some((w) => w.active));
   b.classList.toggle('attention', calling);
-  const label = many ? `${g.app} : ${g.windows.length} fenêtres` : windowLabel(first);
-  b.setAttribute('aria-label', calling ? `${label} (demande l'attention)` : label);
+  const label = many ? tr(`${g.app} : ${g.windows.length} fenêtres`, `${g.app}: ${g.windows.length} windows`) : windowLabel(first);
+  b.setAttribute('aria-label', calling ? tr(`${label} (demande l'attention)`, `${label} (needs attention)`) : label);
   fillTile(b, g.app, first.icon, first.glyph, i, 22);
   if (many) b.append(el('span', 'bar-count', String(g.windows.length)));
   if (calling) b.append(el('span', 'bar-alert'));
@@ -189,16 +190,21 @@ function groupTile(g: Group, i: number) {
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();   // pas le menu de WebView2
     const list = latest(g);
-    const items = [menuItem('Nouvelle fenêtre', actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(list[0].id)))];
+    const items = [menuItem(tr('Nouvelle fenêtre', 'New window'), actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(list[0].id)))];
     // Une seule fenêtre : avec plusieurs, on ne saurait pas laquelle envoyer
     if (screens > 1 && list.length === 1) {
-      const label = screens === 2 ? 'Envoyer sur l’autre écran' : 'Envoyer sur l’écran suivant';
+      const label = screens === 2
+        ? tr('Envoyer sur l’autre écran', 'Move to the other screen')
+        : tr('Envoyer sur l’écran suivant', 'Move to the next screen');
       items.push(menuItem(label, actionDot(SCREEN_NEXT, '#ffe08a'), () => act(() => host.moveWindow(list[0].id))));
     }
     // Pas les apps hébergées (Paramètres, Calculatrice) : elles partagent leur programme
     if (g.pin) items.push(unpinItem(g.pin));
-    else if (list[0].exe) items.push(menuItem('Épingler à la pilule', actionDot(PIN, '#c9d8ff'), () => act(() => pinWindow(list[0].id))));
-    items.push(menuItem(list.length > 1 ? `Fermer les ${list.length} fenêtres` : 'Fermer la fenêtre', actionDot(CLOSE, '#f6c6da'),
+    else if (list[0].exe) items.push(menuItem(tr('Épingler à la pilule', 'Pin to the pill'), actionDot(PIN, '#c9d8ff'), () => act(() => pinWindow(list[0].id))));
+    const close = list.length > 1
+      ? tr(`Fermer les ${list.length} fenêtres`, `Close all ${list.length} windows`)
+      : tr('Fermer la fenêtre', 'Close window');
+    items.push(menuItem(close, actionDot(CLOSE, '#f6c6da'),
       () => act(() => Promise.all(list.map((w) => host.closeWindow(w.id))))));
     openMenu(b, g.app, items);
   });
@@ -228,7 +234,7 @@ async function pinWindow(id: string) {
 }
 
 function unpinItem(pin: PinnedApp) {
-  return menuItem('Détacher de la pilule', actionDot(PIN, '#c9d8ff'), () => act(async () => {
+  return menuItem(tr('Détacher de la pilule', 'Unpin from the pill'), actionDot(PIN, '#c9d8ff'), () => act(async () => {
     await host.barUnpin(pin.exe);
     await refreshPins();
   }));
@@ -238,7 +244,7 @@ function pinTile(g: Group, i: number) {
   const pin = g.pin!;
   const b = el('button', 'bar-tile tp-press closed');
   b.title = pin.name;
-  b.setAttribute('aria-label', `${pin.name} (épinglée)`);
+  b.setAttribute('aria-label', tr(`${pin.name} (épinglée)`, `${pin.name} (pinned)`));
   fillTile(b, pin.name, pin.icon, pin.glyph, i, 22);
   const launch = () => {
     closePreview();
@@ -257,7 +263,7 @@ function pinTile(g: Group, i: number) {
   });
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    openMenu(b, pin.name, [menuItem('Ouvrir', actionDot(OPEN, 'var(--fill)'), launch), unpinItem(pin)]);
+    openMenu(b, pin.name, [menuItem(tr('Ouvrir', 'Open'), actionDot(OPEN, 'var(--fill)'), launch), unpinItem(pin)]);
   });
   return b;
 }
@@ -363,7 +369,7 @@ function previewItem(w: BarWindow, size: [number, number] | null, i: number) {
   fillTile(badge, w.app, w.icon, w.glyph, i, 14);
   // Pas de bouton dans un bouton : le × est un rond cliquable (la barre ne prend pas le clavier)
   const close = el('span', 'bar-shot-close');
-  close.title = 'Fermer la fenêtre';
+  close.title = tr('Fermer la fenêtre', 'Close window');
   close.append(icon(CLOSE, 11, 2.8));
   close.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -379,7 +385,7 @@ function previewItem(w: BarWindow, size: [number, number] | null, i: number) {
     const big = el('span', 'bar-thumb-icon');
     fillTile(big, w.app, w.icon, w.glyph, i, 26);
     box.append(big);
-    if (!size) box.append(el('span', 'bar-thumb-note', 'Réduite'));
+    if (!size) box.append(el('span', 'bar-thumb-note', tr('Réduite', 'Minimized')));
   }
   item.append(box);
   item.addEventListener('click', () => {
@@ -402,7 +408,7 @@ function windowItem(w: BarWindow, i: number) {
   item.classList.toggle('alert', w.attention);
   // Pas de bouton dans un bouton, comme le × de l'aperçu
   const close = el('span', 'bar-item-close');
-  close.title = 'Fermer la fenêtre';
+  close.title = tr('Fermer la fenêtre', 'Close window');
   close.append(icon(CLOSE, 12, 2.8));
   close.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -435,9 +441,9 @@ function updateWindowMenu() {
 
 /* ══ Zone de notification (écran principal) : l'onglet Apps du téléphone, mêmes actions ══ */
 const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[] = [
-  { action: 'open', label: 'Ouvrir', d: OPEN, bg: 'var(--fill)' },
-  { action: 'location', label: 'Emplacement du fichier', d: ICONS.fichiers, bg: '#c9d8ff' },
-  { action: 'quit', label: 'Forcer à quitter', d: CLOSE, bg: '#f6c6da' },
+  { action: 'open', label: tr('Ouvrir', 'Open'), d: OPEN, bg: 'var(--fill)' },
+  { action: 'location', label: tr('Emplacement du fichier', 'Open file location'), d: ICONS.fichiers, bg: '#c9d8ff' },
+  { action: 'quit', label: tr('Forcer à quitter', 'Force quit'), d: CLOSE, bg: '#f6c6da' },
 ];
 
 let trayApps: TrayApp[] | null = null;   // null : pas encore lue
@@ -524,7 +530,7 @@ function trayItem(app: TrayApp, it: (typeof TRAY_ITEMS)[number]) {
   return menuItem(it.label, actionDot(it.d, it.bg), (b, text) => {
     if (it.action === 'quit' && !b.classList.contains('confirm')) {
       b.classList.add('confirm');
-      text.textContent = 'Vraiment quitter ?';
+      text.textContent = tr('Vraiment quitter ?', 'Really quit?');
       return;
     }
     if (it.action !== 'quit') togglePop(false);
@@ -740,18 +746,19 @@ function clickedOutside() {
 }
 
 /* ── Heure et date, comme le téléphone ── */
-const fmtTime = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
-const fmtDay = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' });
-const fmtMonth = new Intl.DateTimeFormat('fr-FR', { month: 'short' });
-const fmtFull = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'full' });
+const fmtTime = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' });
+const fmtDay = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
+const fmtMonth = new Intl.DateTimeFormat(LOCALE, { month: 'short' });
+const fmtFull = new Intl.DateTimeFormat(LOCALE, { dateStyle: 'full' });
 
 function tickClock() {
   const now = new Date();
-  const day = fmtDay.format(now);   // « jeu. »
+  const day = fmtDay.format(now);   // « jeu. », "Thu"
   const full = fmtFull.format(now);
   $('bar-time').textContent = fmtTime.format(now);
   $('bar-date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
-  $('bar-clock').setAttribute('aria-label', `${full.charAt(0).toUpperCase()}${full.slice(1)}, ${fmtTime.format(now)} : calendrier`);
+  const date = `${full.charAt(0).toUpperCase()}${full.slice(1)}, ${fmtTime.format(now)}`;
+  $('bar-clock').setAttribute('aria-label', tr(`${date} : calendrier`, `${date}: calendar`));
   if (calOpen()) renderCal();   // minuit
   setTimeout(tickClock, 60_000 - (Date.now() % 60_000) + 20);
 }
@@ -787,15 +794,17 @@ function renderMedia() {
   }
   const text = media.artist ? `${media.title} — ${media.artist}` : media.title;
   b.classList.toggle('playing', media.playing);
-  b.title = `${text}\nClic : lecteur · molette : morceau suivant ou précédent`;
-  b.setAttribute('aria-label', `${text}, ${media.playing ? 'en lecture' : 'en pause'} : lecteur`);
+  b.title = tr(`${text}\nClic : lecteur · molette : morceau suivant ou précédent`, `${text}\nClick: player · wheel: next or previous track`);
+  b.setAttribute('aria-label', media.playing
+    ? tr(`${text}, en lecture : lecteur`, `${text}, playing: player`)
+    : tr(`${text}, en pause : lecteur`, `${text}, paused: player`));
   $('bar-player-title').textContent = media.title;
   $('bar-player-title').title = media.title;   // titre complet au survol s'il est coupé
   $('bar-player-artist').textContent = media.artist || 'Spotify';
   // Égaliseur animé carte ouverte seulement (une animation en boucle tourne même cachée)
   $('bar-player-eq').classList.toggle('on', media.playing && playerOpen());
   $('bar-play').classList.toggle('paused', !media.playing);
-  $('bar-play').setAttribute('aria-label', media.playing ? 'Pause' : 'Lecture');
+  $('bar-play').setAttribute('aria-label', media.playing ? 'Pause' : tr('Lecture', 'Play'));
 }
 
 /* Pochette demandée au changement de morceau ; Spotify annonce le titre avant la pochette :
@@ -890,15 +899,15 @@ async function refreshSpotify() {
 }
 
 const SHUFFLE_LABELS: Record<ShuffleMode, string> = {
-  off: 'Lecture aléatoire : non',
-  on: 'Lecture aléatoire : oui',
-  smart: 'Aléatoire intelligent (activé dans Spotify) : cliquer pour le couper',
+  off: tr('Lecture aléatoire : non', 'Shuffle: off'),
+  on: tr('Lecture aléatoire : oui', 'Shuffle: on'),
+  smart: tr('Aléatoire intelligent (activé dans Spotify) : cliquer pour le couper', 'Smart shuffle (turned on in Spotify): click to turn it off'),
 };
 
 const REPEAT_LABELS: Record<RepeatMode, string> = {
-  off: 'Répétition : non',
-  context: 'Répétition : la playlist ou l’album',
-  track: 'Répétition : ce titre',
+  off: tr('Répétition : non', 'Repeat: off'),
+  context: tr('Répétition : la playlist ou l’album', 'Repeat: the playlist or album'),
+  track: tr('Répétition : ce titre', 'Repeat: this track'),
 };
 
 /* Dix barres de 10 %, celle qui contient le niveau remplie en partie */
@@ -909,16 +918,16 @@ function renderSpotify() {
   meter.setAttribute('aria-disabled', String(off));
   meter.tabIndex = off ? -1 : 0;
   meter.setAttribute('aria-valuenow', String(level));
-  meter.setAttribute('aria-valuetext', off ? 'indisponible' : `${level} %`);
+  meter.setAttribute('aria-valuetext', off ? tr('indisponible', 'unavailable') : percent(level));
   meter.querySelectorAll<HTMLElement>('i').forEach((bar, i) => {
     const fill = Math.max(0, Math.min(1, (level - i * (100 / STEPS)) / (100 / STEPS)));
     bar.style.setProperty('--p', fill * 100 + '%');
   });
   meter.title = off
-    ? 'Volume de Spotify : indisponible'
+    ? tr('Volume de Spotify : indisponible', 'Spotify volume: unavailable')
     : spotifyVolume!.source === 'windows'
-      ? `Volume de Spotify (mélangeur de Windows) : ${level} %`
-      : `Volume de Spotify : ${level} %`;
+      ? tr(`Volume de Spotify (mélangeur de Windows) : ${percent(level)}`, `Spotify volume (Windows mixer): ${percent(level)}`)
+      : tr(`Volume de Spotify : ${percent(level)}`, `Spotify volume: ${percent(level)}`);
   const shuffle = $('bar-shuffle');
   const repeat = $('bar-repeat');
   shuffle.hidden = repeat.hidden = !spotifyModes;
@@ -1018,11 +1027,11 @@ async function refreshAudio() {
 
 function renderSound() {
   const level = sound.volume ?? 0;
-  const text = sound.volume === null ? 'Aucune sortie' : level + ' %';
+  const text = sound.volume === null ? tr('Aucune sortie', 'No output') : percent(level);
   const speaker = level === 0 || sound.muted ? SPEAKER_OFF : SPEAKER;
   const button = $('bar-sound');
-  button.title = `Volume : ${text}\nClic : volume et micro · molette : 2 % par cran`;
-  button.setAttribute('aria-label', `Volume : ${text}`);
+  button.title = tr(`Volume : ${text}\nClic : volume et micro · molette : 2 % par cran`, `Volume: ${text}\nClick: volume and mic · wheel: 2% per notch`);
+  button.setAttribute('aria-label', tr(`Volume : ${text}`, `Volume: ${text}`));
   $('bar-sound-icon').setAttribute('d', speaker);
   $('bar-level').textContent = String(level);
   const input = $('bar-volume-range') as HTMLInputElement;
@@ -1032,7 +1041,7 @@ function renderSound() {
   $('bar-volume-text').textContent = text;
   $('bar-volume-icon').setAttribute('d', speaker);
   $('bar-mic').setAttribute('aria-pressed', String(sound.mic_muted === false));
-  $('bar-mic-sub').textContent = sound.mic_muted === null ? 'Aucun micro' : sound.mic_muted ? 'Coupé' : 'Actif';
+  $('bar-mic-sub').textContent = sound.mic_muted === null ? tr('Aucun micro', 'No mic') : sound.mic_muted ? tr('Coupé', 'Muted') : tr('Actif', 'On');
   $('bar-mic-icon').setAttribute('d', sound.mic_muted === false ? MIC : MIC_OFF);
 }
 
@@ -1076,9 +1085,9 @@ async function toggleMic() {
 
 /* ══ Calendrier : clic sur l'heure. Mois précédent ou suivant (flèches, molette), clic sur le
    mois : aujourd'hui ; Notifications : le centre de notifications de Windows ══ */
-const fmtMonthYear = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
-const fmtToday = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const fmtMonthYear = new Intl.DateTimeFormat(LOCALE, { month: 'long', year: 'numeric' });
+const fmtToday = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
+const WEEKDAYS = tr(['L', 'M', 'M', 'J', 'V', 'S', 'D'], ['M', 'T', 'W', 'T', 'F', 'S', 'S']);
 const LEFT = 'M15 6l-6 6 6 6';
 const RIGHT = 'M9 6l6 6-6 6';
 const CAL_WHEEL_MS = 450;    // un mois par geste, comme les pages du téléphone
@@ -1160,8 +1169,10 @@ function init() {
     document.body.classList.add('preview');
     const help = $('preview-help');
     help.textContent = MAIN
-      ? 'Barre pastel, écran principal : souris tout en bas pour la faire sortir. Second écran : ?ecran=2'
-      : 'Barre pastel, second écran : souris tout en bas pour la faire sortir. Écran principal : sans ?ecran=2';
+      ? tr('Barre pastel, écran principal : souris tout en bas pour la faire sortir. Second écran : ?ecran=2',
+        'Pastel bar, main screen: move the mouse to the very bottom to bring it out. Second screen: ?ecran=2')
+      : tr('Barre pastel, second écran : souris tout en bas pour la faire sortir. Écran principal : sans ?ecran=2',
+        'Pastel bar, second screen: move the mouse to the very bottom to bring it out. Main screen: without ?ecran=2');
     help.hidden = false;
   }
   loadColors();
@@ -1337,4 +1348,18 @@ function init() {
   if (PREVIEW) requestAnimationFrame(() => requestAnimationFrame(() => show()));
 }
 
-init();
+/* Textes du HTML d'abord ; puis la langue de Rust : différente de celle de la page (premier
+   chargement, changée dans les Paramètres), la page se recharge avant d'afficher quoi que ce soit */
+async function start() {
+  translatePage();
+  if (rememberLanguage(await host.language().catch(() => LANGUAGE))) {
+    location.reload();
+    return;
+  }
+  host.onLanguageChanged((language) => {
+    if (rememberLanguage(language)) location.reload();
+  });
+  init();
+}
+
+start();

@@ -28,6 +28,7 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Shell::{ILCreateFromPathW, ILFree, SHOpenFolderAndSelectItems};
 use windows_registry::CURRENT_USER;
 
+use crate::i18n::tr;
 use crate::mixer::exe_path;
 
 #[derive(Serialize)]
@@ -62,7 +63,7 @@ pub async fn tray_app_action(key: String, action: String) -> Result<(), String> 
             "open" => open(&program.path),
             "location" => show_in_folder(&program.path),
             "quit" => quit(&program.path, &name_of(&program)),
-            _ => Err(format!("Action inconnue : {action}.")),
+            _ => Err(tr(format!("Action inconnue : {action}."), format!("Unknown action: {action}."))),
         }
     })
     .await?
@@ -85,7 +86,7 @@ pub async fn tray_click(key: String, kind: String) -> Result<(), String> {
 
 /// Seulement un programme de la liste : le front ne peut rien lancer ni arrêter d'autre
 fn program_of(key: &str) -> Result<Program, String> {
-    let gone = || "Cette application n'est plus ouverte.".to_string();
+    let gone = || tr("Cette application n'est plus ouverte.", "This app is no longer open.").to_string();
     if key.starts_with('#') {
         let path = crate::tray_host::pid_of(key).and_then(exe_path).ok_or_else(gone)?;
         return match Excluded::new().contains(&path.to_lowercase()) {
@@ -269,7 +270,7 @@ fn open(path: &str) -> Result<(), String> {
         return Ok(());
     }
     if is_packaged(path) {
-        let id = pids_of(path).into_iter().find_map(app_id).ok_or("Identifiant de l'application introuvable.")?;
+        let id = pids_of(path).into_iter().find_map(app_id).ok_or(tr("Identifiant de l'application introuvable.", "The app's identifier was not found."))?;
         return crate::shell::open_as_is(&format!(r"shell:AppsFolder\{id}"));
     }
     crate::shell::open_as_is(path)
@@ -296,7 +297,7 @@ pub(crate) fn show_in_folder(path: &str) -> Result<(), String> {
         let com = CoInitializeEx(None, COINIT(COINIT_APARTMENTTHREADED.0 | COINIT_DISABLE_OLE1DDE.0));
         let item = ILCreateFromPathW(&HSTRING::from(path));
         let result = if item.is_null() {
-            Err(format!("{path} : introuvable."))
+            Err(tr(format!("{path} : introuvable."), format!("{path}: not found.")))
         } else {
             let shown = SHOpenFolderAndSelectItems(item, None, 0);
             ILFree(Some(item));
@@ -315,7 +316,7 @@ pub(crate) fn show_in_folder(path: &str) -> Result<(), String> {
 fn quit(path: &str, name: &str) -> Result<(), String> {
     let pids = pids_of(path);
     if pids.is_empty() {
-        return Err(format!("{name} n'est plus ouvert."));
+        return Err(tr(format!("{name} n'est plus ouvert."), format!("{name} is no longer open.")));
     }
     eprintln!("[lanceur] forcer à quitter {path}");
     let lower = path.to_lowercase();
@@ -344,7 +345,10 @@ fn quit(path: &str, name: &str) -> Result<(), String> {
     if pids_of(path).is_empty() {
         Ok(())
     } else {
-        Err(format!("{name} n'a pas pu être arrêté : il tourne peut-être en administrateur."))
+        Err(tr(
+            format!("{name} n'a pas pu être arrêté : il tourne peut-être en administrateur."),
+            format!("{name} couldn't be stopped: it may be running as administrator."),
+        ))
     }
 }
 

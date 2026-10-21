@@ -35,6 +35,8 @@ use windows::Win32::Security::Cryptography::{
 };
 use windows_future::{AsyncStatus, IAsyncOperationWithProgress};
 
+use crate::i18n::tr;
+
 const PORT: u16 = 47913;
 /// À déclarer telle quelle dans l'app Spotify (Redirect URIs)
 pub const REDIRECT: &str = "http://127.0.0.1:47913/callback";
@@ -50,7 +52,9 @@ const WAIT: Duration = Duration::from_secs(180);
 /// Premier branchement : le temps de créer son app Spotify en suivant la page de configuration
 const SETUP_WAIT: Duration = Duration::from_secs(15 * 60);
 /// Onglet d'un essai précédent (retour de Spotify ou page de configuration)
-const STALE: &str = "cet onglet vient d'un ancien essai : utilise le dernier ouvert.";
+fn stale() -> String {
+    tr("cet onglet vient d'un ancien essai : utilise le dernier ouvert.", "this tab comes from an earlier attempt: use the latest one.").into()
+}
 /// Limite d'une requête (join() attendrait sans fin si le réseau ne répond pas)
 const TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -178,7 +182,7 @@ pub fn link(app: &AppHandle) -> &'static str {
 #[tauri::command]
 pub fn spotify_reconnect(app: AppHandle) -> Result<(), String> {
     if status(&app) == Status::Connected {
-        return Err("Spotify est déjà connecté.".into());
+        return Err(tr("Spotify est déjà connecté.", "Spotify is already connected.").into());
     }
     toggle(&app);
     Ok(())
@@ -209,7 +213,7 @@ fn start_connect(app: &AppHandle) {
     // Écoute avant d'ouvrir le navigateur : la réponse ne doit pas arriver avant
     let prepared = Login::new().and_then(|login| {
         let listener = TcpListener::bind(("127.0.0.1", PORT))
-            .map_err(|e| format!("adresse de retour {REDIRECT} indisponible ({e})."))?;
+            .map_err(|e| tr(format!("adresse de retour {REDIRECT} indisponible ({e})."), format!("redirect address {REDIRECT} unavailable ({e}).")))?;
         Ok((login, listener))
     });
     let (login, listener) = match prepared {
@@ -231,7 +235,7 @@ fn finish(app: &AppHandle, result: Result<(), String>) {
     if let Err(e) = &result {
         eprintln!("[lanceur] Spotify : {e}");
     }
-    app.state::<Spotify>().auth.lock().unwrap().problem = result.as_ref().err().map(|e| format!("Connexion impossible : {e}"));
+    app.state::<Spotify>().auth.lock().unwrap().problem = result.as_ref().err().map(|e| tr(format!("Connexion impossible : {e}"), format!("Couldn't connect: {e}")));
     // Nouvelles portées : les playlists peuvent maintenant être lues
     if result.is_ok() {
         crate::config::rescan(app);
@@ -302,8 +306,11 @@ fn connect(app: &AppHandle, listener: &TcpListener, login: &Login, mut client_id
         })?;
     let result = (|| {
         let code = params.get("code").ok_or_else(|| match params.get("error").map(String::as_str) {
-            Some("access_denied") => "autorisation refusée.".to_string(),
-            other => format!("autorisation refusée ({}).", other.unwrap_or("sans motif")),
+            Some("access_denied") => tr("autorisation refusée.", "authorization denied.").to_string(),
+            other => tr(
+                format!("autorisation refusée ({}).", other.unwrap_or("sans motif")),
+                format!("authorization denied ({}).", other.unwrap_or("no reason")),
+            ),
         })?;
         let token = post_token(&[
             ("grant_type", "authorization_code"),
@@ -353,14 +360,15 @@ fn wait_for_callback(
                 } else if params.get("state").map(String::as_str) == Some(state) {
                     return Ok((stream, params));
                 } else {
-                    respond(&mut stream, "400 Bad Request", &page(&Err(STALE.into())));
+                    respond(&mut stream, "400 Bad Request", &page(&Err(stale())));
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(100)),
             Err(e) => return Err(e.to_string()),
         }
     }
-    Err(format!("pas de réponse de Spotify au bout de {} minutes.", wait.as_secs() / 60))
+    let minutes = wait.as_secs() / 60;
+    Err(tr(format!("pas de réponse de Spotify au bout de {minutes} minutes."), format!("no answer from Spotify after {minutes} minutes.")))
 }
 
 /* ── Page de configuration (premier branchement) ── */
@@ -374,7 +382,7 @@ fn serve_setup(stream: &mut TcpStream, login: &Login, path: &str, params: &HashM
         return None;
     }
     if params.get("n") != Some(&login.state) {
-        respond(stream, "400 Bad Request", &page(&Err(STALE.into())));
+        respond(stream, "400 Bad Request", &page(&Err(stale())));
         return None;
     }
     if path == "/spotify" {
@@ -399,14 +407,19 @@ fn client_id_of(text: &str) -> Option<String> {
 
 fn client_id_error(typed: &str) -> String {
     match typed.trim().chars().count() {
-        0 => "Colle d'abord le Client ID de l'étape 4.".into(),
-        n => format!("Ce n'est pas un Client ID : il compte 32 caractères, des chiffres et des lettres de a à f (là : {n})."),
+        0 => tr("Colle d'abord le Client ID de l'étape 4.", "First paste the Client ID from step 4.").into(),
+        n => tr(
+            format!("Ce n'est pas un Client ID : il compte 32 caractères, des chiffres et des lettres de a à f (là : {n})."),
+            format!("That's not a Client ID: it has 32 characters, digits and letters from a to f (here: {n})."),
+        ),
     }
 }
 
+/// Page de la langue de Pastille ; les styles, communs aux deux, dans spotify-setup.css
 fn setup_page(state: &str, typed: &str, error: Option<&str>) -> String {
     let error = error.map(|e| format!(r#"<p class="error" role="alert">{}</p>"#, escape(e))).unwrap_or_default();
-    include_str!("spotify-setup.html")
+    tr(include_str!("spotify-setup.html"), include_str!("spotify-setup.en.html"))
+        .replace("{{style}}", include_str!("spotify-setup.css"))
         .replace("{{favicon}}", FAVICON)
         .replace("{{fonts}}", fonts())
         .replace("{{redirect}}", REDIRECT)
@@ -471,15 +484,23 @@ fn redirect(stream: &mut TcpStream, url: &str) {
 /// de la page de configuration)
 fn page(result: &Result<(), String>) -> String {
     let (title, text, retry) = match result {
-        Ok(()) => ("Spotify est connecté", "Pastille pilote maintenant Spotify. Tu peux fermer cet onglet.", ""),
+        Ok(()) => (
+            tr("Spotify est connecté", "Spotify is connected"),
+            tr("Pastille pilote maintenant Spotify. Tu peux fermer cet onglet.", "Pastille now controls Spotify. You can close this tab."),
+            "",
+        ),
         Err(e) => (
-            "Connexion à Spotify impossible",
+            tr("Connexion à Spotify impossible", "Couldn't connect Spotify"),
             e.as_str(),
-            r#"<p style="margin:8px 0 0;color:rgba(15,59,66,.72)">Pour réessayer&nbsp;: Paramètres de Pastille (la clé à côté de ton nom), section Spotify, «&nbsp;Connecter&nbsp;».</p>"#,
+            tr(
+                r#"<p style="margin:8px 0 0;color:rgba(15,59,66,.72)">Pour réessayer&nbsp;: Paramètres de Pastille (la clé à côté de ton nom), section Spotify, «&nbsp;Connecter&nbsp;».</p>"#,
+                r#"<p style="margin:8px 0 0;color:rgba(15,59,66,.72)">To try again: Pastille's Settings (the wrench next to your name), Spotify section, “Connect”.</p>"#,
+            ),
         ),
     };
+    let lang = tr("fr", "en");
     format!(
-        r#"<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pastille</title>{FAVICON}<style>{}</style><body style="margin:0;min-height:100vh;padding:16px;box-sizing:border-box;display:grid;place-items:center;background:#e2f5f4;font-family:Nunito,'Segoe UI',sans-serif;font-weight:700;font-size:15px;line-height:1.5;color:#0f3b42"><div style="max-width:440px;padding:22px 28px;border:2.5px solid #0f3b42;border-radius:24px;background:#fff;box-shadow:0 3px 0 #0f3b42"><h1 style="margin:0 0 6px;font-size:22px;font-weight:900;line-height:1.2">{title}</h1><p style="margin:0">{}</p>{retry}</div></body></html>"#,
+        r#"<!doctype html><html lang="{lang}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pastille</title>{FAVICON}<style>{}</style><body style="margin:0;min-height:100vh;padding:16px;box-sizing:border-box;display:grid;place-items:center;background:#e2f5f4;font-family:Nunito,'Segoe UI',sans-serif;font-weight:700;font-size:15px;line-height:1.5;color:#0f3b42"><div style="max-width:440px;padding:22px 28px;border:2.5px solid #0f3b42;border-radius:24px;background:#fff;box-shadow:0 3px 0 #0f3b42"><h1 style="margin:0 0 6px;font-size:22px;font-weight:900;line-height:1.2">{title}</h1><p style="margin:0">{}</p>{retry}</div></body></html>"#,
         fonts(),
         escape(text)
     )
@@ -575,14 +596,14 @@ fn post_token(params: &[(&str, &str)]) -> Result<Value, TokenError> {
 /// jeton de renouvellement utilisé ; si Spotify a été déconnecté (ou reconnecté) pendant la
 /// requête, la réponse est ignorée.
 fn store(app: &AppHandle, json: &Value, sent: Option<&str>) -> Result<String, String> {
-    let token = json["access_token"].as_str().ok_or("réponse de Spotify sans jeton.")?.to_string();
+    let token = json["access_token"].as_str().ok_or(tr("réponse de Spotify sans jeton.", "Spotify's answer has no token."))?.to_string();
     let seconds = json["expires_in"].as_u64().unwrap_or(3600);
     let granted = json["scope"].as_str().map(String::from);
     {
         let spotify = app.state::<Spotify>();
         let mut auth = spotify.auth.lock().unwrap();
         if sent.is_some() && auth.saved.refresh_token.as_deref() != sent {
-            return Err("Spotify n'est plus connecté.".into());
+            return Err(tr("Spotify n'est plus connecté.", "Spotify is no longer connected.").into());
         }
         // Une minute de marge
         auth.access = Some((token.clone(), Instant::now() + Duration::from_secs(seconds.saturating_sub(60))));
@@ -613,14 +634,17 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
     }
     let (client_id, refresh) = {
         let auth = spotify.auth.lock().unwrap();
-        (auth.saved.client_id.trim().to_string(), auth.saved.refresh_token.clone().ok_or("Spotify n'est pas connecté.")?)
+        (auth.saved.client_id.trim().to_string(), auth.saved.refresh_token.clone().ok_or(tr("Spotify n'est pas connecté.", "Spotify isn't connected."))?)
     };
     match post_token(&[("grant_type", "refresh_token"), ("refresh_token", &refresh), ("client_id", &client_id)]) {
         Ok(json) => store(app, &json, Some(&refresh)),
         // Autorisation retirée, app supprimée… : le curseur repasse au volume de Windows
         Err(TokenError::Refused(e)) => {
             eprintln!("[lanceur] Spotify : {e}");
-            let expired = "Connexion à Spotify expirée : reconnecte-le depuis les Paramètres de Pastille.";
+            let expired = tr(
+                "Connexion à Spotify expirée : reconnecte-le depuis les Paramètres de Pastille.",
+                "Spotify connection expired: reconnect it from Pastille's Settings.",
+            );
             disconnect(app, Some(expired.into()));
             Err(expired.into())
         }
@@ -707,7 +731,7 @@ pub async fn set_spotify_shuffle(app: AppHandle, on: bool) -> Result<(), String>
 #[tauri::command]
 pub async fn set_spotify_repeat(app: AppHandle, mode: String) -> Result<(), String> {
     if !matches!(mode.as_str(), "off" | "context" | "track") {
-        return Err(format!("Répétition « {mode} » inconnue."));
+        return Err(tr(format!("Répétition « {mode} » inconnue."), format!("Unknown repeat \"{mode}\".")));
     }
     crate::blocking(move || put(&app, &format!("/me/player/repeat?state={mode}"))).await?
 }
@@ -793,7 +817,7 @@ fn fetch_playlists(app: &AppHandle) -> Result<Vec<Playlist>, String> {
     };
     let mut list = Vec::new();
     if let Some(user) = get(&format!("{API}/me"))?["id"].as_str() {
-        list.push(Playlist { name: "Titres likés".into(), uri: format!("spotify:user:{user}:collection") });
+        list.push(Playlist { name: tr("Titres likés", "Liked Songs").into(), uri: format!("spotify:user:{user}:collection") });
     }
     let mut next = Some(format!("{API}/me/playlists?limit=50"));
     while let Some(url) = next.take() {
@@ -888,26 +912,30 @@ fn parse(body: &str) -> Value {
     serde_json::from_str(body).unwrap_or(Value::Null)
 }
 
-/// Message en français pour les erreurs de Spotify (API : {"error": {"message", "reason"}} ;
+/// Message dans la langue de Pastille pour les erreurs de Spotify (API : {"error": {"message", "reason"}} ;
 /// jetons : {"error": "invalid_grant", "error_description"})
 fn api_error(status: u16, json: &Value) -> String {
     let reason = json["error"]["reason"].as_str().unwrap_or_default();
     let message =
-        json["error"]["message"].as_str().or_else(|| json["error_description"].as_str()).unwrap_or("réponse inattendue");
+        json["error"]["message"].as_str().or_else(|| json["error_description"].as_str()).unwrap_or(tr("réponse inattendue", "unexpected answer"));
     match (status, reason) {
-        (404, _) | (_, "NO_ACTIVE_DEVICE") => "Spotify n'a pas d'appareil actif : lance la lecture.".into(),
+        (404, _) | (_, "NO_ACTIVE_DEVICE") => {
+            tr("Spotify n'a pas d'appareil actif : lance la lecture.", "Spotify has no active device: start playback.").into()
+        }
         // Depuis 2026, le propriétaire de l'app Spotify (chacun a la sienne) doit aussi avoir
         // Premium : message sans `reason` connu
-        (_, "PREMIUM_REQUIRED") => "Spotify Premium est nécessaire pour piloter la lecture.".into(),
-        (403, _) if message.to_ascii_lowercase().contains("premium") => {
-            "Spotify Premium est nécessaire pour piloter la lecture.".into()
-        }
-        (429, _) => "Spotify reçoit trop de demandes, réessaie dans un instant.".into(),
+        (_, "PREMIUM_REQUIRED") => premium(),
+        (403, _) if message.to_ascii_lowercase().contains("premium") => premium(),
+        (429, _) => tr("Spotify reçoit trop de demandes, réessaie dans un instant.", "Spotify gets too many requests, try again in a moment.").into(),
         _ => {
             let code = json["error"].as_str().map(|c| format!(" [{c}]")).unwrap_or_default();
-            format!("Spotify ({status}) : {message}{code}")
+            tr(format!("Spotify ({status}) : {message}{code}"), format!("Spotify ({status}): {message}{code}"))
         }
     }
+}
+
+fn premium() -> String {
+    tr("Spotify Premium est nécessaire pour piloter la lecture.", "Spotify Premium is needed to control playback.").into()
 }
 
 /* ── HTTP ── */
@@ -951,7 +979,7 @@ fn http(method: &str, url: &str, bearer: Option<&str>, body: Option<(&str, &str)
         let text = wait(response.Content()?.ReadAsStringAsync()?)?.to_string();
         Ok((status, text))
     };
-    crate::com::with_com(send).map_err(|e| format!("Spotify injoignable : {}", e.message().trim_end()))
+    crate::com::with_com(send).map_err(|e| tr(format!("Spotify injoignable : {}", e.message().trim_end()), format!("Spotify unreachable: {}", e.message().trim_end())))
 }
 
 /// Attend une opération WinRT, TIMEOUT au plus ; au-delà, elle est annulée
@@ -962,7 +990,7 @@ fn wait<T: RuntimeType + 'static, P: RuntimeType + 'static>(
     while operation.Status()? == AsyncStatus::Started {
         if Instant::now() >= deadline {
             let _ = operation.Cancel();
-            return Err(windows::core::Error::new(ERROR_TIMEOUT.to_hresult(), "pas de réponse au bout de 8 s"));
+            return Err(windows::core::Error::new(ERROR_TIMEOUT.to_hresult(), tr("pas de réponse au bout de 8 s", "no answer after 8 s")));
         }
         std::thread::sleep(Duration::from_millis(5));
     }

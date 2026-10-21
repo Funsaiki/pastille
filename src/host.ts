@@ -8,6 +8,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { EXAMPLE, type AppItem, type Config, type Favorite } from './config';
 import type { Appearance } from './appearance';
+import { LANGUAGE, tr, type Language } from './i18n';
 
 export const PREVIEW = !('__TAURI_INTERNALS__' in window);
 
@@ -155,7 +156,7 @@ export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
 /* Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026) : ce que réglait le menu de
    l'icône, et la langue */
-export type Language = 'fr' | 'en';
+export type { Language };
 // outdated : d'avant les playlists ; pending : connexion en cours dans le navigateur
 export type SpotifyLink = 'connected' | 'disconnected' | 'outdated' | 'pending';
 export interface Prefs {
@@ -202,7 +203,7 @@ function previewConfig(): Config {
   // Masquées (clic droit) : dans un groupe à la fin, comme config.rs
   const children = all.filter((it) => !previewHidden.has(it.label));
   const hidden = all.filter((it) => previewHidden.has(it.label)).map((it) => ({ ...it, hidden: true }));
-  if (hidden.length) children.push({ label: 'Masquées', icon: 'masquees', hidden: true, children: hidden });
+  if (hidden.length) children.push({ label: tr('Masquées', 'Hidden'), icon: 'masquees', hidden: true, children: hidden });
   const start = config.apps.find((it) => it.auto === 'start');
   if (start) start.children = children;
   // Ids, groupes `auto` réduits à leur lanceur (rien n'y est ajouté ici : ni jeux, ni playlists)
@@ -223,12 +224,13 @@ function previewConfig(): Config {
 
 /* Aperçu navigateur : applications épinglées depuis le clic droit, applications du menu
    Démarrer masquées ; la config est refaite quand elles changent */
-const previewPinned = new Set<string>(['Navigateur']);
+const previewPinned = new Set<string>([tr('Navigateur', 'Browser')]);
 const previewHidden = new Set<string>();
 const previewConfigListeners: (() => void)[] = [];
+const CALCULATOR = tr('Calculatrice', 'Calculator');
 
-const PREVIEW_START = ['2XKO', 'Battle.net', 'Bloc-notes', 'Calculatrice', 'Caméra', 'Discord', 'Docker Desktop', 'EA',
-  'Epic Games Launcher', 'Excel', 'Explorateur de fichiers', 'Firefox', 'GitHub Desktop', 'Google Chrome', 'HoYoPlay',
+const PREVIEW_START = ['2XKO', 'Battle.net', tr('Bloc-notes', 'Notepad'), CALCULATOR, tr('Caméra', 'Camera'), 'Discord', 'Docker Desktop', 'EA',
+  'Epic Games Launcher', 'Excel', tr('Explorateur de fichiers', 'File Explorer'), 'Firefox', 'GitHub Desktop', 'Google Chrome', 'HoYoPlay',
   'Krita (x64)', 'League of Legends', 'Microsoft Store', 'OBS Studio (64bit)', 'Paint', 'Steam', 'Terminal', 'VLC media player'];
 
 /* Aperçu navigateur : une pastille de couleur à la place de la vraie icône */
@@ -242,7 +244,7 @@ function previewIcon(seed: number): AppIcon {
 }
 
 /* Aperçu navigateur : le morceau de la maquette */
-const previewMedia: NowPlaying = { title: '[Titre du morceau]', artist: '[Artiste]', playing: true };
+const previewMedia: NowPlaying = { title: tr('[Titre du morceau]', '[Song title]'), artist: tr('[Artiste]', '[Artist]'), playing: true };
 
 /* Aperçu navigateur : aléatoire et répétition de Spotify */
 const previewSound: AudioState = { volume: 62, muted: false, mic_muted: true };
@@ -258,7 +260,7 @@ let previewTray: TrayApp[] = ['Discord', 'EarTrumpet', 'G HUB', 'Lightshot', 'Ri
     icon: null,
     packaged: name === 'Spotify' || name === 'EarTrumpet',
     clicks: true,
-    tip: name === 'EarTrumpet' ? 'EarTrumpet\nHaut-parleurs : 42 %' : name,
+    tip: name === 'EarTrumpet' ? tr('EarTrumpet\nHaut-parleurs : 42 %', 'EarTrumpet\nSpeakers: 42%') : name,
   }));
 
 /* Aperçu navigateur : fenêtres des deux écrans de Funsaiki, sans leurs icônes */
@@ -266,9 +268,9 @@ let previewBar: BarWindow[] = [
   { id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', exe: 'code.exe', glyph: 'code', active: true },
   { id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'navigateur', active: false },
   { id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'navigateur', active: false },
-  { id: 'w4', title: 'Téléchargements', app: 'Explorateur de fichiers', key: 'explorer', exe: 'explorer.exe', glyph: 'fichiers', active: false },
+  { id: 'w4', title: tr('Téléchargements', 'Downloads'), app: tr('Explorateur de fichiers', 'File Explorer'), key: 'explorer', exe: 'explorer.exe', glyph: 'fichiers', active: false },
   { id: 'w5', title: 'PowerShell', app: 'Terminal', key: 'terminal', exe: 'windowsterminal.exe', glyph: 'terminal', active: false },
-  { id: 'w6', title: '#général — Discord', app: 'Discord', key: 'discord', exe: 'discord.exe', glyph: 'messages', active: false },
+  { id: 'w6', title: tr('#général — Discord', '#general — Discord'), app: 'Discord', key: 'discord', exe: 'discord.exe', glyph: 'messages', active: false },
   { id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', exe: 'spotify.exe', glyph: 'musique', active: false },
   { id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', exe: 'steam.exe', glyph: 'steam', active: false },
 ].map((w) => ({ ...w, icon: null, attention: w.key === 'discord' }));
@@ -282,7 +284,7 @@ let previewPins: Omit<PinnedApp, 'icon'>[] = [
 /* Aperçu navigateur : réglages de la page Paramètres ; ?maj : une mise à jour trouvée par
    « Vérifier » ; ?dev : version de développement (Démarrer avec Windows grisé) */
 const previewPrefs: Prefs = {
-  language: navigator.language.startsWith('fr') ? 'fr' : 'en',
+  language: LANGUAGE,
   autostart: new URLSearchParams(location.search).has('dev') ? null : false,
   bar: true,
   shortcut: 'Alt+Space',
@@ -290,6 +292,8 @@ const previewPrefs: Prefs = {
   version: '1.11.0',
   update: null,
 };
+
+const previewLanguageListeners: ((language: Language) => void)[] = [];
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
@@ -395,7 +399,7 @@ export const host = {
         { key: 'spotify', name: 'Spotify', volume: 80, icon: null },
         { key: 'discord', name: 'Discord', volume: 100, icon: null },
         { key: 'brave', name: 'Brave Browser', volume: 65, icon: null },
-        { key: 'system', name: 'Sons système', volume: 50, icon: null },
+        { key: 'system', name: tr('Sons système', 'System sounds'), volume: 50, icon: null },
       ];
     }
     return invoke<AppVolume[]>('mixer');
@@ -443,7 +447,7 @@ export const host = {
       return [
         ...update,
         { kind: 'steam', game: 'Street Fighter 6', progress: 62, paused: false, age: null },
-        { kind: 'download', name: 'Fichier-de-la-maquette.zip', age: 300 },
+        { kind: 'download', name: tr('Fichier-de-la-maquette.zip', 'Mockup-file.zip'), age: 300 },
         { kind: 'steam', game: 'Aniimo', progress: null, paused: false, age: 22300 },
       ];
     }
@@ -477,7 +481,7 @@ export const host = {
     if (PREVIEW) {
       // Tuiles `app` et `default` : comme une application du menu Démarrer
       const target = item.target ?? '';
-      const store = item.label === 'Calculatrice';
+      const store = item.label === CALCULATOR;
       const found = item.start || !!item.app || !!item.default;
       const program = found ? !store : /\.(exe|bat|cmd|msc)$/i.test(target);
       const file = found ? !store : program && target.includes('/');
@@ -517,9 +521,23 @@ export const host = {
     if (PREVIEW) return { ...previewPrefs };
     return invoke<Prefs>('prefs');
   },
+  /* Langue de Rust ; aperçu : celle de la page */
+  async language(): Promise<Language> {
+    if (PREVIEW) return previewPrefs.language;
+    return invoke<Language>('get_language');
+  },
+  /* Rust prévient toutes les pages (onLanguageChanged), qui se rechargent */
   async setLanguage(language: Language) {
-    if (PREVIEW) previewPrefs.language = language;
-    else await invoke('set_language', { language });
+    if (!PREVIEW) {
+      await invoke('set_language', { language });
+      return;
+    }
+    previewPrefs.language = language;
+    previewLanguageListeners.forEach((fn) => fn(language));
+  },
+  onLanguageChanged(fn: (language: Language) => void) {
+    if (PREVIEW) previewLanguageListeners.push(fn);
+    else listen<Language>('language:changed', (e) => fn(e.payload));
   },
   /* « Démarrer avec Windows » écrit dans le registre (HKCU\…\Run) : seul Funsaiki le coche */
   async setPrefSwitch(key: PrefSwitch, on: boolean) {
@@ -563,7 +581,7 @@ export const host = {
     if (PREVIEW) {
       return [
         { id: '1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', icon: null },
-        { id: '2', title: '#général — Discord', app: 'Discord', icon: null },
+        { id: '2', title: tr('#général — Discord', '#general — Discord'), app: 'Discord', icon: null },
       ];
     }
     return invoke<OpenWindow[]>('open_windows');

@@ -41,6 +41,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::bar_pins::{self, Pin};
+use crate::i18n::tr;
 use crate::shell_hook::{self, Event};
 use crate::{bar_preview, launcher, open_windows, switch, taskbar, tray_apps};
 
@@ -282,7 +283,7 @@ fn ensure_windows(app: &AppHandle, monitors: &[RECT]) {
 
 fn create(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
     let w = WebviewWindowBuilder::new(app, label, WebviewUrl::App("barre.html".into()))
-        .title("Barre pastel")
+        .title(tr("Barre pastel", "Pastel bar"))
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -616,7 +617,7 @@ pub async fn new_window(id: String) -> Result<(), String> {
 fn relaunch_target(id: &str) -> Result<String, String> {
     let hwnd = open_windows::app_window(id)?;
     let (path, pid) = switch::process_of(hwnd);
-    let path = path.ok_or("Programme de la fenêtre introuvable.")?;
+    let path = path.ok_or(tr("Programme de la fenêtre introuvable.", "The window's program was not found."))?;
     let app_id = if is_hosted(&path) {
         open_windows::window_app_id(hwnd)
     } else if tray_apps::is_packaged(&path) {
@@ -626,7 +627,7 @@ fn relaunch_target(id: &str) -> Result<String, String> {
     };
     app_id
         .map(|id| format!(r"shell:AppsFolder\{id}"))
-        .ok_or_else(|| "Identifiant de l'application introuvable.".to_string())
+        .ok_or_else(|| tr("Identifiant de l'application introuvable.", "The app's identifier was not found.").to_string())
 }
 
 /// Nombre d'écrans : « Envoyer sur l'autre écran » dans le menu d'une fenêtre s'il y en a plusieurs
@@ -644,10 +645,10 @@ pub async fn move_window(id: String) -> Result<(), String> {
     crate::blocking(move || {
         let hwnd = open_windows::app_window(&id)?;
         let displays = displays();
-        let here = monitor_info(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }).ok_or("Écran de la fenêtre introuvable.")?;
+        let here = monitor_info(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }).ok_or(tr("Écran de la fenêtre introuvable.", "The window's screen was not found."))?;
         let i = displays.iter().position(|d| d.area == here.area).unwrap_or(0);
         if displays.len() < 2 {
-            return Err("Il n'y a qu'un écran.".to_string());
+            return Err(tr("Il n'y a qu'un écran.", "There is only one screen.").to_string());
         }
         let to = &displays[(i + 1) % displays.len()];
         let error = |e: windows::core::Error| e.message().trim_end().to_string();

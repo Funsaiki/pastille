@@ -8,6 +8,7 @@ mod com;
 mod config;
 mod epic;
 mod feed;
+mod i18n;
 mod icon;
 mod launcher;
 mod media;
@@ -71,6 +72,7 @@ pub fn run() {
             // Lit apps.json et enregistre le raccourci ; s'il est déjà pris, l'app démarre
             // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
             com::keep_mta();
+            prefs::init(app.handle());   // langue, avant tout texte
             app.manage(usage::load(app.handle()));
             app.manage(spotify::load(app.handle()));
             config::init(app.handle());
@@ -92,6 +94,7 @@ pub fn run() {
             appearance::pick_charm_image,
             prefs::enable_autostart,
             prefs::prefs,
+            prefs::get_language,
             prefs::set_language,
             prefs::set_pref_switch,
             prefs::pref_action,

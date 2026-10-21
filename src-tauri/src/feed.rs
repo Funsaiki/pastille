@@ -19,6 +19,7 @@ use windows::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDriveTypeW, Ge
 use windows::Win32::System::Com::CoTaskMemFree;
 use windows::Win32::UI::Shell::{FOLDERID_Downloads, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
 
+use crate::i18n::tr;
 use crate::steam;
 
 #[derive(Serialize)]
@@ -71,11 +72,11 @@ fn read(update: Option<String>) -> Vec<Event> {
 #[tauri::command]
 pub async fn open_download(name: String) -> Result<(), String> {
     if name.is_empty() || name.contains(['/', '\\', ':']) || name == "." || name == ".." {
-        return Err(format!("Nom de fichier refusé : {name}."));
+        return Err(tr(format!("Nom de fichier refusé : {name}."), format!("File name refused: {name}.")));
     }
-    let path = downloads_dir().ok_or("Dossier Téléchargements introuvable.")?.join(&name);
+    let path = downloads_dir().ok_or(tr("Dossier Téléchargements introuvable.", "Downloads folder not found."))?.join(&name);
     if !path.is_file() {
-        return Err(format!("{name} n'est plus dans Téléchargements."));
+        return Err(tr(format!("{name} n'est plus dans Téléchargements."), format!("{name} is no longer in Downloads.")));
     }
     let path = path.to_string_lossy().into_owned();
     crate::blocking(move || crate::shell::open_as_is(&path)).await?

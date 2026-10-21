@@ -1,0 +1,141 @@
+<!doctype html>
+<!-- Page de configuration de Spotify, en anglais (spotify-setup.html : la version française,
+     qui fait foi ; mêmes accolades, mêmes styles). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pastille · Connect Spotify</title>
+{{favicon}}
+<style>
+{{fonts}}
+{{style}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg viewBox="0 0 1024 1024" aria-hidden="true">
+      <rect x="80" y="103" width="864" height="864" rx="290" fill="#0f3b42"/>
+      <rect x="80" y="58" width="864" height="864" rx="290" fill="#9fe0dc" stroke="#0f3b42" stroke-width="37"/>
+      <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" transform="translate(248 226) scale(22)"
+            fill="none" stroke="#0f3b42" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <h1>Connect Spotify</h1>
+      <p class="lead">to Pastille, in five steps</p>
+    </div>
+  </header>
+
+  <section class="card">
+    <p>Pastille already shows the current song and sets Spotify's volume in Windows. Once Spotify is connected, Pastille also sets the volume of Spotify itself (even when the music plays on your phone), shuffle and repeat.</p>
+    <p class="soft">Spotify asks everyone to create their own developer “app”: it's free, it takes two minutes, and Pastille only uses its identifier.</p>
+    <div class="note premium">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+      <span>You need a Spotify Premium account: Spotify requires it to control playback.</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <ol class="steps">
+      <li>
+        <span class="num" style="background:#9fe0dc">1</span>
+        <h2>Open the Spotify dashboard</h2>
+        <p class="link">
+          <a class="pill" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">
+            developer.spotify.com/dashboard
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
+          </a>
+        </p>
+        <p>Log in with your Spotify account. The first time, Spotify asks you to accept its terms (<span class="ui">“Accept the terms”</span>) and sometimes to confirm your email address: click the link in the email you received, then come back to the dashboard.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#f6c6da">2</span>
+        <h2>Create an app</h2>
+        <p>At the top right of the dashboard, click <span class="ui">“Create app”</span>.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#c9d8ff">3</span>
+        <h2>Fill in the form</h2>
+        <dl class="fields">
+          <dt>App name</dt>
+          <dd><span class="val">Pastille</span></dd>
+          <dt>App description</dt>
+          <dd><span class="val">Pastille launcher</span></dd>
+          <dt>Website</dt>
+          <dd>Leave it empty.</dd>
+          <dt>Redirect URIs</dt>
+          <dd>
+            Paste exactly this address, then click <span class="ui">“Add”</span>:
+            <span class="row">
+              <span class="field address" id="redirect">{{redirect}}</span>
+              <button class="pill" type="button" data-copy="redirect">Copy</button>
+            </span>
+          </dd>
+          <dt>Which API/SDKs are you planning to use?</dt>
+          <dd>Check <span class="ui">“Web API”</span>.</dd>
+        </dl>
+        <p style="margin-top:12px">At the bottom, check <span class="ui">“I understand and agree…”</span>, then click <span class="ui">“Save”</span>.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#ffe08a">4</span>
+        <h2>Copy the Client ID</h2>
+        <p>Your app's page opens. Under <span class="ui">“Basic Information”</span> (otherwise, the <span class="ui">“Settings”</span> button), copy the <span class="ui">“Client ID”</span>: 32 letters and digits.</p>
+        <p class="warn">Not the “Client secret” (behind “View client secret”): Pastille doesn't need it, and you never give it to anyone.</p>
+      </li>
+      <li>
+        <span class="num" style="background:#9fe0dc">5</span>
+        <h2>Paste it here</h2>
+        <form class="paste row" action="/identifiant" method="get" autocomplete="off">
+          <input type="hidden" name="n" value="{{nonce}}">
+          <input class="field" id="id" name="id" value="{{id}}" placeholder="Client ID" spellcheck="false" maxlength="100" aria-label="Client ID">
+          <button class="pill ink" type="submit">Connect</button>
+        </form>
+        {{error}}
+        <p style="margin-top:12px">Spotify then asks you to allow Pastille: click <span class="ui">“Agree”</span>. That's it!</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="card help">
+    <h2>A problem?</h2>
+    <ul>
+      <li>Spotify shows <span class="ui">“INVALID_CLIENT: Invalid redirect URI”</span>: on the dashboard, open your app, <span class="ui">“Settings”</span> then <span class="ui">“Edit”</span>, and put the address from step 3 (Copy button) in <span class="ui">“Redirect URIs”</span>, <span class="ui">“Add”</span>, then <span class="ui">“Save”</span> at the bottom. Then come back here with the browser's ← arrow and click Connect again.</li>
+      <li>Spotify shows <span class="ui">“INVALID_CLIENT: Invalid client”</span>: that's not the right identifier (often the Client secret instead). Come back here with ←, paste the Client ID from step 4 and click Connect again.</li>
+      <li>The <span class="ui">“Create app”</span> button doesn't work: first confirm your email address (link in Spotify's email), then reload the dashboard.</li>
+      <li>This page waits 15 minutes. After that, or if you close the tab, reopen it from Pastille's Settings (the wrench next to your name), Spotify section: <span class="ui">“Connect”</span>.</li>
+    </ul>
+  </section>
+
+  <footer>This page comes from Pastille, on your PC: your identifier only goes to Spotify.</footer>
+</main>
+<script>
+  // Copier : presse-papiers (adresse locale : contexte sûr), sinon sélection classique
+  for (const button of document.querySelectorAll('[data-copy]')) {
+    button.addEventListener('click', async () => {
+      const source = document.getElementById(button.dataset.copy);
+      try {
+        await navigator.clipboard.writeText(source.textContent.trim());
+      } catch {
+        getSelection().selectAllChildren(source);
+        document.execCommand('copy');
+      }
+      button.classList.add('done');
+      button.textContent = 'Copied';
+      clearTimeout(button.timer);
+      button.timer = setTimeout(() => {
+        button.classList.remove('done');
+        button.textContent = 'Copy';
+      }, 1600);
+    });
+  }
+  // Identifiant refusé : le champ, prêt à corriger
+  if (document.querySelector('.error')) {
+    const input = document.getElementById('id');
+    input.focus();
+    input.select();
+    input.scrollIntoView({ block: 'center' });
+  }
+</script>
+</body>
+</html>

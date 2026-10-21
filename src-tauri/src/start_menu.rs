@@ -24,6 +24,7 @@ use windows::Win32::UI::Shell::{
 };
 
 use crate::icon::{self, Icon};
+use crate::i18n::tr;
 use crate::steam::normalize;
 use crate::{com, config};
 
@@ -198,8 +199,8 @@ pub fn hidden(app: &AppHandle) -> Vec<String> {
 
 /// Masque ou réaffiche `target`. Fichier temporaire puis renommage, comme barre.json.
 pub fn set_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
-    let name = target.strip_prefix(PREFIX).ok_or("Pas une application du menu Démarrer.")?;
-    let path = settings_file(app).ok_or("Dossier de config introuvable.")?;
+    let name = target.strip_prefix(PREFIX).ok_or(tr("Pas une application du menu Démarrer.", "Not a Start menu app."))?;
+    let path = settings_file(app).ok_or(tr("Dossier de config introuvable.", "Config folder not found."))?;
     let mut names: Vec<String> = hidden(app).iter().filter_map(|t| t.strip_prefix(PREFIX)).map(String::from).collect();
     names.retain(|n| n != name);
     if hide {
@@ -208,7 +209,7 @@ pub fn set_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), Strin
     let temp = path.with_extension("json.tmp");
     fs::write(&temp, serde_json::to_string_pretty(&Settings { hidden: names }).unwrap_or_default())
         .and_then(|_| fs::rename(&temp, &path))
-        .map_err(|e| format!("{} non enregistré : {e}", path.display()))
+        .map_err(|e| tr(format!("{} non enregistré : {e}", path.display()), format!("{} not saved: {e}", path.display())))
 }
 
 /// Raccourcis web (.url) du menu Démarrer : fichier d'icône par adresse. Le menu Démarrer

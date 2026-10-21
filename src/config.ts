@@ -3,7 +3,9 @@
    Dans l'app, Rust lit le apps.json de l'utilisateur et attribue un id à chaque
    élément (voir host.getConfig) ; dans l'aperçu navigateur, on prend l'exemple.
    ══════════════════════════════════════════════════════════ */
-import example from '../apps.example.json';
+import exampleFr from '../apps.example.json';
+import exampleEn from '../apps.example.en.json';
+import { tr } from './i18n';
 
 export interface AppItem {
   id?: string;            // attribué par Rust, renvoyé pour lancer
@@ -41,7 +43,8 @@ export interface Config {
   favorites: Favorite[];
 }
 
-export const EXAMPLE: Config = example;
+/* Celui de la langue de Pastille (Rust crée apps.json de même) */
+export const EXAMPLE: Config = tr(exampleFr, exampleEn);
 
 /* Config en cours. Les modules qui importent CONFIG voient la nouvelle valeur après setConfig. */
 export let CONFIG: Config = EXAMPLE;

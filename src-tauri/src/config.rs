@@ -16,10 +16,17 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
+use crate::i18n::tr;
 use crate::steam::normalize;
 use crate::{epic, shell, spotify, start_menu, steam, tray, usage};
 
 const EXAMPLE: &str = include_str!("../../apps.example.json");
+/// Le même en anglais : apps.json d'un nouvel utilisateur quand Pastille est en anglais
+const EXAMPLE_EN: &str = include_str!("../../apps.example.en.json");
+
+fn example() -> &'static str {
+    tr(EXAMPLE, EXAMPLE_EN)
+}
 
 /// Bouton du lanceur. `target` et `args` restent côté Rust : le front ne renvoie que l'`id`.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -204,10 +211,13 @@ fn parse(text: &str) -> Result<Config, String> {
     let mut config: Config = serde_json::from_str(text).map_err(|e| describe(&e))?;
     validate(&mut config.apps)?;
     if !is_hex_color(&config.accent) {
-        return Err(format!("accent « {} » : couleur attendue au format #rrggbb.", config.accent));
+        return Err(tr(
+            format!("accent « {} » : couleur attendue au format #rrggbb.", config.accent),
+            format!("accent \"{}\": expected a #rrggbb color.", config.accent),
+        ));
     }
     if Shortcut::from_str(&config.shortcut).is_err() {
-        return Err(format!("shortcut « {} » non reconnu.", config.shortcut));
+        return Err(tr(format!("shortcut « {} » non reconnu.", config.shortcut), format!("shortcut \"{}\" not recognized.", config.shortcut)));
     }
     assign_ids(&mut config.apps, "a");
     for (i, f) in config.favorites.iter_mut().enumerate() {
@@ -216,24 +226,25 @@ fn parse(text: &str) -> Result<Config, String> {
     Ok(config)
 }
 
-/// Message court en français ; serde_json donne la position et un détail en anglais.
+/// Message court ; serde_json donne la position et un détail en anglais (traduit en français).
 fn describe(e: &serde_json::Error) -> String {
     use serde_json::error::Category;
     let what = match e.classify() {
-        Category::Syntax => "JSON mal formé (virgule, guillemet, accolade ?)".to_string(),
-        Category::Eof => "fichier incomplet".to_string(),
+        Category::Syntax => tr("JSON mal formé (virgule, guillemet, accolade ?)", "malformed JSON (comma, quote, brace?)").to_string(),
+        Category::Eof => tr("fichier incomplet", "incomplete file").to_string(),
         Category::Data | Category::Io => {
             let msg = e.to_string();
-            msg.split(" at line ")
-                .next()
-                .unwrap_or(&msg)
-                .replace("missing field", "champ manquant")
-                .replace("unknown field", "champ inconnu")
-                .replace("expected one of", "attendu :")
-                .replace("invalid type:", "type invalide :")
+            let msg = msg.split(" at line ").next().unwrap_or(&msg);
+            tr(
+                msg.replace("missing field", "champ manquant")
+                    .replace("unknown field", "champ inconnu")
+                    .replace("expected one of", "attendu :")
+                    .replace("invalid type:", "type invalide :"),
+                msg.to_string(),
+            )
         }
     };
-    format!("Ligne {}, col. {} : {what}.", e.line(), e.column())
+    tr(format!("Ligne {}, col. {} : {what}.", e.line(), e.column()), format!("Line {}, col. {}: {what}.", e.line(), e.column()))
 }
 
 /// Chaque bouton lance quelque chose (`target`, `app` ou `default`, un seul) ou ouvre un
@@ -242,22 +253,33 @@ fn validate(items: &mut [AppItem]) -> Result<(), String> {
     for it in items {
         if let Some(auto) = &it.auto {
             if !matches!(auto.as_str(), "steam" | "epic" | "spotify" | "start") {
-                return Err(format!("« {} » : auto « {auto} » inconnu (steam, epic, spotify ou start).", it.label));
+                return Err(tr(
+                    format!("« {} » : auto « {auto} » inconnu (steam, epic, spotify ou start).", it.label),
+                    format!("\"{}\": unknown auto \"{auto}\" (steam, epic, spotify or start).", it.label),
+                ));
             }
             it.children.get_or_insert_with(Vec::new);
         }
         let launches = [it.target.is_some(), it.app.is_some(), it.default_for.is_some()].into_iter().filter(|&x| x).count();
         if launches > 1 {
-            return Err(format!("« {} » : un seul de target, app ou default.", it.label));
+            return Err(tr(
+                format!("« {} » : un seul de target, app ou default.", it.label),
+                format!("\"{}\": only one of target, app or default.", it.label),
+            ));
         }
         // Une application du menu Démarrer se lance par son raccourci, qui a ses propres arguments
         if !it.args.is_empty() && it.target.is_none() {
-            return Err(format!("« {} » : args seulement avec target.", it.label));
+            return Err(tr(format!("« {} » : args seulement avec target.", it.label), format!("\"{}\": args only with target.", it.label)));
         }
         match &mut it.children {
             Some(children) => validate(children)?,
             None if launches == 1 => {}
-            None => return Err(format!("« {} » : il manque target, app, default ou children.", it.label)),
+            None => {
+                return Err(tr(
+                    format!("« {} » : il manque target, app, default ou children.", it.label),
+                    format!("\"{}\": target, app, default or children is missing.", it.label),
+                ))
+            }
         }
     }
     Ok(())
@@ -320,7 +342,7 @@ fn merge(base: &Config, games: &Detected) -> Config {
                     }
                     if !hidden.is_empty() {
                         children.push(AppItem {
-                            label: "Masquées".into(),
+                            label: tr("Masquées", "Hidden").into(),
                             icon: Some("masquees".into()),
                             children: Some(hidden),
                             hidden: true,
@@ -402,17 +424,18 @@ pub fn path(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_config_dir()
         .map(|dir| dir.join("apps.json"))
-        .map_err(|e| format!("Dossier de config introuvable : {e}."))
+        .map_err(|e| tr(format!("Dossier de config introuvable : {e}."), format!("Config folder not found: {e}.")))
 }
 
-/// Crée apps.json à partir de l'exemple s'il n'existe pas encore.
+/// Crée apps.json à partir de l'exemple, dans la langue de Pastille, s'il n'existe pas encore.
 fn ensure_file(app: &AppHandle) -> Result<PathBuf, String> {
     let path = path(app)?;
     if !path.exists() {
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).map_err(|e| format!("Création du dossier de config impossible : {e}."))?;
+            fs::create_dir_all(dir)
+                .map_err(|e| tr(format!("Création du dossier de config impossible : {e}."), format!("Couldn't create the config folder: {e}.")))?;
         }
-        fs::write(&path, EXAMPLE).map_err(|e| format!("Création de apps.json impossible : {e}."))?;
+        fs::write(&path, example()).map_err(|e| tr(format!("Création de apps.json impossible : {e}."), format!("Couldn't create apps.json: {e}.")))?;
     }
     Ok(path)
 }
@@ -426,10 +449,10 @@ pub(crate) fn example_mode() -> bool {
 
 fn load(app: &AppHandle) -> Result<Config, String> {
     if example_mode() {
-        return parse(EXAMPLE);
+        return parse(example());
     }
     let path = ensure_file(app)?;
-    let text = fs::read_to_string(&path).map_err(|e| format!("Lecture de apps.json impossible : {e}."))?;
+    let text = fs::read_to_string(&path).map_err(|e| tr(format!("Lecture de apps.json impossible : {e}."), format!("Couldn't read apps.json: {e}.")))?;
     parse(&text)
 }
 
@@ -511,8 +534,14 @@ fn apply_shortcut(app: &AppHandle, s: &mut ConfigState) {
         eprintln!("[lanceur] raccourci {wanted} indisponible : {e}");
         let restored = old.filter(|old| shortcuts.register(old.as_str()).is_ok());
         s.problems.push(match &restored {
-            Some(old) => format!("Raccourci {wanted} indisponible, déjà pris ? {old} est conservé."),
-            None => format!("Raccourci {wanted} indisponible, déjà pris ? Ouvre le lanceur depuis la zone de notification."),
+            Some(old) => tr(
+                format!("Raccourci {wanted} indisponible, déjà pris ? {old} est conservé."),
+                format!("Shortcut {wanted} unavailable, already taken? {old} is kept."),
+            ),
+            None => tr(
+                format!("Raccourci {wanted} indisponible, déjà pris ? Ouvre le lanceur depuis la zone de notification."),
+                format!("Shortcut {wanted} unavailable, already taken? Open the launcher from the notification area."),
+            ),
         });
         s.registered = restored;
         return;
@@ -523,7 +552,7 @@ fn apply_shortcut(app: &AppHandle, s: &mut ConfigState) {
 pub fn tooltip(s: &ConfigState) -> String {
     match &s.registered {
         Some(shortcut) => format!("Pastille ({shortcut})"),
-        None => "Pastille (aucun raccourci)".into(),
+        None => tr("Pastille (aucun raccourci)", "Pastille (no shortcut)").into(),
     }
 }
 
@@ -536,8 +565,8 @@ pub fn init(app: &AppHandle) {
     let mut problems = Vec::new();
     let first_run = example_mode() || path(app).is_ok_and(|path| !path.exists());
     let base = load(app).unwrap_or_else(|msg| {
-        problems.push(format!("{msg} Config par défaut utilisée."));
-        parse(EXAMPLE).expect("apps.example.json embarqué invalide")
+        problems.push(tr(format!("{msg} Config par défaut utilisée."), format!("{msg} Default config used.")));
+        parse(example()).expect("apps.example.json embarqué invalide")
     });
     let mut state = ConfigState {
         config: merge(&base, &Detected::default()),
@@ -579,7 +608,7 @@ pub fn reload(app: &AppHandle) {
             s.config = merge(&base, &s.games);
             s.base = base;
         }
-        Err(msg) => s.problems.push(format!("{msg} Config précédente conservée.")),
+        Err(msg) => s.problems.push(tr(format!("{msg} Config précédente conservée."), format!("{msg} Previous config kept."))),
     }
     apply_shortcut(app, &mut s);
     let tooltip = tooltip(&s);
@@ -733,6 +762,27 @@ mod tests {
         assert_eq!(music(Vec::new()).target.as_deref(), Some(r"shell:AppsFolder\Spotify"));
         let lofi = spotify::Playlist { name: "Lofi".into(), uri: "spotify:playlist:abc".into() };
         assert_eq!(music(vec![lofi]).children.map(|c| c.len()), Some(2));
+    }
+
+    /// L'exemple anglais : les mêmes tuiles, seuls les libellés (et sources) changent
+    #[test]
+    fn english_example_matches() {
+        fn without_labels(value: &mut serde_json::Value) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    map.remove("label");
+                    map.remove("source");
+                    map.values_mut().for_each(without_labels);
+                }
+                serde_json::Value::Array(list) => list.iter_mut().for_each(without_labels),
+                _ => {}
+            }
+        }
+        assert!(parse(EXAMPLE_EN).is_ok());
+        let [mut fr, mut en] = [EXAMPLE, EXAMPLE_EN].map(|text| serde_json::from_str::<serde_json::Value>(text).unwrap());
+        without_labels(&mut fr);
+        without_labels(&mut en);
+        assert_eq!(fr, en);
     }
 
     #[test]

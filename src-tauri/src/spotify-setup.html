@@ -2,7 +2,8 @@
 <!-- Page de configuration de Spotify (spotify.rs, premier branchement) : tuto pour créer son
      app Spotify, puis le Client ID à coller. Servie par le petit serveur local de la connexion ;
      les noms entre doubles accolades sont remplacés par spotify.rs (setup_page). Les libellés de
-     developer.spotify.com sont en anglais, comme sur le site. -->
+     developer.spotify.com sont en anglais, comme sur le site. Styles : spotify-setup.css, communs
+     à la version anglaise (spotify-setup.en.html). -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -11,106 +12,7 @@
 {{favicon}}
 <style>
 {{fonts}}
-:root { --ink: #0f3b42; --ink-deep: #0a2a2f; --fill: #9fe0dc; --soft: rgba(15, 59, 66, .72); }
-* { box-sizing: border-box; }
-html { background: #e2f5f4; }
-body {
-  margin: 0; min-height: 100vh; padding: 40px 16px 64px;
-  background: linear-gradient(180deg, #e2f5f4, #f5fbfb 55%, #fff);
-  font-family: Nunito, 'Segoe UI', sans-serif; font-weight: 700; font-size: 15px; line-height: 1.5; color: var(--ink);
-}
-main { max-width: 660px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
-header { display: flex; align-items: center; gap: 14px; }
-header svg { width: 56px; height: 56px; flex: none; }
-h1 { margin: 0; font-size: 26px; font-weight: 900; line-height: 1.15; }
-.lead { margin: 2px 0 0; color: var(--soft); }
-.card { background: #fff; border: 2.5px solid var(--ink); border-radius: 24px; box-shadow: 0 3px 0 var(--ink); padding: 20px 24px; }
-.card > p { margin: 0 0 8px; }
-.card > p:last-child { margin-bottom: 0; }
-.soft { color: var(--soft); }
-.note {
-  display: flex; gap: 10px; align-items: center; margin-top: 12px; padding: 10px 14px;
-  border-radius: 18px; border: 2px solid var(--ink); font-weight: 800;
-}
-.note svg { flex: none; }
-.premium { background: #ffe08a; }
-
-/* Étapes : numéros dans des pastilles de la palette */
-.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; }
-.steps > li { position: relative; padding-left: 52px; }
-.num {
-  position: absolute; left: 0; top: -4px; width: 36px; height: 36px; border-radius: 50%;
-  border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
-  display: grid; place-items: center; font-weight: 900; font-size: 16px;
-}
-h2 { margin: 0 0 4px; font-size: 17px; font-weight: 900; line-height: 1.3; }
-.steps p { margin: 0 0 6px; color: rgba(15, 59, 66, .78); }
-.steps p:last-child { margin-bottom: 0; }
-/* Libellés de Spotify, tels qu'à l'écran */
-.ui { color: var(--ink); font-weight: 900; }
-.val {
-  display: inline-block; padding: 0 10px; border-radius: 10px; border: 2px solid var(--ink);
-  background: #f5fbfb; color: var(--ink); font-weight: 900; line-height: 24px;
-}
-.fields { display: grid; grid-template-columns: minmax(0, 160px) 1fr; gap: 12px 16px; margin: 12px 0 0; align-items: start; }
-.fields dt { font-weight: 900; }
-.fields dd { margin: 0; color: rgba(15, 59, 66, .78); min-width: 0; }
-.warn { padding: 8px 12px; border-radius: 14px; border: 2px solid var(--ink); background: #f6c6da; color: var(--ink) !important; font-weight: 800; }
-
-/* Pilules et champs : ceux du lanceur (montent de 1 px au survol, s'enfoncent au clic) */
-.pill {
-  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 20px;
-  border: 2.5px solid var(--ink); background: #fff; color: var(--ink); box-shadow: 0 3px 0 var(--ink);
-  font: inherit; font-weight: 900; font-size: 14px; text-decoration: none; cursor: pointer; white-space: nowrap;
-  transition: transform .12s, box-shadow .12s, background .15s;
-}
-.pill:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink); }
-.pill:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
-.pill:focus-visible, .field:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
-.pill.done { background: var(--fill); }
-.pill.ink { background: var(--ink); color: #fff; box-shadow: 0 3px 0 var(--ink-deep); }
-.pill.ink:hover { box-shadow: 0 4px 0 var(--ink-deep); }
-.pill.ink:active { box-shadow: 0 1px 0 var(--ink-deep); }
-.link { margin: 4px 0 8px; }
-.row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
-.field {
-  flex: 1; min-width: 0; height: 44px; padding: 0 16px; border-radius: 22px;
-  border: 2.5px solid var(--ink); background: #fff; box-shadow: 0 3px 0 var(--ink);
-  color: var(--ink); font: inherit; font-weight: 800; font-size: 15px; outline: none;
-  transition: background .15s;
-}
-.field:focus { background: color-mix(in srgb, var(--fill) 45%, #fff); }
-.field::placeholder { color: rgba(15, 59, 66, .55); }
-.address {
-  display: flex; align-items: center; overflow-x: auto; white-space: nowrap; user-select: all;
-  font-family: Consolas, 'Cascadia Mono', monospace; font-weight: 700; font-size: 13.5px; height: 40px; box-shadow: none;
-  background: color-mix(in srgb, var(--fill) 45%, #fff);
-}
-.paste .pill { height: 44px; border-radius: 22px; padding: 0 22px; font-size: 15px; }
-.error {
-  margin: 12px 0 0 !important; padding: 10px 14px; border-radius: 18px; border: 2px solid var(--ink);
-  background: #ffe08a; color: var(--ink) !important; font-weight: 800;
-}
-
-/* Un souci ? */
-.help h2 { margin-bottom: 10px; }
-.help ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.help li { padding-left: 18px; position: relative; color: rgba(15, 59, 66, .78); }
-.help li::before {
-  content: ''; position: absolute; left: 0; top: .55em; width: 8px; height: 8px; border-radius: 50%;
-  border: 2px solid var(--ink); background: var(--fill);
-}
-footer { text-align: center; font-size: 13px; color: rgba(15, 59, 66, .55); }
-
-@media (max-width: 560px) {
-  body { padding-top: 24px; }
-  .card { padding: 18px 16px; }
-  .steps > li { padding-left: 46px; }
-  .fields { grid-template-columns: 1fr; gap: 2px; }
-  .fields dd { margin-bottom: 10px; }
-  .row { flex-wrap: wrap; }
-  .row .field { flex-basis: 100%; }
-}
+{{style}}
 </style>
 </head>
 <body>

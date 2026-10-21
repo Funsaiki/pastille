@@ -15,7 +15,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
   <img src="docs/barre.webp" alt="The pastel bar with the Spotify player open" width="740">
 </p>
 
-> The interface is in French.
+> The interface is in English and French: Pastille starts in the language of Windows, and the settings page switches between the two.
 
 ## Features
 
@@ -23,7 +23,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 - Volume, microphone, per-app volume mixer, CPU and memory usage, network speed.
 - Spotify now playing: title, cover art, controls and, once Spotify is connected, its own volume, shuffle and repeat.
 - Shortcuts to Wi-Fi, Bluetooth, Windows Settings and a power menu (with confirmation).
-- A **Paramètres** (settings) page, behind the wrench next to your name: start with Windows, the pastel bar, customization, Spotify connection, `apps.json`, updates.
+- A **Settings** page, behind the wrench next to your name: language, start with Windows, the pastel bar, customization, Spotify connection, `apps.json`, updates.
 - **Apps** tab: apps running in the background (notification area). **Notifs** tab: recent downloads, Steam updates, restart required by Windows Update, low disk space.
 
 **Apps**
@@ -50,13 +50,13 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 
 Updates: from version 1.11.0, Pastille checks the releases by itself and shows new versions in its **Notifs** tab; one click downloads, verifies and installs the update, then Pastille restarts. Earlier versions are updated by running the new installer, after quitting Pastille. Your config, Spotify connection and customization are kept.
 
-Settings are in the phone: click the wrench next to your name. The menu of Pastille's icon, next to the clock, has **Afficher** (show), **Paramètres** (settings) and **Quitter** (quit); when the pastel bar is on, open this menu by right-clicking the Applications tile of the pill.
+Settings are in the phone: click the wrench next to your name. The menu of Pastille's icon, next to the clock, has **Show**, **Settings** and **Quit**; when the pastel bar is on, open this menu by right-clicking the Apps tile of the pill.
 
 Pastille is made for Windows 11; it hasn't been tried on Windows 10.
 
 ## Configuration
 
-The config lives in `%APPDATA%\dev.lanceur.pastel\apps.json`, created on first launch from [`apps.example.json`](apps.example.json):
+The config lives in `%APPDATA%\dev.lanceur.pastel\apps.json`, created on first launch from [`apps.example.en.json`](apps.example.en.json) (or [`apps.example.json`](apps.example.json), its French version):
 
 ```jsonc
 {
@@ -66,34 +66,34 @@ The config lives in `%APPDATA%\dev.lanceur.pastel\apps.json`, created on first l
     // a Start menu app, by name
     { "label": "Code", "icon": "code", "app": "Visual Studio Code" },
     // the default program for a protocol or file extension
-    { "label": "Navigateur", "icon": "navigateur", "default": "https" },
+    { "label": "Browser", "icon": "navigateur", "default": "https" },
     // a path, with arguments if needed
     { "label": "Terminal", "icon": "terminal", "target": "wt.exe" },
     // a group; "auto" fills it with Steam games ("steam"), Epic games ("epic"),
     // Spotify playlists ("spotify") or Start menu apps ("start")
-    { "label": "Jeux", "icon": "jeux", "children": [
+    { "label": "Games", "icon": "jeux", "children": [
       { "label": "Steam", "icon": "steam", "auto": "steam", "children": [
         { "label": "Steam", "icon": "steam", "app": "Steam" }
       ] }
     ] }
   ],
   "favorites": [
-    { "label": "Téléchargements", "target": "shell:Downloads" }
+    { "label": "Downloads", "target": "shell:Downloads" }
   ]
 }
 ```
 
 - An `app` or `default` tile that can't be found on the PC is not shown, so the same config works on several PCs.
 - `keywords` adds extra words for the search.
-- "Modifier apps.json" in the settings page opens it; Pastille reloads it the next time it opens, or right away with "Recharger la config".
+- "Edit apps.json" in the settings page opens it; Pastille reloads it the next time it opens, or right away with "Reload the config".
 
 ### Spotify (optional)
 
-Without connecting, Pastille already shows and controls what's playing. Connecting adds Spotify's own volume, shuffle, repeat and your playlists. It requires a **Premium** account, and everyone creates their own (free) Spotify app to get a Client ID. "Connecter" in the Spotify section of the settings page opens a page that walks you through it.
+Without connecting, Pastille already shows and controls what's playing. Connecting adds Spotify's own volume, shuffle, repeat and your playlists. It requires a **Premium** account, and everyone creates their own (free) Spotify app to get a Client ID. "Connect" in the Spotify section of the settings page opens a page that walks you through it.
 
 ### Pastel bar
 
-Turn on "Barre pastel" in the settings page: the Windows taskbar is hidden and a pill appears at the bottom of each screen. Turn it off or quit Pastille to get the taskbar back; if Pastille stops unexpectedly, a small watchdog process brings it back.
+Turn on "Pastel bar" in the settings page: the Windows taskbar is hidden and a pill appears at the bottom of each screen. Turn it off or quit Pastille to get the taskbar back; if Pastille stops unexpectedly, a small watchdog process brings it back.
 
 ## Development
 

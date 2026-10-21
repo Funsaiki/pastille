@@ -1,0 +1,51 @@
+{
+  "accent": "#9fe0dc",
+  "shortcut": "Alt+Space",
+  "apps": [
+    { "label": "Code", "icon": "code", "app": "Visual Studio Code" },
+    { "label": "Browser", "icon": "navigateur", "default": "https" },
+    { "label": "Files", "icon": "fichiers", "target": "%USERPROFILE%" },
+    {
+      "label": "Games",
+      "icon": "jeux",
+      "children": [
+        {
+          "label": "Steam",
+          "icon": "steam",
+          "auto": "steam",
+          "children": [
+            { "label": "Steam", "icon": "steam", "source": "LAUNCHER", "app": "Steam" }
+          ]
+        },
+        {
+          "label": "Epic Games",
+          "icon": "epic",
+          "auto": "epic",
+          "children": [
+            { "label": "Epic Games", "icon": "epic", "source": "LAUNCHER", "app": "Epic Games Launcher" }
+          ]
+        },
+        { "label": "League of Legends", "icon": "lol", "keywords": "lol riot", "app": "League of Legends" },
+        { "label": "Valorant", "icon": "valorant", "keywords": "valo riot", "app": "VALORANT" }
+      ]
+    },
+    { "label": "Messages", "icon": "messages", "keywords": "discord", "app": "Discord" },
+    {
+      "label": "Music",
+      "icon": "musique",
+      "keywords": "spotify",
+      "auto": "spotify",
+      "children": [
+        { "label": "Spotify", "icon": "musique", "source": "LAUNCHER", "app": "Spotify" }
+      ]
+    },
+    { "label": "Terminal", "icon": "terminal", "target": "wt.exe" },
+    { "label": "All apps", "icon": "applications", "auto": "start" }
+  ],
+  "favorites": [
+    { "label": "Desktop", "target": "shell:Desktop" },
+    { "label": "Downloads", "target": "shell:Downloads" },
+    { "label": "Screenshots", "target": "shell:Screenshots" },
+    { "label": "Documents", "target": "shell:Personal" }
+  ]
+}

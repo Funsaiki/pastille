@@ -10,6 +10,7 @@ import { refreshCustom, type Tab } from './customize';
 import { el } from './dom';
 import { ALERT, ICONS, POWER, RESTART, icon } from './icons';
 import { host, type Language, type PrefSwitch, type Prefs, type SpotifyLink } from './host';
+import { tr } from './i18n';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -28,9 +29,12 @@ const KEYBOARD = 'M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10';
 const BAR = 'M3 4h18v16H3zM8.5 14.5h7a1.5 1.5 0 010 3h-7a1.5 1.5 0 010-3z';
 const CHEVRON = 'M9 5l7 7-7 7';
 
-/* « Alt+Space » (apps.json) → « Alt+Espace » */
+/* « Alt+Space » (apps.json) → « Alt+Espace » ; en anglais, les noms du clavier anglais */
 export function keyLabel(shortcut: string) {
-  const names: Record<string, string> = { space: 'Espace', shift: 'Maj', control: 'Ctrl', commandorcontrol: 'Ctrl', cmdorctrl: 'Ctrl', super: 'Win', meta: 'Win', escape: 'Échap', enter: 'Entrée' };
+  const names: Record<string, string> = tr(
+    { space: 'Espace', shift: 'Maj', control: 'Ctrl', commandorcontrol: 'Ctrl', cmdorctrl: 'Ctrl', super: 'Win', meta: 'Win', escape: 'Échap', enter: 'Entrée' },
+    { space: 'Space', shift: 'Shift', control: 'Ctrl', commandorcontrol: 'Ctrl', cmdorctrl: 'Ctrl', super: 'Win', meta: 'Win', escape: 'Esc', enter: 'Enter' },
+  );
   return shortcut.split('+').map((k) => names[k.toLowerCase()] ?? k.replace(/^(Key|Digit)/, '')).join('+');
 }
 
@@ -108,7 +112,7 @@ async function toggle(key: PrefSwitch) {
   const on = !prefs[key];
   prefs = { ...prefs, [key]: on };   // l'interrupteur bascule tout de suite
   update();
-  await act(key === 'bar' ? 'Barre pastel' : 'Démarrer avec Windows', () => host.setPrefSwitch(key, on));
+  await act(key === 'bar' ? tr('Barre pastel', 'Pastel bar') : tr('Démarrer avec Windows', 'Start with Windows'), () => host.setPrefSwitch(key, on));
   await reload();   // l'état réel (refusé, case changée ailleurs)
 }
 
@@ -121,11 +125,11 @@ const LANGUAGES: { key: Language; name: string }[] = [
 function languageRow(): Row {
   const node = el('div');
   const { title, body } = parts(node, ICONS.navigateur, 'var(--fill)');
-  title.textContent = 'Langue';
+  title.textContent = tr('Langue', 'Language');
   body.remove();
   const group = el('div', 'notifs-tabs prefs-lang');
   group.setAttribute('role', 'radiogroup');
-  group.setAttribute('aria-label', 'Langue');
+  group.setAttribute('aria-label', tr('Langue', 'Language'));
   group.append(el('span', 'tabs-thumb'));
   const buttons = LANGUAGES.map((l) => {
     const b = el('button', 'notifs-tab', l.name);
@@ -160,20 +164,21 @@ function languageRow(): Row {
   };
 }
 
+/* Rust prévient les pages, qui se rechargent dans la nouvelle langue (ui.ts : le téléphone
+   redescend et remonte sur cette page) */
 async function setLanguage(language: Language) {
   if (!prefs || prefs.language === language) return;
   prefs = { ...prefs, language };
   update();
-  await act('Langue', () => host.setLanguage(language));
-  await reload();
+  if (!(await act(tr('Langue', 'Language'), () => host.setLanguage(language)))) await reload();
 }
 
 /* Raccourci de apps.json, en touches */
 function shortcutRow(): Row {
   const node = el('div');
   const { title, body } = parts(node, KEYBOARD, '#ffe08a');
-  title.textContent = 'Raccourci';
-  body.textContent = 'Ouvre et ferme Pastille';
+  title.textContent = tr('Raccourci', 'Shortcut');
+  body.textContent = tr('Ouvre et ferme Pastille', 'Opens and closes Pastille');
   const keys = el('span', 'keys');
   node.append(keys);
   let shown = '';
@@ -192,17 +197,22 @@ function shortcutRow(): Row {
   };
 }
 
-const SPOTIFY: Record<SpotifyLink, { sub: string; button: string; primary: boolean }> = {
+const SPOTIFY: Record<SpotifyLink, { sub: string; button: string; primary: boolean }> = tr({
   connected: { sub: 'Connecté', button: 'Déconnecter', primary: false },
   disconnected: { sub: 'Pour le volume et les playlists', button: 'Connecter', primary: true },
   outdated: { sub: 'Reconnecter pour les playlists', button: 'Reconnecter', primary: true },
   pending: { sub: 'Connexion en cours dans le navigateur', button: 'Rouvrir', primary: true },
-};
+}, {
+  connected: { sub: 'Connected', button: 'Disconnect', primary: false },
+  disconnected: { sub: 'For the volume and playlists', button: 'Connect', primary: true },
+  outdated: { sub: 'Reconnect for the playlists', button: 'Reconnect', primary: true },
+  pending: { sub: 'Connecting in the browser', button: 'Reopen', primary: true },
+});
 
 function spotifyRow(): Row {
   const node = el('div');
   const { title, body } = parts(node, ICONS.musique, '#ffe08a');
-  title.textContent = 'Connexion';
+  title.textContent = tr('Connexion', 'Connection');
   const button = pill(async () => {
     const link = prefs?.spotify;
     if (!link) return;
@@ -217,7 +227,7 @@ function spotifyRow(): Row {
     update() {
       const s = prefs ? SPOTIFY[prefs.spotify] : null;
       body.textContent = s?.sub ?? '';
-      button.textContent = s?.button ?? 'Connecter';
+      button.textContent = s?.button ?? tr('Connecter', 'Connect');
       button.classList.toggle('primary', !!s?.primary);
       button.disabled = !s;
     },
@@ -236,14 +246,17 @@ function buttonRow(d: string, bg: string, label: string, sub: () => string, clic
 }
 
 function editRow() {
-  return buttonRow(PENCIL, '#c9d8ff', 'Modifier apps.json', () => 'Tuiles, dossiers et raccourci', async () => {
-    if (await act('Modifier apps.json', () => host.prefAction('edit-config'))) leave();
+  const label = tr('Modifier apps.json', 'Edit apps.json');
+  return buttonRow(PENCIL, '#c9d8ff', label, () => tr('Tuiles, dossiers et raccourci', 'Tiles, folders and shortcut'), async () => {
+    if (await act(label, () => host.prefAction('edit-config'))) leave();
   });
 }
 
 function reloadRow() {
-  return buttonRow(RESTART, 'var(--fill)', 'Recharger la config', () => (reloaded ? 'Relue à l’instant' : 'Après une modification de apps.json'), async () => {
-    if (!(await act('Recharger la config', () => host.prefAction('reload')))) return;
+  const label = tr('Recharger la config', 'Reload the config');
+  const sub = () => (reloaded ? tr('Relue à l’instant', 'Just reloaded') : tr('Après une modification de apps.json', 'After editing apps.json'));
+  return buttonRow(RESTART, 'var(--fill)', label, sub, async () => {
+    if (!(await act(label, () => host.prefAction('reload')))) return;
     clearTimeout(reloaded);
     reloaded = setTimeout(() => {
       reloaded = 0;
@@ -264,12 +277,12 @@ function versionRow(): Row {
     update() {
       title.textContent = prefs ? `Version ${prefs.version}` : 'Version';
       const found = prefs?.update;
-      body.textContent = installing ? `Téléchargement de la ${found}…`
-        : checking ? 'Recherche d’une mise à jour…'
-        : found ? `Version ${found} disponible`
-        : checked ? 'À jour'
-        : 'Recherche toutes les 6 h';
-      button.textContent = found ? 'Installer' : 'Vérifier';
+      body.textContent = installing ? tr(`Téléchargement de la ${found}…`, `Downloading ${found}…`)
+        : checking ? tr('Recherche d’une mise à jour…', 'Checking for updates…')
+        : found ? tr(`Version ${found} disponible`, `Version ${found} available`)
+        : checked ? tr('À jour', 'Up to date')
+        : tr('Recherche toutes les 6 h', 'Checks every 6 hours');
+      button.textContent = found ? tr('Installer', 'Install') : tr('Vérifier', 'Check');
       button.classList.toggle('primary', !!found);
       button.disabled = !prefs || checking || installing;
     },
@@ -279,7 +292,7 @@ function versionRow(): Row {
 async function check() {
   checking = true;
   update();
-  const ok = await act('Mise à jour', async () => void (await host.checkUpdate()));
+  const ok = await act(tr('Mise à jour', 'Update'), async () => void (await host.checkUpdate()));
   await reload();
   checking = false;
   checked = ok;
@@ -289,7 +302,7 @@ async function check() {
 async function install() {
   installing = true;
   update();
-  await act('Mise à jour', () => host.installUpdate());   // en production, Pastille quitte pendant l'appel
+  await act(tr('Mise à jour', 'Update'), () => host.installUpdate());   // en production, Pastille quitte pendant l'appel
   installing = false;
   update();
 }
@@ -306,16 +319,16 @@ function quitRow(): Row {
       return;
     }
     disarmQuit();
-    act('Quitter', () => host.prefAction('quit'));
+    act(tr('Quitter', 'Quit'), () => host.prefAction('quit'));
   });
   return {
     node,
     update() {
       node.classList.toggle('confirm', !!quitArmed);
-      title.textContent = quitArmed ? 'Vraiment quitter ?' : 'Quitter Pastille';
-      body.textContent = quitArmed ? 'Cliquer encore pour quitter'
-        : prefs?.bar ? 'La barre des tâches de Windows revient'
-        : 'Jusqu’au prochain démarrage';
+      title.textContent = quitArmed ? tr('Vraiment quitter ?', 'Really quit?') : tr('Quitter Pastille', 'Quit Pastille');
+      body.textContent = quitArmed ? tr('Cliquer encore pour quitter', 'Click again to quit')
+        : prefs?.bar ? tr('La barre des tâches de Windows revient', 'The Windows taskbar comes back')
+        : tr('Jusqu’au prochain démarrage', 'Until the next startup');
     },
   };
 }
@@ -384,8 +397,9 @@ export function closePrefs(refocus = false) {
 /* Page construite une fois ; `onLeave` : masquer le lanceur */
 export function initPrefs(onLeave: () => void) {
   leave = onLeave;
-  const general = [languageRow(), switchRow('autostart', POWER, '#c9d8ff', 'Démarrer avec Windows', (on) => (on === null && prefs ? 'Version installée seulement' : 'À l’ouverture de session')),
-    switchRow('bar', BAR, '#f6c6da', 'Barre pastel', () => 'À la place de la barre des tâches'), shortcutRow()];
+  const autostart = (on: boolean | null) => (on === null && prefs ? tr('Version installée seulement', 'Installed version only') : tr('À l’ouverture de session', 'When you sign in'));
+  const general = [languageRow(), switchRow('autostart', POWER, '#c9d8ff', tr('Démarrer avec Windows', 'Start with Windows'), autostart),
+    switchRow('bar', BAR, '#f6c6da', tr('Barre pastel', 'Pastel bar'), () => tr('À la place de la barre des tâches', 'Instead of the taskbar')), shortcutRow()];
   const spotify = [spotifyRow()];
   const apps = [editRow(), reloadRow()];
   const about = [versionRow(), quitRow()];

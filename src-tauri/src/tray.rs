@@ -9,17 +9,26 @@ use tauri::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, IsWindowVisible, SetForegroundWindow};
 
-use crate::launcher;
+use crate::{config, i18n::tr, launcher};
 
 /// Afficher, Paramètres et Quitter : le reste est dans la page Paramètres du téléphone (prefs.rs,
 /// demande de Funsaiki du 21/10/2026)
+fn labels() -> [&'static str; 3] {
+    [tr("Afficher", "Show"), tr("Paramètres", "Settings"), tr("Quitter", "Quit")]
+}
+
+/// Entrées du menu, renommées quand la langue change
+static ITEMS: OnceLock<[MenuItem<Wry>; 3]> = OnceLock::new();
+
 pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Afficher", true, None::<&str>)?;
-    let prefs = MenuItem::with_id(app, "prefs", "Paramètres", true, None::<&str>)?;
+    let [show, prefs, quit] = labels();
+    let show = MenuItem::with_id(app, "show", show, true, None::<&str>)?;
+    let prefs = MenuItem::with_id(app, "prefs", prefs, true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &prefs, &separator, &quit])?;
     let _ = MENU.set(menu.clone());
+    let _ = ITEMS.set([show, prefs, quit]);
 
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip(tooltip)
@@ -70,6 +79,17 @@ pub fn popup_menu(app: &AppHandle) {
             }
         }
     }
+}
+
+/// Langue changée (page Paramètres) : menu et infobulle dans la nouvelle
+pub fn relabel(app: &AppHandle) {
+    if let Some(items) = ITEMS.get() {
+        for (item, label) in items.iter().zip(labels()) {
+            let _ = item.set_text(label);
+        }
+    }
+    let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());
+    set_tooltip(app, &tooltip);
 }
 
 pub fn set_tooltip(app: &AppHandle, tooltip: &str) {

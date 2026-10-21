@@ -10,6 +10,7 @@ import { CONFIG } from './config';
 import { el } from './dom';
 import { icon } from './icons';
 import { host } from './host';
+import { tr } from './i18n';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -22,7 +23,7 @@ let bead = 0;                        // perle choisie, de haut en bas
 let paletteChanged = () => {};       // ui.ts refait ce qui prend les couleurs de la palette
 let report = (e: unknown) => console.error(e);   // ui.ts : dans les notifications
 
-const LABELS: Record<ColorKey, string> = { accent: 'Accent', coque: 'Coque', ecran: 'Écran', encre: 'Encre' };
+const LABELS: Record<ColorKey, string> = { accent: 'Accent', coque: tr('Coque', 'Case'), ecran: tr('Écran', 'Screen'), encre: tr('Encre', 'Ink') };
 const PLUS = 'M12 6v12M6 12h12';
 const PICTURE = 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9h.01';
 const NONE = 'M12 3a9 9 0 100 18 9 9 0 000-18zM5.6 5.6l12.8 12.8';
@@ -65,11 +66,11 @@ const DRAWN: Partial<Record<Charm, string>> = {
 
 const CHARMS: { key: Charm; name: string }[] = [
   { key: 'pilule', name: 'Pastille' },
-  { key: 'etoile', name: 'Étoile' },
-  { key: 'coeur', name: 'Cœur' },
-  { key: 'chat', name: 'Chat' },
-  { key: 'image', name: 'Ton image' },
-  { key: 'aucune', name: 'Sans strap' },
+  { key: 'etoile', name: tr('Étoile', 'Star') },
+  { key: 'coeur', name: tr('Cœur', 'Heart') },
+  { key: 'chat', name: tr('Chat', 'Cat') },
+  { key: 'image', name: tr('Ton image', 'Your image') },
+  { key: 'aucune', name: tr('Sans strap', 'No strap') },
 ];
 
 const charmName = (key: Charm) => CHARMS.find((c) => c.key === key)!.name;
@@ -192,7 +193,7 @@ function swatchRow(key: string, swatches: Swatch[], value: () => string, choose:
     });
     return b;
   });
-  const free = radio('swatch swatch-free', 'Autre couleur');
+  const free = radio('swatch swatch-free', tr('Autre couleur', 'Other color'));
   free.append(icon(PLUS, 14, 2.8));
   const editor = freeEditor(value, choose);
   free.addEventListener('click', () => {
@@ -228,12 +229,12 @@ function freeEditor(value: () => string, choose: (c: string) => void) {
     r.title = label;
     return r;
   };
-  const hue = range(0, 359, 'Teinte');
-  const light = range(5, 95, 'Clarté');
+  const hue = range(0, 359, tr('Teinte', 'Hue'));
+  const light = range(5, 95, tr('Clarté', 'Lightness'));
   const hex = el('input', 'free-hex');
   hex.maxLength = 7;
   hex.spellcheck = false;
-  hex.setAttribute('aria-label', 'Code de la couleur');
+  hex.setAttribute('aria-label', tr('Code de la couleur', 'Color code'));
   let hsl: Hsl = [0, 50, 50];
   const tracks = () => {
     const [h, s, l] = hsl;
@@ -299,7 +300,7 @@ function colorRow(key: ColorKey): Row {
 
 function charmRow(): Row {
   const node = el('div', 'custom-row');
-  const { label, value } = rowLabel('Breloque');
+  const { label, value } = rowLabel(tr('Breloque', 'Charm'));
   const group = el('div', 'charms');
   group.setAttribute('role', 'radiogroup');
   const tiles = CHARMS.map((c) => {
@@ -322,7 +323,7 @@ function charmRow(): Row {
       tiles.forEach((b, i) => {
         const key = CHARMS[i].key;
         b.setAttribute('aria-checked', String(key === charm));
-        if (key === 'image') b.title = image ? (charm === 'image' ? 'Changer d’image' : 'Ton image') : 'Choisir une image…';
+        if (key === 'image') b.title = image ? (charm === 'image' ? tr('Changer d’image', 'Change image') : tr('Ton image', 'Your image')) : tr('Choisir une image…', 'Choose an image…');
         const drawn = key === 'aucune' ? icon(NONE, 18, 2.4) : key === 'image' && !image ? icon(PICTURE, 18, 2.2) : charmNode(key);
         if (b.dataset.shown !== (key === 'image' ? image ?? '' : key)) {
           b.dataset.shown = key === 'image' ? image ?? '' : key;
@@ -335,12 +336,12 @@ function charmRow(): Row {
 
 function beadRow(): Row {
   const node = el('div', 'custom-row');
-  const { label, value } = rowLabel('Perles');
+  const { label, value } = rowLabel(tr('Perles', 'Beads'));
   const strand = el('div', 'beads');
   strand.setAttribute('role', 'radiogroup');
-  strand.setAttribute('aria-label', 'Perle à changer');
+  strand.setAttribute('aria-label', tr('Perle à changer', 'Bead to change'));
   const beads = [0, 1, 2].map((i) => {
-    const b = radio('bead', `Perle ${i + 1}`);
+    const b = radio('bead', `${tr('Perle', 'Bead')} ${i + 1}`);
     b.addEventListener('click', () => {
       bead = i;
       editing = null;
@@ -360,7 +361,7 @@ function beadRow(): Row {
         b.setAttribute('aria-checked', String(i === bead));
       });
       row.update();
-      value.textContent = `Perle ${bead + 1} · ${row.name()}`;
+      value.textContent = `${tr('Perle', 'Bead')} ${bead + 1} · ${row.name()}`;
       node.classList.toggle('off', charmOf() === 'aucune');
     },
   };

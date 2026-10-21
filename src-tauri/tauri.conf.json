@@ -45,7 +45,7 @@
     "createUpdaterArtifacts": true,
     "shortDescription": "Lanceur d'applications en forme de téléphone pastel",
     "windows": {
-      "nsis": { "languages": ["French"], "installMode": "currentUser" }
+      "nsis": { "languages": ["English", "French"], "installMode": "currentUser" }
     },
     "icon": [
       "icons/32x32.png",

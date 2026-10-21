@@ -13,6 +13,7 @@ use windows::Media::Control::{
 };
 
 use crate::com::com_task;
+use crate::i18n::tr;
 
 #[derive(Serialize)]
 pub struct NowPlaying {
@@ -31,7 +32,7 @@ pub async fn media() -> Option<NowPlaying> {
 #[tauri::command]
 pub async fn media_control(action: String) -> Result<(), String> {
     if !matches!(action.as_str(), "toggle" | "next" | "previous") {
-        return Err(format!("Commande inconnue : {action}."));
+        return Err(tr(format!("Commande inconnue : {action}."), format!("Unknown command: {action}.")));
     }
     let sent = com_task(move || {
         let Some(session) = spotify()? else { return Ok(false) };
@@ -44,7 +45,7 @@ pub async fn media_control(action: String) -> Result<(), String> {
         Ok(true)
     })
     .await?;
-    if sent { Ok(()) } else { Err("Spotify n'est pas ouvert.".into()) }
+    if sent { Ok(()) } else { Err(tr("Spotify n'est pas ouvert.", "Spotify is not open.").into()) }
 }
 
 /// Pochette du morceau en cours, en image intégrable (data:…) ; None sans pochette. Le front

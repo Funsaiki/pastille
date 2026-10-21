@@ -154,7 +154,7 @@ pub fn process_path(process: HANDLE) -> Option<String> {
 /// Nom de l'application : description du programme (« Google Chrome »), sinon nom du fichier
 fn name_of(key: &str) -> String {
     if key == SYSTEM {
-        return "Sons système".into();
+        return crate::i18n::tr("Sons système", "System sounds").into();
     }
     description(key).unwrap_or_else(|| {
         Path::new(key).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()

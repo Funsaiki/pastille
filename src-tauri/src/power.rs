@@ -20,7 +20,7 @@ fn plan(action: &str) -> Result<Plan, String> {
         "signout" => Plan::Shutdown(&["/l"]),
         "restart" => Plan::Shutdown(&["/r", "/t", "0"]),
         "shutdown" => Plan::Shutdown(&["/s", "/t", "0"]),
-        _ => return Err(format!("Action inconnue : {action}.")),
+        _ => return Err(crate::i18n::tr(format!("Action inconnue : {action}."), format!("Unknown action: {action}."))),
     })
 }
 
@@ -40,7 +40,7 @@ fn run(plan: Plan) -> Result<(), String> {
     match plan {
         Plan::Sleep => {
             if !unsafe { IsPwrSuspendAllowed() } {
-                return Err("La mise en veille n'est pas disponible sur ce PC.".into());
+                return Err(crate::i18n::tr("La mise en veille n'est pas disponible sur ce PC.", "Sleep is not available on this PC.").into());
             }
             // Après la descente du lanceur (0,5 s) : sinon il réapparaîtrait au réveil,
             // figé au milieu de son animation. SetSuspendState ne rend la main qu'au réveil.

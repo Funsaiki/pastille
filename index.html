@@ -11,7 +11,7 @@
 <!-- Scène de 1440 × 900 (la maquette), mise à l'échelle de l'écran et posée sur son bord bas -->
 <div class="scene">
 <div class="stage" id="stage" hidden>
-  <span class="wallpaper-hint" aria-hidden="true">[ TON FOND D'ÉCRAN ]</span>
+  <span class="wallpaper-hint" aria-hidden="true" data-en="[ YOUR WALLPAPER ]">[ TON FOND D'ÉCRAN ]</span>
 
   <div class="phone tp-rise" id="phone">
   <div class="phone-tilt">
@@ -42,7 +42,7 @@
          trois perles pastel et une breloque (la pastille par défaut ; au choix dans la carte
          Apparence de la page Paramètres, posée par customize.ts). Le point d'accroche est le centre
          de l'anneau. Un clic ouvre la page Paramètres, à l'onglet Strap. -->
-    <div class="strap" id="strap" aria-hidden="true" title="Personnaliser le strap">
+    <div class="strap" id="strap" aria-hidden="true" title="Personnaliser le strap" data-en-title="Customize the strap">
       <div class="strap-swing" id="strap-swing">
         <svg width="62" height="186" viewBox="0 0 44 132" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 12.5V27M22 71V97" stroke-width="2.5"/>
@@ -75,7 +75,7 @@
           <div class="status-right">
             <!-- Wi-Fi et Bluetooth (demandés par Funsaiki, pas dans la maquette) : ajoutés par ui.ts -->
             <div class="status-links" id="links"></div>
-            <div class="status-net" title="Débit réseau">
+            <div class="status-net" title="Débit réseau" data-en-title="Network speed">
               <span id="net-down">↓ –</span>
               <span class="soft" id="net-up">↑ –</span>
             </div>
@@ -100,7 +100,7 @@
               <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path></svg>
             </span>
             <span class="qtile-text">
-              <span class="qtile-label">Applications</span>
+              <span class="qtile-label" data-en="Apps">Applications</span>
               <span class="qtile-sub" id="app-count"></span>
             </span>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M9 5l7 7-7 7"></path></svg>
@@ -114,13 +114,13 @@
               <span>Volume</span>
               <span class="slider-value" id="volume-text"></span>
               <!-- Mélangeur (demandé par Funsaiki, pas dans la maquette) -->
-              <button class="tp-press mixer-toggle" id="mixer-toggle" aria-label="Mélangeur" title="Mélangeur" aria-expanded="false" aria-controls="mixer">
+              <button class="tp-press mixer-toggle" id="mixer-toggle" aria-label="Mélangeur" title="Mélangeur" data-en-label="Mixer" data-en-title="Mixer" aria-expanded="false" aria-controls="mixer">
                 <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h9M17 6h3M15 4v4M4 12h3M11 12h9M9 10v4M4 18h11M19 18h1M17 16v4"></path></svg>
               </button>
             </span>
             <input class="tp-range" id="volume" type="range" min="0" max="100" aria-label="Volume">
           </div>
-          <div class="mixer" id="mixer" role="group" aria-label="Mélangeur">
+          <div class="mixer" id="mixer" role="group" aria-label="Mélangeur" data-en-label="Mixer">
             <div class="mixer-channels" id="mixer-channels"></div>
           </div>
         </div>
@@ -137,26 +137,26 @@
             <div class="media-controls">
               <!-- Dix marches d'égaliseur (Funsaiki trouvait un petit curseur redondant avec le
                    volume) : clic ou glisser, 10 % par marche ; molette sur la carte, flèches -->
-              <div class="media-volume" id="media-volume" role="slider" tabindex="0" aria-label="Volume de Spotify" aria-valuemin="0" aria-valuemax="100">
+              <div class="media-volume" id="media-volume" role="slider" tabindex="0" aria-label="Volume de Spotify" data-en-label="Spotify volume" aria-valuemin="0" aria-valuemax="100">
                 <i style="--h: 5px"></i><i style="--h: 6px"></i><i style="--h: 7px"></i><i style="--h: 8px"></i><i style="--h: 9px"></i><i style="--h: 10px"></i><i style="--h: 11px"></i><i style="--h: 12px"></i><i style="--h: 13px"></i><i style="--h: 14px"></i>
               </div>
               <!-- Aléatoire et répétition (demandés par Funsaiki), Spotify connecté seulement -->
-              <button class="media-mode" id="shuffle" aria-label="Lecture aléatoire" title="Lecture aléatoire" aria-pressed="false" hidden>
+              <button class="media-mode" id="shuffle" aria-label="Lecture aléatoire" title="Lecture aléatoire" data-en-label="Shuffle" data-en-title="Shuffle" aria-pressed="false" hidden>
                 <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path><path class="smart-spark" d="M4.5 10v7M1 13.5h7"></path></svg>
               </button>
-              <button class="media-mode" id="repeat" aria-label="Répétition" title="Répétition" aria-pressed="false" hidden>
+              <button class="media-mode" id="repeat" aria-label="Répétition" title="Répétition" data-en-label="Repeat" data-en-title="Repeat" aria-pressed="false" hidden>
                 <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"></path><path class="repeat-one" d="M11 10.5l1.5-1.5v6"></path></svg>
               </button>
             </div>
           </div>
-          <button class="tp-press media-btn" id="previous" aria-label="Précédent">
+          <button class="tp-press media-btn" id="previous" aria-label="Précédent" data-en-label="Previous">
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M18 5v14L8 12zM6 5v14"></path></svg>
           </button>
           <button class="tp-press media-btn media-play" id="play">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="icon-pause"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path></svg>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="icon-play"><path d="M8 5l11 7-11 7z"></path></svg>
           </button>
-          <button class="tp-press media-btn" id="next" aria-label="Suivant">
+          <button class="tp-press media-btn" id="next" aria-label="Suivant" data-en-label="Next">
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 5v14l10-7zM18 5v14"></path></svg>
           </button>
         </div>
@@ -179,18 +179,18 @@
             <div class="tray-grid" id="tray-grid"></div>
             <div class="notifs-empty" id="tray-empty" hidden>
               <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path></svg>
-              <span class="notifs-empty-text">Aucune app en arrière-plan</span>
+              <span class="notifs-empty-text" data-en="No apps in the background">Aucune app en arrière-plan</span>
             </div>
           </div>
 
           <!-- Hors du contenu de l'onglet : il ne glisse pas avec lui (affiché avec Notifs, ui.ts) -->
-          <button class="tp-link notifs-clear" id="notif-clear" hidden>Tout effacer</button>
+          <button class="tp-link notifs-clear" id="notif-clear" data-en="Clear all" hidden>Tout effacer</button>
           <div class="notifs-pane" id="notifs-pane" role="tabpanel" aria-labelledby="tab-notifs" hidden>
             <div class="notifs-list" id="notif-list"></div>
             <div class="notifs-empty" id="notif-empty">
               <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0"></path></svg>
-              <span class="notifs-empty-text">Rien de neuf</span>
-              <button class="tp-link notifs-restore" id="notif-restore">Tout réafficher</button>
+              <span class="notifs-empty-text" data-en="Nothing new">Rien de neuf</span>
+              <button class="tp-link notifs-restore" id="notif-restore" data-en="Show all again">Tout réafficher</button>
             </div>
           </div>
 
@@ -207,12 +207,12 @@
              prefs.ts ; la section Apparence est l'ancienne carte Personnaliser (customize.ts). -->
         <div class="prefs" id="prefs" role="region" aria-labelledby="prefs-title">
           <div class="prefs-head">
-            <button class="tp-press back" id="prefs-back" aria-label="Retour">
+            <button class="tp-press back" id="prefs-back" aria-label="Retour" data-en-label="Back">
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
             </button>
             <div class="apps-title">
               <span class="apps-sup">Pastille</span>
-              <span class="apps-name" id="prefs-title">Paramètres</span>
+              <span class="apps-name" id="prefs-title" data-en="Settings">Paramètres</span>
             </div>
           </div>
           <div class="prefs-body" id="prefs-body">
@@ -225,19 +225,19 @@
               </span>
             </div>
             <section class="prefs-section" aria-labelledby="prefs-general-title">
-              <h2 class="prefs-title" id="prefs-general-title">Général</h2>
+              <h2 class="prefs-title" id="prefs-general-title" data-en="General">Général</h2>
               <div class="prefs-list" id="prefs-general"></div>
             </section>
             <section class="prefs-section" id="prefs-look" aria-labelledby="prefs-look-title">
-              <h2 class="prefs-title" id="prefs-look-title">Apparence</h2>
+              <h2 class="prefs-title" id="prefs-look-title" data-en="Appearance">Apparence</h2>
               <div class="card custom">
                 <div class="custom-head">
                   <div class="notifs-tabs custom-tabs" id="custom-tabs" role="tablist" data-pane="colors">
                     <span class="tabs-thumb" aria-hidden="true"></span>
-                    <button class="notifs-tab" id="custom-tab-colors" role="tab" aria-selected="true" aria-controls="custom-colors">Couleurs</button>
+                    <button class="notifs-tab" id="custom-tab-colors" role="tab" aria-selected="true" aria-controls="custom-colors" data-en="Colors">Couleurs</button>
                     <button class="notifs-tab" id="custom-tab-strap" role="tab" aria-selected="false" aria-controls="custom-strap" tabindex="-1">Strap</button>
                   </div>
-                  <button class="tp-link custom-reset" id="custom-reset">Réinitialiser</button>
+                  <button class="tp-link custom-reset" id="custom-reset" data-en="Reset">Réinitialiser</button>
                 </div>
                 <div class="custom-pane" id="custom-colors" role="tabpanel" aria-labelledby="custom-tab-colors"></div>
                 <div class="custom-pane" id="custom-strap" role="tabpanel" aria-labelledby="custom-tab-strap" hidden></div>
@@ -248,7 +248,7 @@
               <div class="prefs-list" id="prefs-spotify"></div>
             </section>
             <section class="prefs-section" aria-labelledby="prefs-apps-title">
-              <h2 class="prefs-title" id="prefs-apps-title">Applications</h2>
+              <h2 class="prefs-title" id="prefs-apps-title" data-en="Apps">Applications</h2>
               <div class="prefs-list" id="prefs-apps"></div>
             </section>
             <section class="prefs-section" aria-labelledby="prefs-about-title">
@@ -262,7 +262,7 @@
       <!-- Vue « applications », téléphone couché -->
       <div class="view-apps" id="apps" hidden>
         <div class="apps-head">
-          <button class="tp-press back" id="back" aria-label="Retour">
+          <button class="tp-press back" id="back" aria-label="Retour" data-en-label="Back">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
           </button>
           <div class="apps-title">
@@ -271,8 +271,8 @@
           </div>
           <label class="tp-search search">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4"></path></svg>
-            <span class="sr-only">Rechercher une application</span>
-            <input type="text" id="q" placeholder="Rechercher une app…" autocomplete="off" spellcheck="false">
+            <span class="sr-only" data-en="Search for an app">Rechercher une application</span>
+            <input type="text" id="q" placeholder="Rechercher une app…" data-en-placeholder="Search for an app…" autocomplete="off" spellcheck="false">
           </label>
           <span class="apps-count" id="item-count"></span>
           <span class="apps-time clock">--:--</span>
@@ -281,18 +281,18 @@
         <div class="grid" id="grid"></div>
         <!-- Rien trouvé : recherche sur le web proposée (demande de Funsaiki), Entrée la lance -->
         <div class="no-result" id="no-result" hidden>
-          <span>Aucune app trouvée</span>
+          <span data-en="No app found">Aucune app trouvée</span>
           <button class="tp-press folder web-search" id="web-search"></button>
         </div>
 
         <!-- Récents (demandé par Funsaiki, pas dans la maquette) : dernières applications lancées -->
         <div class="recents" id="recents" hidden>
-          <span class="folders-title">Récents</span>
+          <span class="folders-title" data-en="Recent">Récents</span>
           <div class="folders-row" id="recent-row"></div>
         </div>
 
         <div class="folders" id="folders">
-          <span class="folders-title">Dossiers</span>
+          <span class="folders-title" data-en="Folders">Dossiers</span>
           <div class="folders-row" id="folder-row"></div>
         </div>
 
@@ -306,11 +306,11 @@
 
       <!-- Menu d'alimentation (demandé par Funsaiki, pas dans la maquette) : assombrit l'écran,
            choisir une action sert de confirmation -->
-      <div class="power" id="power" role="dialog" aria-modal="true" aria-label="Alimentation">
+      <div class="power" id="power" role="dialog" aria-modal="true" aria-label="Alimentation" data-en-label="Power">
         <div class="power-menu">
           <div class="power-choices" id="power-choices"></div>
           <p class="power-error" id="power-error" hidden></p>
-          <button class="power-cancel" id="power-cancel">Annuler</button>
+          <button class="power-cancel" id="power-cancel" data-en="Cancel">Annuler</button>
         </div>
       </div>
     </div>

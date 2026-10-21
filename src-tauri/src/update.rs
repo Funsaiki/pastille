@@ -16,6 +16,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
+use crate::i18n::tr;
+
 /// Mise à jour trouvée, en attente d'un clic
 #[derive(Default)]
 pub struct Pending(Mutex<Option<Update>>);
@@ -83,7 +85,7 @@ async fn check_now(app: &AppHandle) -> Result<Option<String>, String> {
 /// release ; rien ne s'installe sans clic, et en développement rien du tout)
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
-    check_now(&app).await.map_err(|e| format!("Vérification impossible : {e}"))
+    check_now(&app).await.map_err(|e| tr(format!("Vérification impossible : {e}"), format!("Couldn't check: {e}")))
 }
 
 /// Version proposée, lue avec les notifications (feed.rs) et la page Paramètres
@@ -95,11 +97,12 @@ pub fn available(app: &AppHandle) -> Option<String> {
 /// Pastille quitte (ne revient pas). En développement, s'arrête après la vérification.
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
-    let update = app.state::<Pending>().0.lock().unwrap().clone().ok_or("Plus de mise à jour en attente.")?;
+    let update = app.state::<Pending>().0.lock().unwrap().clone().ok_or(tr("Plus de mise à jour en attente.", "No update pending anymore."))?;
+    let version = update.version.clone();
     let bytes = update
         .download(|_, _| {}, || {})
         .await
-        .map_err(|e| format!("Téléchargement de la {} impossible : {e}", update.version))?;
+        .map_err(|e| tr(format!("Téléchargement de la {version} impossible : {e}"), format!("Couldn't download {version}: {e}")))?;
     if cfg!(debug_assertions) {
         eprintln!(
             "[lanceur] mise à jour {} téléchargée et signature vérifiée ({} octets) ; pas installée en développement",
@@ -108,5 +111,5 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         );
         return Ok(());
     }
-    update.install(bytes).map_err(|e| format!("Installation de la {} impossible : {e}", update.version))
+    update.install(bytes).map_err(|e| tr(format!("Installation de la {version} impossible : {e}"), format!("Couldn't install {version}: {e}")))
 }

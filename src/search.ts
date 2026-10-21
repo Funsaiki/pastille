@@ -4,21 +4,22 @@
    ══════════════════════════════════════════════════════════ */
 import settings from './settings.json';
 import type { AppItem } from './config';
+import { LOCALE, tr } from './i18n';
 
 /* ── Pages des Paramètres : Rust retrouve la cible par l'identifiant « s<position> »
    (même fichier, shell.rs) ; le front n'envoie jamais de cible ── */
 export const SETTINGS: AppItem[] = settings.map((s, i) => ({
   id: `s${i}`,
-  label: s.label,
-  keywords: s.keywords,
+  label: tr(s.label, s.en),
+  keywords: tr(s.keywords, s.enKeywords),
   target: s.target,   // aperçu seulement
   icon: 'parametres',
 }));
 
 /* ── Calcul : « 12*3,5 » → tuile « = 42 », Entrée copie le résultat ──
    Petit analyseur (pas d'eval) : + - * / ^ et parenthèses, × et ÷, virgule ou point. */
-const fmtResult = new Intl.NumberFormat('fr-FR', { maximumSignificantDigits: 12 });
-const fmtCopy = new Intl.NumberFormat('fr-FR', { maximumSignificantDigits: 12, useGrouping: false });
+const fmtResult = new Intl.NumberFormat(LOCALE, { maximumSignificantDigits: 12 });
+const fmtCopy = new Intl.NumberFormat(LOCALE, { maximumSignificantDigits: 12, useGrouping: false });
 
 export function calcResult(query: string): AppItem | null {
   const value = evaluate(query);

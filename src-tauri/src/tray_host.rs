@@ -434,13 +434,13 @@ pub fn click(key: &str, kind: &str) -> Result<bool, String> {
         e.clicked = Some(at);
         (e.hwnd, e.uid, e.callback, e.version)
     });
-    let (hwnd, uid, callback, version) = found.ok_or("Cette icône n'est plus là.")?;
+    let (hwnd, uid, callback, version) = found.ok_or(crate::i18n::tr("Cette icône n'est plus là.", "This icon is gone."))?;
     if callback == 0 {
         return Ok(false);
     }
     let hwnd = HWND(hwnd as *mut _);
     if !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
-        return Err("Cette application n'est plus ouverte.".into());
+        return Err(crate::i18n::tr("Cette application n'est plus ouverte.", "This app is no longer open.").into());
     }
     // Elle peut passer au premier plan (son menu, sa fenêtre), comme après un clic dans la barre
     // de Windows
@@ -465,7 +465,7 @@ fn messages(kind: &str, version: u32, uid: u32, at: POINT) -> Result<Vec<(WPARAM
         "right" => &[WM_RBUTTONDOWN, WM_RBUTTONUP],
         "middle" => &[WM_MBUTTONDOWN, WM_MBUTTONUP],
         "key" => &[NIN_KEYSELECT],
-        _ => return Err(format!("Clic inconnu : {kind}.")),
+        _ => return Err(crate::i18n::tr(format!("Clic inconnu : {kind}."), format!("Unknown click: {kind}."))),
     };
     let anchor = (at.x as u16 as usize) | (at.y as u16 as usize) << 16;
     Ok(events

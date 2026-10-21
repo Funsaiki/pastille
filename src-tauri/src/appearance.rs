@@ -13,7 +13,7 @@ use std::{
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
-use windows::core::w;
+use windows::core::{w, HSTRING};
 use windows::Win32::Foundation::{ERROR_CANCELLED, HWND};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT,
@@ -25,6 +25,7 @@ use windows::Win32::UI::Shell::{
     FOS_FORCEFILESYSTEM, KF_FLAG_DEFAULT, SIGDN_FILESYSPATH,
 };
 
+use crate::i18n::tr;
 use crate::launcher;
 
 /// Couleurs en #rrggbb ; un champ absent : celui d'origine (l'accent : celui de apps.json)
@@ -69,7 +70,7 @@ impl Appearance {
 }
 
 fn dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path().app_config_dir().map_err(|e| format!("Dossier de config introuvable : {e}."))
+    app.path().app_config_dir().map_err(|e| tr(format!("Dossier de config introuvable : {e}."), format!("Config folder not found: {e}.")))
 }
 
 /// Fichier absent ou illisible : l'apparence d'origine
@@ -96,7 +97,7 @@ fn save(app: &AppHandle, appearance: &Appearance) -> Result<(), String> {
     fs::create_dir_all(&dir)
         .and_then(|_| fs::write(&temp, serde_json::to_string_pretty(appearance).unwrap_or_default()))
         .and_then(|_| fs::rename(&temp, &path))
-        .map_err(|e| format!("Apparence non enregistrée : {e}."))
+        .map_err(|e| tr(format!("Apparence non enregistrée : {e}."), format!("Appearance not saved: {e}.")))
 }
 
 /* ── Image de la breloque ── */
@@ -142,22 +143,24 @@ fn charm_image(dir: &Path) -> Option<String> {
 fn keep_image(dir: &Path, source: &Path) -> Result<String, String> {
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
     let Some(&(ext, mime)) = IMAGES.iter().find(|(e, _)| *e == ext) else {
-        return Err("Image PNG, SVG, JPEG, WebP ou GIF seulement.".into());
+        return Err(tr("Image PNG, SVG, JPEG, WebP ou GIF seulement.", "PNG, SVG, JPEG, WebP or GIF images only.").into());
     };
-    let size = fs::metadata(source).map_err(|e| format!("Lecture de l'image impossible : {e}."))?.len();
+    let unreadable = |e: std::io::Error| tr(format!("Lecture de l'image impossible : {e}."), format!("Couldn't read the image: {e}."));
+    let size = fs::metadata(source).map_err(unreadable)?.len();
     if size > MAX_IMAGE {
-        return Err("Image trop lourde : 4 Mo au plus.".into());
+        return Err(tr("Image trop lourde : 4 Mo au plus.", "Image too large: 4 MB at most.").into());
     }
-    let bytes = fs::read(source).map_err(|e| format!("Lecture de l'image impossible : {e}."))?;
+    let bytes = fs::read(source).map_err(unreadable)?;
     if !looks_like(ext, &bytes) {
-        return Err(format!("Ce fichier n'est pas une image {}.", ext.to_ascii_uppercase()));
+        let kind = ext.to_ascii_uppercase();
+        return Err(tr(format!("Ce fichier n'est pas une image {kind}."), format!("This file is not a {kind} image.")));
     }
     let target = dir.join(format!("breloque.{ext}"));
     let temp = dir.join("breloque.tmp");
     fs::create_dir_all(dir)
         .and_then(|_| fs::write(&temp, &bytes))
         .and_then(|_| fs::rename(&temp, &target))
-        .map_err(|e| format!("Image non enregistrée : {e}."))?;
+        .map_err(|e| tr(format!("Image non enregistrée : {e}."), format!("Image not saved: {e}.")))?;
     // Une seule image gardée
     for (other, _) in IMAGES.iter().filter(|(e, _)| *e != ext) {
         let _ = fs::remove_file(dir.join(format!("breloque.{other}")));
@@ -182,7 +185,7 @@ fn show_dialog(owner: Option<HWND>) -> windows::core::Result<Option<PathBuf>> {
         let dialog: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER)?;
         let types = [COMDLG_FILTERSPEC { pszName: w!("Images"), pszSpec: w!("*.png;*.svg;*.jpg;*.jpeg;*.webp;*.gif") }];
         dialog.SetFileTypes(&types)?;
-        dialog.SetTitle(w!("Image de la breloque"))?;
+        dialog.SetTitle(&HSTRING::from(tr("Image de la breloque", "Charm image")))?;
         dialog.SetOptions(dialog.GetOptions()? | FOS_FILEMUSTEXIST | FOS_FORCEFILESYSTEM)?;
         // La première fois, dans Images ; ensuite, Windows rouvre le dernier dossier
         if let Ok(pictures) = SHGetKnownFolderItem::<IShellItem>(&FOLDERID_Pictures, KF_FLAG_DEFAULT, None) {

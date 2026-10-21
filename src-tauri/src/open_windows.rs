@@ -12,6 +12,7 @@ use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVaria
 use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, SHGetPropertyStoreForWindow};
 use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, GetWindowTextW};
 
+use crate::i18n::tr;
 use crate::switch;
 
 #[derive(Serialize)]
@@ -35,7 +36,7 @@ pub async fn open_windows() -> Vec<OpenWindow> {
 pub async fn focus_window(id: String) -> Result<(), String> {
     crate::blocking(move || {
         let hwnd = app_window(&id)?;
-        if switch::bring(hwnd) { Ok(()) } else { Err("Windows a refusé de passer à cette fenêtre.".into()) }
+        if switch::bring(hwnd) { Ok(()) } else { Err(tr("Windows a refusé de passer à cette fenêtre.", "Windows refused to switch to this window.").into()) }
     })
     .await?
 }
@@ -43,10 +44,10 @@ pub async fn focus_window(id: String) -> Result<(), String> {
 /// Fenêtre envoyée par le front (recherche, barre pastel) : encore une fenêtre de la barre des
 /// tâches, et pas le lanceur. Rien d'autre n'est touché.
 pub(crate) fn app_window(id: &str) -> Result<HWND, String> {
-    let handle: isize = id.parse().map_err(|_| format!("Fenêtre {id} inconnue."))?;
+    let handle: isize = id.parse().map_err(|_| tr(format!("Fenêtre {id} inconnue."), format!("Unknown window {id}.")))?;
     let hwnd = HWND(handle as *mut _);
     if !switch::is_app_window(hwnd) || switch::process_of(hwnd).1 == std::process::id() {
-        return Err("Cette fenêtre n'est plus ouverte.".to_string());
+        return Err(tr("Cette fenêtre n'est plus ouverte.", "This window is no longer open.").to_string());
     }
     Ok(hwnd)
 }

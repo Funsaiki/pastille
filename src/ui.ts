@@ -13,6 +13,7 @@ import { el, iconCanvas, latestOnly } from './dom';
 import { applyColors, palette } from './appearance';
 import { initCustom, loadAppearance } from './customize';
 import { closePrefs, initPrefs, keyLabel, openPrefs, prefsOpen, showPrefsProblem } from './prefs';
+import { LANGUAGE, LOCALE, percent, rememberLanguage, tr, translatePage, type Language } from './i18n';
 import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp, type TrayClick, type Welcome } from './host';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -71,25 +72,28 @@ let media: NowPlaying | null = null;
    Couleur du rond au survol. */
 const WINDOWS = '|M3.5 3.5h8v8h-8zM12.5 3.5h8v8h-8zM3.5 12.5h8v8h-8zM12.5 12.5h8v8h-8z';
 const WRENCH = 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z';
+/* Titre des échecs d'un lancement (notifications, en-tête de la vue applications) */
+const LAUNCH = tr('Lancement', 'Launch');
+const POWER_LABEL = tr('Alimentation', 'Power');
 const ACTIONS: { id?: string; label: string; d: string; hover: string; run: () => void }[] = [
-  { id: 'prefs-toggle', label: 'Paramètres de Pastille', d: WRENCH, hover: '#ffe08a', run: () => showPrefs() },
-  { label: 'Paramètres de Windows', d: WINDOWS, hover: 'var(--fill)', run: () => runAction('Lancement', () => host.openTool('settings')) },
-  { label: 'Alimentation', d: POWER, hover: '#f6c6da', run: () => openPowerMenu() },
+  { id: 'prefs-toggle', label: tr('Paramètres de Pastille', 'Pastille settings'), d: WRENCH, hover: '#ffe08a', run: () => showPrefs() },
+  { label: tr('Paramètres de Windows', 'Windows settings'), d: WINDOWS, hover: 'var(--fill)', run: () => runAction(LAUNCH, () => host.openTool('settings')) },
+  { label: POWER_LABEL, d: POWER, hover: '#f6c6da', run: () => openPowerMenu() },
 ];
 
 /* Barre d'état, à gauche du débit (demandés par Funsaiki le 19/10/2026) : les panneaux de Windows,
    affichés même sans adaptateur (Windows le dit alors lui-même). Couleur du rond au survol. */
 const LINKS = [
-  { label: 'Wi-Fi : réseaux disponibles', d: 'M2.5 9a14 14 0 0119 0M5.5 12.5a9.5 9.5 0 0113 0M8.7 16a5 5 0 016.6 0M12 19.5h.01', hover: 'var(--fill)', tool: 'wifi' as const },
-  { label: 'Bluetooth et appareils', d: 'M7 7l10 10-5 5V2l5 5L7 17', hover: '#c9d8ff', tool: 'bluetooth' as const },
+  { label: tr('Wi-Fi : réseaux disponibles', 'Wi-Fi: available networks'), d: 'M2.5 9a14 14 0 0119 0M5.5 12.5a9.5 9.5 0 0113 0M8.7 16a5 5 0 016.6 0M12 19.5h.01', hover: 'var(--fill)', tool: 'wifi' as const },
+  { label: tr('Bluetooth et appareils', 'Bluetooth & devices'), d: 'M7 7l10 10-5 5V2l5 5L7 17', hover: '#c9d8ff', tool: 'bluetooth' as const },
 ];
 
 /* Menu d'alimentation, dans l'ordre de celui de Windows */
 const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string }[] = [
-  { action: 'sleep', label: 'Mettre en veille', d: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z', bg: 'var(--fill)' },
-  { action: 'shutdown', label: 'Arrêter', d: POWER, bg: '#f6c6da' },
-  { action: 'restart', label: 'Redémarrer', d: RESTART, bg: '#c9d8ff' },
-  { action: 'signout', label: 'Se déconnecter', d: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9', bg: '#ffe08a' },
+  { action: 'sleep', label: tr('Mettre en veille', 'Sleep'), d: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z', bg: 'var(--fill)' },
+  { action: 'shutdown', label: tr('Arrêter', 'Shut down'), d: POWER, bg: '#f6c6da' },
+  { action: 'restart', label: tr('Redémarrer', 'Restart'), d: RESTART, bg: '#c9d8ff' },
+  { action: 'signout', label: tr('Se déconnecter', 'Sign out'), d: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9', bg: '#ffe08a' },
 ];
 
 /* Tuiles devant le bouton Applications. Performances remplace la sortie audio de la maquette
@@ -105,12 +109,12 @@ interface Tile {
   click: () => void;
 }
 
-const pct = (v: number | null | undefined) => (v == null ? '–' : `${v} %`);
+const pct = (v: number | null | undefined) => (v == null ? '–' : percent(v));
 
 const TILES: Tile[] = [
   {
-    label: () => 'Micro',
-    sub: () => (sound.mic_muted === null ? 'Aucun micro' : sound.mic_muted ? 'Coupé' : 'Actif'),
+    label: () => tr('Micro', 'Mic'),
+    sub: () => (sound.mic_muted === null ? tr('Aucun micro', 'No mic') : sound.mic_muted ? tr('Coupé', 'Muted') : tr('Actif', 'On')),
     d: () => (sound.mic_muted === false ? MIC : MIC_OFF),
     pressed: () => sound.mic_muted === false,
     click: () => toggleMic(),
@@ -119,8 +123,8 @@ const TILES: Tile[] = [
     label: () => 'CPU ' + pct(stats?.cpu),
     sub: () => 'RAM ' + pct(stats?.ram),
     d: () => 'M3 12h4l3-7 4 14 3-7h4',
-    title: 'Performances : ouvrir le Gestionnaire des tâches',
-    click: () => runAction('Lancement', () => host.openTool('taskmgr')),
+    title: tr('Performances : ouvrir le Gestionnaire des tâches', 'Performance: open Task Manager'),
+    click: () => runAction(LAUNCH, () => host.openTool('taskmgr')),
   },
 ];
 
@@ -135,12 +139,12 @@ function renderProfile(p: Profile) {
    est affichée. Ko et Mo de 1024, comme le premier lanceur. ── */
 const KO = 1024;
 const MO = 1024 ** 2;
-const fmt0 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
-const fmt1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+const fmt0 = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });
+const fmt1 = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
 
 function rateText(perSecond: number) {
-  if (perSecond < 1000 * KO) return fmt0.format(perSecond / KO) + ' Ko/s';
-  return (perSecond < 10 * MO ? fmt1 : fmt0).format(perSecond / MO) + ' Mo/s';
+  if (perSecond < 1000 * KO) return fmt0.format(perSecond / KO) + tr(' Ko/s', ' KB/s');
+  return (perSecond < 10 * MO ? fmt1 : fmt0).format(perSecond / MO) + tr(' Mo/s', ' MB/s');
 }
 
 function renderNetwork(s: Stats) {
@@ -201,14 +205,14 @@ function renderActions() {
     b.title = l.label;
     b.style.setProperty('--hover', l.hover);
     b.append(icon(l.d, 14, 2.6));
-    b.addEventListener('click', () => runAction('Lancement', () => host.openTool(l.tool)));
+    b.addEventListener('click', () => runAction(LAUNCH, () => host.openTool(l.tool)));
     return b;
   }));
 }
 
 /* ── Menu d'alimentation : un clic sur le bouton l'ouvre, un second sur un choix agit
    (la confirmation). Annuler, Échap ou un clic sur l'écran assombri le referme. ── */
-const powerButton = () => $('actions').querySelector<HTMLElement>('[aria-label="Alimentation"]');
+const powerButton = () => $('actions').querySelector<HTMLElement>(`[aria-label="${POWER_LABEL}"]`);
 
 function renderPowerChoices() {
   $('power-choices').replaceChildren(...POWER_CHOICES.map((c) => {
@@ -314,7 +318,7 @@ function renderVolume() {
   input.disabled = sound.volume === null;
   input.value = String(level);
   input.style.setProperty('--pct', level + '%');
-  $('volume-text').textContent = sound.volume === null ? 'Aucune sortie' : level + ' %';
+  $('volume-text').textContent = sound.volume === null ? tr('Aucune sortie', 'No output') : percent(level);
   $('volume-icon').setAttribute('d', level === 0 || sound.muted ? SPEAKER_OFF : SPEAKER);
 }
 
@@ -339,7 +343,7 @@ const appSenders = new Map<string, (level: number) => void>();
 function sendAppVolume(key: string, level: number) {
   let send = appSenders.get(key);
   if (!send) {
-    send = latestOnly((l) => host.setAppVolume(key, l).catch((e) => report('Mélangeur', e)));
+    send = latestOnly((l) => host.setAppVolume(key, l).catch((e) => report(tr('Mélangeur', 'Mixer'), e)));
     appSenders.set(key, send);
   }
   send(level);
@@ -349,7 +353,7 @@ function sendAppVolume(key: string, level: number) {
    à la couleur de sa pastille, initiale, nom */
 function renderMixer(apps: AppVolume[]) {
   if (!apps.length) {
-    $('mixer-channels').replaceChildren(el('div', 'mixer-empty', 'Aucune application ne joue de son'));
+    $('mixer-channels').replaceChildren(el('div', 'mixer-empty', tr('Aucune application ne joue de son', 'No app is playing sound')));
     return;
   }
   $('mixer-channels').replaceChildren(...apps.map((app, i) => {
@@ -360,7 +364,7 @@ function renderMixer(apps: AppVolume[]) {
     input.min = '0';
     input.max = '100';
     input.style.setProperty('--c', color);
-    input.setAttribute('aria-label', 'Volume de ' + app.name);
+    input.setAttribute('aria-label', tr('Volume de ' + app.name, app.name + ' volume'));
     const show = (level: number) => {
       input.value = String(level);
       input.style.setProperty('--pct', level + '%');
@@ -443,7 +447,7 @@ async function toggleMic() {
   } catch (e) {
     sound.mic_muted = !muted;
     updateTiles();
-    report('Micro', e);
+    report(tr('Micro', 'Mic'), e);
   }
 }
 
@@ -451,13 +455,13 @@ async function toggleMic() {
    réglages puis toutes les secondes avec les relevés ── */
 function renderMedia() {
   const playing = media?.playing ?? false;
-  const title = media?.title || 'Rien en lecture';
+  const title = media?.title || tr('Rien en lecture', 'Nothing playing');
   $('media-title').textContent = title;
   $('media-title').title = title;   // titre complet au survol s'il est coupé
-  $('media-artist').textContent = media ? media.artist || 'Spotify' : 'Spotify est fermé';
+  $('media-artist').textContent = media ? media.artist || 'Spotify' : tr('Spotify est fermé', 'Spotify is closed');
   $('eq').classList.toggle('on', playing);
   $('play').classList.toggle('paused', !playing);
-  $('play').setAttribute('aria-label', playing ? 'Pause' : 'Lecture');
+  $('play').setAttribute('aria-label', playing ? 'Pause' : tr('Lecture', 'Play'));
   for (const id of ['previous', 'play', 'next']) ($(id) as HTMLButtonElement).disabled = !media;
 }
 
@@ -516,7 +520,7 @@ async function controlMedia(action: MediaAction) {
   try {
     await host.mediaControl(action);
   } catch (e) {
-    report('Lecture', e);
+    report(tr('Lecture', 'Playback'), e);
   }
   setTimeout(refreshMedia, 500);   // nouveau morceau : Spotify met un instant à l'annoncer
 }
@@ -567,16 +571,16 @@ function renderSpotifyVolume() {
   meter.setAttribute('aria-disabled', String(off));
   meter.tabIndex = off ? -1 : 0;
   meter.setAttribute('aria-valuenow', String(level));
-  meter.setAttribute('aria-valuetext', off ? 'indisponible' : `${level} %`);
+  meter.setAttribute('aria-valuetext', off ? tr('indisponible', 'unavailable') : percent(level));
   meter.querySelectorAll<HTMLElement>('i').forEach((bar, i) => {
     const fill = Math.max(0, Math.min(1, (level - i * (100 / STEPS)) / (100 / STEPS)));
     bar.style.setProperty('--p', fill * 100 + '%');
   });
   meter.title = off
-    ? 'Volume de Spotify : indisponible'
+    ? tr('Volume de Spotify : indisponible', 'Spotify volume: unavailable')
     : spotifyVolume!.source === 'windows'
-      ? `Volume de Spotify (mélangeur de Windows) : ${level} %`
-      : `Volume de Spotify : ${level} %`;
+      ? tr(`Volume de Spotify (mélangeur de Windows) : ${level} %`, `Spotify volume (Windows mixer): ${level}%`)
+      : tr(`Volume de Spotify : ${level} %`, `Spotify volume: ${level}%`);
   const shuffle = $('shuffle');
   const repeat = $('repeat');
   shuffle.hidden = repeat.hidden = !spotifyModes;
@@ -600,17 +604,25 @@ function stepLevel(x: number, y: number, first: boolean): number | null {
   return first && index === 0 && (spotifyVolume?.volume ?? 0) > 0 && (spotifyVolume?.volume ?? 0) <= level ? 0 : level;
 }
 
-const SHUFFLE_LABELS: Record<ShuffleMode, string> = {
+const SHUFFLE_LABELS: Record<ShuffleMode, string> = tr({
   off: 'Lecture aléatoire : non',
   on: 'Lecture aléatoire : oui',
   smart: 'Aléatoire intelligent (activé dans Spotify) : cliquer pour le couper',
-};
+}, {
+  off: 'Shuffle: off',
+  on: 'Shuffle: on',
+  smart: 'Smart shuffle (turned on in Spotify): click to turn it off',
+});
 
-const REPEAT_LABELS: Record<RepeatMode, string> = {
+const REPEAT_LABELS: Record<RepeatMode, string> = tr({
   off: 'Répétition : non',
   context: 'Répétition : la playlist ou l’album',
   track: 'Répétition : ce titre',
-};
+}, {
+  off: 'Repeat: off',
+  context: 'Repeat: the playlist or album',
+  track: 'Repeat: this track',
+});
 
 /* Clic : change tout de suite, comme lecture/pause ; Spotify suit (un échec est signalé et
    la relecture suivante rétablit l'état réel). Aléatoire : non ↔ oui ; l'aléatoire intelligent
@@ -662,7 +674,8 @@ function flattenApps(items: AppItem[]): AppItem[] {
 }
 
 function renderAppCount() {
-  $('app-count').textContent = `${flattenApps(CONFIG.apps).filter((it) => !it.same).length} raccourcis`;
+  const count = flattenApps(CONFIG.apps).filter((it) => !it.same).length;
+  $('app-count').textContent = tr(`${count} raccourcis`, `${count} shortcuts`);
 }
 
 /* ── Notifications (choix de Funsaiki) : problèmes du lanceur, alertes du PC (redémarrage,
@@ -692,51 +705,58 @@ const GO = 1024 ** 3;
 const MAX_NOTIFS = 3;   // les suivantes tomberaient sous le bord de l'écran (la pastille compte tout)
 
 function ago(seconds: number) {
-  if (seconds < 60) return 'à l’instant';
+  if (seconds < 60) return tr('à l’instant', 'just now');
   if (seconds < 3600) return Math.floor(seconds / 60) + ' min';
   if (seconds < 86400) return Math.floor(seconds / 3600) + ' h';
-  return Math.floor(seconds / 86400) + ' j';
+  return Math.floor(seconds / 86400) + tr(' j', ' d');
 }
 
 function feedNotif(e: FeedEvent): Notif {
   switch (e.kind) {
     // Mise à jour de Pastille (demandée par Funsaiki) : un clic l'installe, Pastille redémarre
     case 'update': {
-      const body = updating ? `Téléchargement de la ${e.version}…` : `Mise à jour ${e.version} disponible`;
+      const body = updating
+        ? tr(`Téléchargement de la ${e.version}…`, `Downloading ${e.version}…`)
+        : tr(`Mise à jour ${e.version} disponible`, `Update ${e.version} available`);
       return { id: 'update:' + e.version, title: 'Pastille', when: '', body, d: ICONS.applications, bg: 'var(--fill)', open: installUpdate, stay: true };
     }
     case 'reboot':
-      return { id: 'reboot', title: 'Windows Update', when: '', body: 'Redémarrez pour terminer une mise à jour', d: RESTART, bg: '#ffe08a', open: () => host.openTool('windows-update') };
+      return { id: 'reboot', title: 'Windows Update', when: '', body: tr('Redémarrez pour terminer une mise à jour', 'Restart to finish an update'), d: RESTART, bg: '#ffe08a', open: () => host.openTool('windows-update') };
     case 'disk':
-      return { id: 'disk:' + e.drive, title: 'Disque ' + e.drive, when: '', body: `Presque plein · ${fmt1.format(e.free / GO)} Go libres`, d: DISK, bg: '#f6c6da', open: () => host.openTool('storage') };
+      const free = fmt1.format(e.free / GO);
+      const body = tr(`Presque plein · ${free} Go libres`, `Almost full · ${free} GB free`);
+      return { id: 'disk:' + e.drive, title: tr('Disque ', 'Drive ') + e.drive, when: '', body, d: DISK, bg: '#f6c6da', open: () => host.openTool('storage') };
     case 'steam': {
-      const when = e.age != null ? ago(e.age) : e.paused ? 'en pause' : e.progress != null ? e.progress + ' %' : 'en cours';
-      const body = `${e.game} · ${e.age != null ? 'mis à jour' : 'mise à jour'}`;
+      const when = e.age != null ? ago(e.age) : e.paused ? tr('en pause', 'paused') : e.progress != null ? percent(e.progress) : tr('en cours', 'in progress');
+      const body = `${e.game} · ${e.age != null ? tr('mis à jour', 'updated') : tr('mise à jour', 'updating')}`;
       return { id: `steam:${e.game}:${e.age != null ? 'fin' : 'cours'}`, title: 'Steam', when, body, d: ICONS.jeux, bg: '#c9d8ff', open: () => host.openTool('steam-downloads') };
     }
     case 'download':
-      return { id: 'download:' + e.name, title: 'Téléchargements', when: ago(e.age), body: e.name, d: DOWNLOAD, bg: '#f6e2ec', open: () => host.openDownload(e.name) };
+      return { id: 'download:' + e.name, title: tr('Téléchargements', 'Downloads'), when: ago(e.age), body: e.name, d: DOWNLOAD, bg: '#f6e2ec', open: () => host.openDownload(e.name) };
   }
 }
 
 function allNotifs(): Notif[] {
   const problems: Notif[] = configProblems.map((p) => ({ id: 'config:' + p, title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
-  if (actionError) problems.unshift({ id: 'action:' + actionError.text, title: actionError.title, when: 'à l’instant', body: actionError.text, d: ALERT, bg: '#ffe08a' });
+  if (actionError) problems.unshift({ id: 'action:' + actionError.text, title: actionError.title, when: ago(0), body: actionError.text, d: ALERT, bg: '#ffe08a' });
   if (spotifyProblem) problems.push({ id: 'spotify:' + spotifyProblem, title: 'Spotify', when: '', body: spotifyProblem, d: ALERT, bg: '#ffe08a' });
   // Connexion d'avant les playlists (demandé par Funsaiki) : un clic la refait dans le navigateur
   if (spotifyReconnect) {
-    problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: 'Reconnecter pour voir les playlists', d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
+    problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: tr('Reconnecter pour voir les playlists', 'Reconnect to see the playlists'), d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
   // Pas connecté, Spotify ouvert (pour les amis de Funsaiki) : un clic ouvre la page de connexion
   if (spotifyConnect && media) {
-    problems.push({ id: 'spotify:connect', title: 'Spotify', when: '', body: 'Connecter pour le volume et les playlists', d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
+    problems.push({ id: 'spotify:connect', title: 'Spotify', when: '', body: tr('Connecter pour le volume et les playlists', 'Connect for the volume and playlists'), d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
   // Premier lancement (pour les amis de Funsaiki) : le raccourci, et démarrer avec Windows d'un clic
   if (welcome) {
-    const how = welcome.shortcut ? `${keyLabel(welcome.shortcut)} ouvre et ferme Pastille` : 'Clic sur son icône, près de l’heure, pour l’ouvrir';
-    problems.push({ id: 'welcome', title: 'Bienvenue', when: '', body: how, d: ICONS.applications, bg: 'var(--fill)' });
+    const key = welcome.shortcut && keyLabel(welcome.shortcut);
+    const how = key
+      ? tr(`${key} ouvre et ferme Pastille`, `${key} opens and closes Pastille`)
+      : tr('Clic sur son icône, près de l’heure, pour l’ouvrir', 'Click its icon, near the clock, to open it');
+    problems.push({ id: 'welcome', title: tr('Bienvenue', 'Welcome'), when: '', body: how, d: ICONS.applications, bg: 'var(--fill)' });
     if (!welcome.autostart) {
-      problems.push({ id: 'welcome:autostart', title: 'Démarrer avec Windows', when: '', body: 'Cliquer pour l’activer', d: POWER, bg: '#c9d8ff', open: enableAutostart, stay: true });
+      problems.push({ id: 'welcome:autostart', title: tr('Démarrer avec Windows', 'Start with Windows'), when: '', body: tr('Cliquer pour l’activer', 'Click to turn it on'), d: POWER, bg: '#c9d8ff', open: enableAutostart, stay: true });
     }
   }
   return [...problems, ...feed.map(feedNotif)];
@@ -786,7 +806,7 @@ function saveDismissed() {
 
 function notifRow(n: Notif) {
   const row = el(n.open ? 'button' : 'div', 'notif');
-  if (n.open) row.addEventListener('click', () => (n.stay ? n.open!().catch((e) => report(n.title, e)) : runAction('Lancement', n.open!)));
+  if (n.open) row.addEventListener('click', () => (n.stay ? n.open!().catch((e) => report(n.title, e)) : runAction(LAUNCH, n.open!)));
   const badge = el('span', 'notif-icon');
   badge.setAttribute('aria-hidden', 'true');
   badge.style.background = n.bg;
@@ -902,10 +922,12 @@ function stopPaneAnimations() {
 const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
 const CLOSE = 'M6 6l12 12M18 6L6 18';
 
+const OPEN_LABEL = tr('Ouvrir', 'Open');
+const LOCATION_LABEL = tr('Emplacement du fichier', 'Open file location');
 const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[] = [
-  { action: 'open', label: 'Ouvrir', d: OPEN, bg: 'var(--fill)' },
-  { action: 'location', label: 'Emplacement du fichier', d: ICONS.fichiers, bg: '#c9d8ff' },
-  { action: 'quit', label: 'Forcer à quitter', d: CLOSE, bg: '#f6c6da' },
+  { action: 'open', label: OPEN_LABEL, d: OPEN, bg: 'var(--fill)' },
+  { action: 'location', label: LOCATION_LABEL, d: ICONS.fichiers, bg: '#c9d8ff' },
+  { action: 'quit', label: tr('Forcer à quitter', 'Force quit'), d: CLOSE, bg: '#f6c6da' },
 ];
 
 let trayApps: TrayApp[] | null = null;   // null : pas encore lue (rien d'affiché, pas « 0 »)
@@ -963,7 +985,7 @@ function trayTile(app: TrayApp, i: number) {
     b.style.setProperty('--tile', palette()[i % 4]);
   }
   if (!app.clicks) {
-    b.addEventListener('click', () => runAction('Lancement', () => host.trayAppAction(app.key, 'open')));
+    b.addEventListener('click', () => runAction(LAUNCH, () => host.trayAppAction(app.key, 'open')));
     b.addEventListener('contextmenu', (e) => {
       e.preventDefault();   // pas le menu de WebView2
       openTrayMenu(app, b);
@@ -972,7 +994,7 @@ function trayTile(app: TrayApp, i: number) {
   }
   // Le lanceur se masque quand l'application passe au premier plan (sa fenêtre, son menu) ;
   // il reste ouvert pour le second clic d'une application qui attend un double clic
-  const send = (kind: TrayClick) => host.trayClick(app.key, kind).catch((e) => report('Lancement', e));
+  const send = (kind: TrayClick) => host.trayClick(app.key, kind).catch((e) => report(LAUNCH, e));
   b.addEventListener('click', (e) => send(e.detail === 0 ? 'key' : e.detail > 1 ? 'double' : 'left'));
   b.addEventListener('mousedown', (e) => {
     if (e.button === 1) e.preventDefault();   // pas le défilement automatique
@@ -1014,7 +1036,7 @@ function trayMenuItem(app: TrayApp, item: (typeof TRAY_ITEMS)[number]) {
     // Arrêt forcé : le premier clic demande confirmation
     if (item.action === 'quit' && !b.classList.contains('confirm')) {
       b.classList.add('confirm');
-      b.lastElementChild!.textContent = 'Vraiment quitter ?';
+      b.lastElementChild!.textContent = tr('Vraiment quitter ?', 'Really quit?');
       return;
     }
     trayAction(app, item.action);
@@ -1075,13 +1097,13 @@ function closeTrayMenu(refocus = true) {
 async function trayAction(app: TrayApp, action: TrayAction) {
   closeTrayMenu(action === 'quit');
   if (action !== 'quit') {
-    runAction('Lancement', () => host.trayAppAction(app.key, action));
+    runAction(LAUNCH, () => host.trayAppAction(app.key, action));
     return;
   }
   try {
     await host.trayAppAction(app.key, 'quit');
   } catch (e) {
-    report('Quitter', e);
+    report(tr('Quitter', 'Quit'), e);
   }
   refreshTrayApps();
 }
@@ -1147,20 +1169,22 @@ const COLUMNS = 8;
 const pageSize = () => (showFolders() || showRecents() ? COLUMNS : 2 * COLUMNS);
 const pageCount = () => Math.max(1, Math.ceil(currentList().length / pageSize()));
 
+const APPS = tr('Applications', 'Apps');
+
 function renderHead(count: number) {
   const group = state.stack[state.stack.length - 1];
   const parent = state.stack[state.stack.length - 2];
-  const sup = state.query ? 'Recherche' : group ? parent?.label ?? 'Applications' : 'Lanceur';
+  const sup = state.query ? tr('Recherche', 'Search') : group ? parent?.label ?? APPS : tr('Lanceur', 'Launcher');
   // Échec d'un lancement : signalé à la place du sur-titre, message complet au survol
-  $('head-sup').textContent = actionError ? `${actionError.title} impossible` : sup;
+  $('head-sup').textContent = actionError ? tr(`${actionError.title} impossible`, `${actionError.title} failed`) : sup;
   $('head-sup').title = actionError?.text ?? '';
-  $('head-title').textContent = state.query ? 'Résultats' : group ? group.label : 'Applications';
+  $('head-title').textContent = state.query ? tr('Résultats', 'Results') : group ? group.label : APPS;
   $('item-count').textContent = String(count);
 }
 
 function appButton(item: AppItem, index: number) {
   const b = el('button', 'tp-app app');
-  b.setAttribute('aria-label', item.children ? `${item.label}, groupe de ${item.children.length}` : item.label);
+  b.setAttribute('aria-label', item.children ? tr(`${item.label}, groupe de ${item.children.length}`, `${item.label}, group of ${item.children.length}`) : item.label);
   const ic = el('span', 'tp-app-ic app-icon');
   if (item.picture) {
     // Fenêtre ouverte : vraie icône de son programme sur fond blanc, comme l'onglet Apps
@@ -1206,7 +1230,7 @@ function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
   grid.hidden = !list.length;
   $('no-result').hidden = list.length > 0;
   if (!list.length) {
-    const label = el('span', '', `Rechercher « ${state.query} » sur le web`);
+    const label = el('span', '', tr(`Rechercher « ${state.query} » sur le web`, `Search the web for “${state.query}”`));
     $('web-search').replaceChildren(icon('M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4', 17, 2.4), label);
     $('web-search').title = label.textContent!;
   }
@@ -1317,9 +1341,11 @@ function renderFolders() {
 let appMenu: { item: AppItem; tile: HTMLElement } | null = null;
 let appMenuRun = 0;   // une réponse de Rust arrivée après une fermeture ou un autre clic droit est ignorée
 
-const APP_ACTION_TITLES: Record<AppAction, string> = {
+const APP_ACTION_TITLES: Record<AppAction, string> = tr({
   admin: 'Lancement', location: 'Emplacement', pin: 'Épingler', unpin: 'Détacher', hide: 'Masquer', show: 'Réafficher',
-};
+}, {
+  admin: 'Launch', location: 'Location', pin: 'Pin', unpin: 'Unpin', hide: 'Hide', show: 'Show',
+});
 
 function hasAppMenu(item: AppItem) {
   return !item.children && item.copy == null && !item.window && !SETTINGS.includes(item);
@@ -1339,15 +1365,20 @@ async function openAppMenu(item: AppItem, tile: HTMLElement) {
   appMenu = { item, tile };
   tile.classList.add('menu-open');
   $('app-menu-name').textContent = item.label;
-  const entries = [menuItem('Ouvrir', OPEN, 'var(--fill)', () => {
+  const entries = [menuItem(OPEN_LABEL, OPEN, 'var(--fill)', () => {
     closeAppMenu(false);
     launch(item);
   })];
   const add = (label: string, d: string, bg: string, action: AppAction) => entries.push(menuItem(label, d, bg, () => appAction(item, action)));
-  if (options.admin) add('Exécuter en admin', ICONS.bouclier, '#ffe08a', 'admin');
-  if (options.location) add('Emplacement du fichier', ICONS.fichiers, '#c9d8ff', 'location');
-  if (options.pinned !== null) add(options.pinned ? 'Détacher de la pilule' : 'Épingler à la pilule', PIN, '#c9d8ff', options.pinned ? 'unpin' : 'pin');
-  if (options.hidden !== null) add(options.hidden ? 'Réafficher' : 'Masquer', options.hidden ? EYE : ICONS.masquees, '#f6c6da', options.hidden ? 'show' : 'hide');
+  if (options.admin) add(tr('Exécuter en admin', 'Run as admin'), ICONS.bouclier, '#ffe08a', 'admin');
+  if (options.location) add(LOCATION_LABEL, ICONS.fichiers, '#c9d8ff', 'location');
+  if (options.pinned !== null) {
+    const label = options.pinned ? tr('Détacher de la pilule', 'Unpin from the pill') : tr('Épingler à la pilule', 'Pin to the pill');
+    add(label, PIN, '#c9d8ff', options.pinned ? 'unpin' : 'pin');
+  }
+  if (options.hidden !== null) {
+    add(options.hidden ? tr('Réafficher', 'Show') : tr('Masquer', 'Hide'), options.hidden ? EYE : ICONS.masquees, '#f6c6da', options.hidden ? 'show' : 'hide');
+  }
   $('app-menu-items').replaceChildren(...entries);
   placeAppMenu(tile);
   $('app-menu').classList.add('open');
@@ -1404,9 +1435,9 @@ async function appAction(item: AppItem, action: AppAction) {
 /* Ctrl+clic (ou Ctrl+Entrée) : nouvelle fenêtre même si l'application est déjà ouverte */
 function activate(item: AppItem, fresh = false) {
   if (item.copy != null) {
-    runAction('Calcul', () => host.copy(item.copy!));   // Entrée copie le résultat
+    runAction(tr('Calcul', 'Calculation'), () => host.copy(item.copy!));   // Entrée copie le résultat
   } else if (item.window) {
-    runAction('Fenêtre', () => host.focusWindow(item.window!));
+    runAction(tr('Fenêtre', 'Window'), () => host.focusWindow(item.window!));
   } else if (item.children) {
     state.stack.push(item);
     state.page = 0;
@@ -1517,7 +1548,7 @@ function enterSettings(afterTurn: boolean) {
 
 /* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
 async function launch(item: AppItem | Favorite, fresh = false) {
-  await runAction('Lancement', async () => {
+  await runAction(LAUNCH, async () => {
     await host.launch(item, fresh);
     countLaunch(item);
   });
@@ -1547,7 +1578,7 @@ async function runAction(title: string, action: () => Promise<void>) {
 
 /* Rien ne correspond : la recherche part sur le web (navigateur par défaut) */
 function webSearch() {
-  runAction('Recherche web', () => host.webSearch(state.query));
+  runAction(tr('Recherche web', 'Web search'), () => host.webSearch(state.query));
 }
 
 /* Échec signalé dans les notifications, onglet ouvert (et dans l'en-tête de la vue applications) */
@@ -1559,15 +1590,15 @@ function report(title: string, e: unknown) {
 }
 
 /* ── Heure et date ── */
-const fmtTime = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
-const fmtDay = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' });
-const fmtMonth = new Intl.DateTimeFormat('fr-FR', { month: 'short' });
+const fmtTime = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' });
+const fmtDay = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
+const fmtMonth = new Intl.DateTimeFormat(LOCALE, { month: 'short' });
 
 function tickClock() {
   const now = new Date();
   const time = fmtTime.format(now);
   document.querySelectorAll('.clock').forEach((n) => (n.textContent = time));
-  const day = fmtDay.format(now);   // « mer. »
+  const day = fmtDay.format(now);   // « mer. », « Wed »
   $('date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
 }
 
@@ -1873,6 +1904,45 @@ function hideLauncher() {
   }, LEAVE_MS);
 }
 
+/* ── Langue changée dans la page Paramètres : la page se recharge (ses textes sont écrits au
+   chargement). Le téléphone redescend, le temps de voir la pastille glisser, puis remonte dans
+   la nouvelle langue, sur la page Paramètres. ── */
+const REOPEN_KEY = 'rouvrir-parametres';
+
+function changeLanguage(language: Language) {
+  if (!rememberLanguage(language)) return;
+  if ($('stage').hidden) {
+    location.reload();
+    return;
+  }
+  if (leaving) {
+    setTimeout(() => location.reload(), LEAVE_MS + 300);   // le lanceur finit de se masquer
+    return;
+  }
+  try {
+    sessionStorage.setItem(REOPEN_KEY, '1');
+  } catch {
+    /* sans stockage, il remonte sur la vue réglages */
+  }
+  stopStats();
+  clearTimeout(clockTimer);
+  leaving = setTimeout(() => {
+    $('phone').classList.add('leaving');
+    leaving = setTimeout(() => location.reload(), LEAVE_MS);
+  }, 300);
+}
+
+/* Après le rechargement d'un changement de langue : la page Paramètres, une fois */
+function reopenPrefs() {
+  try {
+    const asked = sessionStorage.getItem(REOPEN_KEY) !== null;
+    sessionStorage.removeItem(REOPEN_KEY);
+    return asked;
+  } catch {
+    return false;
+  }
+}
+
 /* ── Configuration : au démarrage, puis quand Rust la recharge
    (« Recharger la config », ou apps.json modifié avant une ouverture) ── */
 let configLoading: Promise<void> = Promise.resolve();
@@ -1916,12 +1986,18 @@ function reopenStack(): AppItem[] {
 }
 
 export async function init() {
+  translatePage();
+  // Rust a une autre langue (premier lancement, ou changée pendant le chargement) : rechargée
+  if (rememberLanguage(await host.language().catch(() => LANGUAGE))) {
+    location.reload();
+    return;
+  }
   if (PREVIEW) document.body.classList.add('preview');
 
   renderActions();
   renderPowerChoices();
   renderTiles();
-  initCustom(refreshPalette, (e) => showPrefsProblem('Personnaliser', e));
+  initCustom(refreshPalette, (e) => showPrefsProblem(tr('Personnaliser', 'Customize'), e));
   initPrefs(hideLauncher);
   bindEvents();
   await loadAppearance();
@@ -1939,6 +2015,11 @@ export async function init() {
     if (page === 'prefs') showPrefs();   // « Paramètres » du menu de l'icône
   });
   host.onHideRequest(hideLauncher);
-  if (await host.isVisible()) playEntrance();
-  else if (welcome) host.firstShow().catch(console.error);   // premier lancement, page prête
+  host.onLanguageChanged(changeLanguage);
+  if (await host.isVisible()) {
+    playEntrance();
+    if (reopenPrefs()) showPrefs();   // rechargée dans une nouvelle langue
+  } else if (welcome) {
+    host.firstShow().catch(console.error);   // premier lancement, page prête
+  }
 }

@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::bar::{self, BarWindow};
+use crate::i18n::tr;
 use crate::{open_windows, switch, tray_apps};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -69,16 +70,17 @@ pub async fn bar_pin(app: AppHandle, id: String) -> Result<(), String> {
     let pin = crate::blocking(move || {
         let hwnd = open_windows::app_window(&id)?;
         let (path, pid) = switch::process_of(hwnd);
-        let path = path.ok_or("Programme de la fenêtre introuvable.")?;
+        let missing = || tr("Programme de la fenêtre introuvable.", "The window's program was not found.").to_string();
+        let path = path.ok_or_else(missing)?;
         if bar::is_hosted(&path) {
-            return Err("Cette application ne peut pas être épinglée.".to_string());
+            return Err(tr("Cette application ne peut pas être épinglée.", "This app can't be pinned.").to_string());
         }
         let app_id = if tray_apps::is_packaged(&path) {
-            Some(tray_apps::app_id(pid).ok_or("Identifiant de l'application introuvable.")?)
+            Some(tray_apps::app_id(pid).ok_or(tr("Identifiant de l'application introuvable.", "The app's identifier was not found."))?)
         } else {
             None
         };
-        program_pin(&path, app_id).ok_or_else(|| "Programme de la fenêtre introuvable.".to_string())
+        program_pin(&path, app_id).ok_or_else(missing)
     })
     .await??;
     add(&app, pin);
@@ -117,7 +119,7 @@ pub fn remove(app: &AppHandle, exe: &str) {
 /// Lance l'application épinglée `exe` (fermée : ses fenêtres ouvertes passent par leur tuile)
 #[tauri::command]
 pub async fn bar_open_pin(app: AppHandle, exe: String) -> Result<(), String> {
-    let pin = bar::pins(&app).into_iter().find(|p| p.exe == exe).ok_or("Cette application n'est plus épinglée.")?;
+    let pin = bar::pins(&app).into_iter().find(|p| p.exe == exe).ok_or(tr("Cette application n'est plus épinglée.", "This app is no longer pinned."))?;
     crate::blocking(move || match &pin.app_id {
         Some(id) => crate::shell::open_as_is(&format!(r"shell:AppsFolder\{id}")),
         None => crate::shell::open_as_is(&pin.path),

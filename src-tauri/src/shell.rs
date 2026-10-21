@@ -20,6 +20,7 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
+use crate::i18n::tr;
 use crate::{config, start_menu};
 
 /// Le front envoie l'id d'un élément (a… : application, f… : dossier) ; Rust retrouve sa cible
@@ -30,7 +31,7 @@ pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), Strin
     let (target, args) = match setting_target(&id) {
         Some(target) => (target, Vec::new()),
         None => config::target_of(&app, &id)
-            .ok_or_else(|| format!("Élément {id} introuvable, la config a peut-être changé."))?,
+            .ok_or_else(|| tr(format!("Élément {id} introuvable, la config a peut-être changé."), format!("Item {id} not found, the config may have changed.")))?,
     };
     let key = crate::usage::key(&target, &args);
     // Playlist (groupe auto « spotify ») : Spotify la joue directement (spotify.rs)
@@ -91,7 +92,7 @@ pub async fn open_tool(tool: String) -> Result<(), String> {
         "storage" => "ms-settings:storagesense",
         // Barre pastel : calendrier
         "notifications" => "ms-actioncenter:",
-        _ => return Err(format!("Outil inconnu : {tool}.")),
+        _ => return Err(tr(format!("Outil inconnu : {tool}."), format!("Unknown tool: {tool}."))),
     };
     crate::blocking(move || open(target, &[])).await?
 }
@@ -137,7 +138,7 @@ fn run(target: &str, args: &[String], verb: Option<&str>) -> Result<(), String> 
 pub async fn web_search(query: String) -> Result<(), String> {
     let query = query.trim();
     if query.is_empty() {
-        return Err("Rien à chercher.".into());
+        return Err(tr("Rien à chercher.", "Nothing to search for.").into());
     }
     let url = format!("https://www.google.com/search?q={}", encode_query(query));
     crate::blocking(move || open_as_is(&url)).await?

@@ -5,6 +5,7 @@
    dépendent ; sans choix, la maquette (styles.css) reste telle quelle.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG } from './config';
+import { tr } from './i18n';
 
 export type Charm = 'pilule' | 'etoile' | 'coeur' | 'chat' | 'image' | 'aucune';
 export type ColorKey = 'accent' | 'coque' | 'ecran' | 'encre';
@@ -31,36 +32,36 @@ const PASTELS = ['#f6c6da', '#c9d8ff', '#ffe08a', '#9fe0dc'];
 /* Nuancier de chaque couleur ; la première est celle de la maquette */
 export const SWATCHES: Record<ColorKey, Swatch[]> = {
   accent: [
-    { name: 'Menthe', color: '#9fe0dc' },
-    { name: 'Rose', color: '#f6c6da' },
-    { name: 'Bleu', color: '#c9d8ff' },
-    { name: 'Jaune', color: '#ffe08a' },
-    { name: 'Lilas', color: '#d9c9f7' },
-    { name: 'Pêche', color: '#ffcdb2' },
+    { name: tr('Menthe', 'Mint'), color: '#9fe0dc' },
+    { name: tr('Rose', 'Pink'), color: '#f6c6da' },
+    { name: tr('Bleu', 'Blue'), color: '#c9d8ff' },
+    { name: tr('Jaune', 'Yellow'), color: '#ffe08a' },
+    { name: tr('Lilas', 'Lilac'), color: '#d9c9f7' },
+    { name: tr('Pêche', 'Peach'), color: '#ffcdb2' },
   ],
   coque: [
-    { name: 'Sarcelle', color: '#1f5f68' },
-    { name: 'Prune', color: '#5b2c56' },
-    { name: 'Nuit', color: '#2a3366' },
-    { name: 'Forêt', color: '#2c5b3d' },
-    { name: 'Ardoise', color: '#3e4753' },
-    { name: 'Cerise', color: '#8c2f4b' },
+    { name: tr('Sarcelle', 'Teal'), color: '#1f5f68' },
+    { name: tr('Prune', 'Plum'), color: '#5b2c56' },
+    { name: tr('Nuit', 'Night'), color: '#2a3366' },
+    { name: tr('Forêt', 'Forest'), color: '#2c5b3d' },
+    { name: tr('Ardoise', 'Slate'), color: '#3e4753' },
+    { name: tr('Cerise', 'Cherry'), color: '#8c2f4b' },
   ],
   ecran: [
-    { name: 'Menthe', color: '#e2f5f4' },
-    { name: 'Rose', color: '#fbe7ef' },
-    { name: 'Bleu', color: '#e7edff' },
-    { name: 'Citron', color: '#fff5d9' },
-    { name: 'Lilas', color: '#f0e9fc' },
-    { name: 'Nuage', color: '#eef1f4' },
+    { name: tr('Menthe', 'Mint'), color: '#e2f5f4' },
+    { name: tr('Rose', 'Pink'), color: '#fbe7ef' },
+    { name: tr('Bleu', 'Blue'), color: '#e7edff' },
+    { name: tr('Citron', 'Lemon'), color: '#fff5d9' },
+    { name: tr('Lilas', 'Lilac'), color: '#f0e9fc' },
+    { name: tr('Nuage', 'Cloud'), color: '#eef1f4' },
   ],
   encre: [
-    { name: 'Sarcelle', color: '#0f3b42' },
-    { name: 'Prune', color: '#3a1735' },
-    { name: 'Nuit', color: '#1a2150' },
-    { name: 'Forêt', color: '#173823' },
-    { name: 'Ardoise', color: '#252b33' },
-    { name: 'Cacao', color: '#3b2418' },
+    { name: tr('Sarcelle', 'Teal'), color: '#0f3b42' },
+    { name: tr('Prune', 'Plum'), color: '#3a1735' },
+    { name: tr('Nuit', 'Night'), color: '#1a2150' },
+    { name: tr('Forêt', 'Forest'), color: '#173823' },
+    { name: tr('Ardoise', 'Slate'), color: '#252b33' },
+    { name: tr('Cacao', 'Cocoa'), color: '#3b2418' },
   ],
 };
 

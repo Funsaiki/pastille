@@ -15,6 +15,7 @@ use tauri::AppHandle;
 
 use crate::bar_pins::{self, Pin};
 use crate::config::{self, MenuItem};
+use crate::i18n::tr;
 use crate::{bar, shell, start_menu, tray_apps, usage};
 
 /// Entrées du menu, en plus d'Ouvrir
@@ -81,7 +82,9 @@ fn pin_of(path: &str) -> Option<Pin> {
 }
 
 fn item_of(app: &AppHandle, id: &str) -> Result<MenuItem, String> {
-    config::menu_item(app, id).ok_or_else(|| format!("Élément {id} introuvable, la config a peut-être changé."))
+    config::menu_item(app, id).ok_or_else(|| {
+        tr(format!("Élément {id} introuvable, la config a peut-être changé."), format!("Item {id} not found, the config may have changed."))
+    })
 }
 
 async fn program(item: MenuItem) -> Result<(MenuItem, Program), String> {
@@ -127,12 +130,12 @@ pub async fn app_action(app: AppHandle, id: String, action: String) -> Result<()
             Ok(())
         }
         "location" => {
-            let file = program.file.ok_or("Fichier introuvable.")?;
+            let file = program.file.ok_or(tr("Fichier introuvable.", "File not found."))?;
             crate::blocking(move || tray_apps::show_in_folder(&file)).await?
         }
         "pin" | "unpin" => {
             let pin = program.pin.as_ref().filter(|_| pin_state(&app, program.pin.as_ref()) == Some(action == "unpin"));
-            let pin = pin.ok_or("La pilule ne peut pas faire cela pour cette application.")?;
+            let pin = pin.ok_or(tr("La pilule ne peut pas faire cela pour cette application.", "The pill can't do that for this app."))?;
             if action == "pin" {
                 bar_pins::add(&app, pin.clone());
             } else {
@@ -141,7 +144,7 @@ pub async fn app_action(app: AppHandle, id: String, action: String) -> Result<()
             Ok(())
         }
         "hide" | "show" if item.hideable => config::set_start_hidden(&app, &item.target, action == "hide"),
-        _ => Err(format!("Action « {action} » impossible pour cette application.")),
+        _ => Err(tr(format!("Action « {action} » impossible pour cette application."), format!("Action \"{action}\" not possible for this app."))),
     }
 }
 
