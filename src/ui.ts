@@ -66,11 +66,14 @@ let media: NowPlaying | null = null;
    explorateur, verrouiller) ; il garde ces deux-là, et Personnaliser s'y ajoute (19/10/2026),
    remplacé par les Paramètres de Pastille (21/10/2026 : une clé, choisie par Funsaiki parmi
    quatre ; l'interrupteur de la maquette ressemblait trop à un interrupteur).
+   L'engrenage des Paramètres de Windows devient le logo de Windows, en carrés pleins (choix
+   de Funsaiki : il ressemblait à un soleil ; au trait, il se confondrait avec Applications).
    Couleur du rond au survol. */
+const WINDOWS = '|M3.5 3.5h8v8h-8zM12.5 3.5h8v8h-8zM3.5 12.5h8v8h-8zM12.5 12.5h8v8h-8z';
 const WRENCH = 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z';
 const ACTIONS: { id?: string; label: string; d: string; hover: string; run: () => void }[] = [
   { id: 'prefs-toggle', label: 'Paramètres de Pastille', d: WRENCH, hover: '#ffe08a', run: () => showPrefs() },
-  { label: 'Paramètres de Windows', d: ICONS.parametres, hover: 'var(--fill)', run: () => runAction('Lancement', () => host.openTool('settings')) },
+  { label: 'Paramètres de Windows', d: WINDOWS, hover: 'var(--fill)', run: () => runAction('Lancement', () => host.openTool('settings')) },
   { label: 'Alimentation', d: POWER, hover: '#f6c6da', run: () => openPowerMenu() },
 ];
 
