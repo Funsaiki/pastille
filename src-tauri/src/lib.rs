@@ -25,6 +25,7 @@ mod taskbar;
 mod tray;
 mod tray_apps;
 mod tray_host;
+mod update;
 mod usage;
 
 use tauri::{Manager, RunEvent, WindowEvent};
@@ -63,6 +64,8 @@ pub fn run() {
         )
         // N'écrit rien tant que Funsaiki ne coche pas « Démarrer avec Windows »
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        // Mises à jour depuis les releases GitHub (update.rs)
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Lit apps.json et enregistre le raccourci ; s'il est déjà pris, l'app démarre
             // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
@@ -78,6 +81,7 @@ pub fn run() {
                 launcher::set_memory_low(&w, true);   // la fenêtre démarre masquée
             }
             bar::init(app.handle());
+            update::init(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -111,6 +115,7 @@ pub fn run() {
             spotify::set_spotify_volume,
             feed::feed,
             feed::open_download,
+            update::install_update,
             tray_apps::tray_apps,
             tray_apps::tray_app_action,
             tray_apps::tray_click,

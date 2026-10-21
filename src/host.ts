@@ -144,6 +144,7 @@ export type AppAction = 'admin' | 'location' | 'pin' | 'unpin' | 'hide' | 'show'
 
 /* Notifications lues par Rust (feed.rs) ; `age` en secondes */
 export type FeedEvent =
+  | { kind: 'update'; version: string }
   | { kind: 'download'; name: string; age: number }
   | { kind: 'steam'; game: string; progress: number | null; paused: boolean; age: number | null }
   | { kind: 'reboot' }
@@ -405,10 +406,13 @@ export const host = {
     if (PREVIEW) console.info('[aperçu] volume de Spotify :', level);
     else await invoke('set_spotify_volume', { level });
   },
-  /* Alertes, activité de Steam, téléchargements des dernières 24 h */
+  /* Mise à jour de Pastille, alertes, activité de Steam, téléchargements des dernières 24 h */
   async feed(): Promise<FeedEvent[]> {
     if (PREVIEW) {
+      // ?maj : une mise à jour proposée
+      const update: FeedEvent[] = new URLSearchParams(location.search).has('maj') ? [{ kind: 'update', version: '1.11.0' }] : [];
       return [
+        ...update,
         { kind: 'steam', game: 'Street Fighter 6', progress: 62, paused: false, age: null },
         { kind: 'download', name: 'Fichier-de-la-maquette.zip', age: 300 },
         { kind: 'steam', game: 'Aniimo', progress: null, paused: false, age: 22300 },
@@ -471,6 +475,14 @@ export const host = {
       else previewHidden.delete(item.label);
       previewConfigListeners.forEach((fn) => fn());
     }
+  },
+  /* Télécharge la mise à jour proposée, vérifie sa signature et lance l'installateur : en
+     production, Pastille quitte (l'installateur la relance) */
+  async installUpdate() {
+    if (PREVIEW) {
+      console.info('[aperçu] installer la mise à jour');
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    } else await invoke('install_update');
   },
   /* Le nom du fichier seulement : Rust le cherche dans Téléchargements */
   async openDownload(name: string) {

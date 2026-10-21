@@ -47,7 +47,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 2. The installer is not signed, so Windows shows "Windows protected your PC". Click "More info", then "Run anyway".
 3. Pastille opens by itself the first time. After that, **Alt+Space** opens and closes it; Escape or a click outside the phone closes it too.
 
-To update, quit Pastille before running the new installer. Your config, Spotify connection and customization are kept.
+Updates: from version 1.11.0, Pastille checks the releases by itself and shows new versions in its **Notifs** tab; one click downloads, verifies and installs the update, then Pastille restarts. Earlier versions are updated by running the new installer, after quitting Pastille. Your config, Spotify connection and customization are kept.
 
 The menu of Pastille's icon, next to the clock, lets you edit or reload `apps.json`, connect Spotify, turn on the pastel bar, start with Windows, and quit. When the pastel bar is on, open this menu by right-clicking the Applications tile of the pill.
 
@@ -101,7 +101,8 @@ Requirements: Windows, [Node.js](https://nodejs.org/) 24, Rust (stable) and the 
 ```powershell
 npm install
 npm run tauri dev     # the app, rebuilt on every change
-npm run tauri build   # the installer, in src-tauri/target/release/bundle/nsis/
+npm run tauri build   # the installer, in src-tauri/target/release/bundle/nsis/ (signed for
+                      # updates: needs the TAURI_SIGNING_PRIVATE_KEY environment variable)
 npm run dev           # browser preview with sample data:
                       # http://localhost:1420/ (phone) and http://localhost:1420/barre.html (bar)
 ```
@@ -113,7 +114,7 @@ The development build shares its config and shortcut with the installed version:
 - `maquette/`: the reference mockup of the phone.
 - `CLAUDE.md`: the project brief (in French), developed with [Claude Code](https://claude.com/claude-code).
 
-Pushing a `vX.Y.Z` tag matching the version in `src-tauri/tauri.conf.json` runs the "Installateur" workflow, which builds and publishes the release.
+Pushing a `vX.Y.Z` tag matching the version in `src-tauri/tauri.conf.json` runs the "Installateur" workflow, which builds and publishes the release (installer, signature and the `latest.json` read by installed copies).
 
 ## Credits
 

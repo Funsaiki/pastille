@@ -703,6 +703,11 @@ function ago(seconds: number) {
 
 function feedNotif(e: FeedEvent): Notif {
   switch (e.kind) {
+    // Mise à jour de Pastille (demandée par Funsaiki) : un clic l'installe, Pastille redémarre
+    case 'update': {
+      const body = updating ? `Téléchargement de la ${e.version}…` : `Mise à jour ${e.version} disponible`;
+      return { id: 'update:' + e.version, title: 'Pastille', when: '', body, d: ICONS.applications, bg: 'var(--fill)', open: installUpdate, stay: true };
+    }
     case 'reboot':
       return { id: 'reboot', title: 'Windows Update', when: '', body: 'Redémarrez pour terminer une mise à jour', d: RESTART, bg: '#ffe08a', open: () => host.openTool('windows-update') };
     case 'disk':
@@ -744,6 +749,22 @@ async function enableAutostart() {
   await host.enableAutostart();
   welcome!.autostart = true;
   renderNotifs();
+}
+
+let updating = false;   // mise à jour en cours de téléchargement : la notification le dit
+
+/* En production, Pastille quitte pendant l'appel (l'installateur la relance) ; un échec est
+   signalé par le clic de la notification */
+async function installUpdate() {
+  if (updating) return;
+  updating = true;
+  renderNotifs();
+  try {
+    await host.installUpdate();
+  } finally {
+    updating = false;
+    renderNotifs();
+  }
 }
 
 /* « Alt+Space » (apps.json) → « Alt+Espace » */

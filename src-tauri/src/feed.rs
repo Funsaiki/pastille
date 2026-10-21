@@ -1,5 +1,6 @@
-//! Notifications de la vue réglages (choix de Funsaiki) : téléchargements terminés, activité de
-//! Steam, alertes du PC (redémarrage demandé par Windows Update, disque presque plein).
+//! Notifications de la vue réglages (choix de Funsaiki) : mise à jour de Pastille (update.rs),
+//! téléchargements terminés, activité de Steam, alertes du PC (redémarrage demandé par Windows
+//! Update, disque presque plein).
 //! Windows ne donne pas ses propres notifications aux applications non empaquetées.
 //! Tout est relu à chaque appel, en lecture seule.
 
@@ -11,6 +12,7 @@ use std::{
 };
 
 use serde::Serialize;
+use tauri::AppHandle;
 use windows::core::{GUID, HSTRING};
 use windows_registry::LOCAL_MACHINE;
 use windows::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives};
@@ -22,6 +24,8 @@ use crate::steam;
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Event {
+    /// Version plus récente de Pastille, installée d'un clic
+    Update { version: String },
     /// Fichier arrivé dans Téléchargements ; `age` en secondes
     Download { name: String, age: u64 },
     Steam(steam::Activity),
@@ -42,21 +46,25 @@ const DRIVE_FIXED: u32 = 3;
 const FILE_ATTRIBUTE_HIDDEN: u32 = 2;
 const FILE_ATTRIBUTE_SYSTEM: u32 = 4;
 
-/// Alertes d'abord, puis Steam, puis les téléchargements du plus récent au plus ancien
+/// Mise à jour et alertes d'abord, puis Steam, puis les téléchargements du plus récent au plus ancien
 #[tauri::command]
-pub async fn feed() -> Vec<Event> {
-    crate::blocking(|| {
-        let mut events = Vec::new();
-        if reboot_required() {
-            events.push(Event::Reboot);
-        }
-        events.extend(low_disks());
-        events.extend(steam::activity().into_iter().map(Event::Steam));
-        events.extend(downloads());
-        events
-    })
-    .await
-    .unwrap_or_default()
+pub async fn feed(app: AppHandle) -> Vec<Event> {
+    let update = crate::update::available(&app);
+    crate::blocking(move || read(update)).await.unwrap_or_default()
+}
+
+fn read(update: Option<String>) -> Vec<Event> {
+    let mut events = Vec::new();
+    if let Some(version) = update {
+        events.push(Event::Update { version });
+    }
+    if reboot_required() {
+        events.push(Event::Reboot);
+    }
+    events.extend(low_disks());
+    events.extend(steam::activity().into_iter().map(Event::Steam));
+    events.extend(downloads());
+    events
 }
 
 /// Ouvre un fichier de Téléchargements : le front envoie son nom, jamais un chemin
@@ -155,6 +163,7 @@ mod tests {
     #[test]
     fn events_are_tagged() {
         let json = serde_json::to_string(&[
+            Event::Update { version: "1.11.0".into() },
             Event::Download { name: "a.zip".into(), age: 60 },
             Event::Reboot,
             Event::Steam(steam::Activity { game: "Hades".into(), progress: Some(40), paused: false, age: None }),
@@ -162,7 +171,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             json,
-            r#"[{"kind":"download","name":"a.zip","age":60},{"kind":"reboot"},{"kind":"steam","game":"Hades","progress":40,"paused":false,"age":null}]"#
+            r#"[{"kind":"update","version":"1.11.0"},{"kind":"download","name":"a.zip","age":60},{"kind":"reboot"},{"kind":"steam","game":"Hades","progress":40,"paused":false,"age":null}]"#
         );
     }
 
@@ -171,6 +180,6 @@ mod tests {
     #[ignore]
     fn real_feed() {
         eprintln!("Téléchargements : {:?}", downloads_dir());
-        eprintln!("{}", serde_json::to_string_pretty(&tauri::async_runtime::block_on(feed())).unwrap());
+        eprintln!("{}", serde_json::to_string_pretty(&read(None)).unwrap());
     }
 }

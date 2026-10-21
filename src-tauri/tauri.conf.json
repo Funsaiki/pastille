@@ -31,9 +31,18 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA0MDQxNjA5OTRBNkRCMEMKUldRTTI2YVVDUllFQkEreEtvTVVLOXFnNXJ2QXBJd2hqbGZtMDFrdnEzR1hoM0FDZ1RpVlJtaEQK",
+      "endpoints": ["https://github.com/Funsaiki/pastille/releases/latest/download/latest.json"],
+      "requireSignedVersion": true,
+      "windows": { "installMode": "passive" }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "shortDescription": "Lanceur d'applications en forme de téléphone pastel",
     "windows": {
       "nsis": { "languages": ["French"], "installMode": "currentUser" }
