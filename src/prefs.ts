@@ -196,6 +196,7 @@ const SPOTIFY: Record<SpotifyLink, { sub: string; button: string; primary: boole
   connected: { sub: 'Connecté', button: 'Déconnecter', primary: false },
   disconnected: { sub: 'Pour le volume et les playlists', button: 'Connecter', primary: true },
   outdated: { sub: 'Reconnecter pour les playlists', button: 'Reconnecter', primary: true },
+  pending: { sub: 'Connexion en cours dans le navigateur', button: 'Rouvrir', primary: true },
 };
 
 function spotifyRow(): Row {
@@ -206,7 +207,7 @@ function spotifyRow(): Row {
     const link = prefs?.spotify;
     if (!link) return;
     const ok = await act('Spotify', () => host.prefAction('spotify'));
-    // Connexion : elle se fait dans le navigateur
+    // Connexion (ou sa page rouverte) : elle se fait dans le navigateur
     if (ok && link !== 'connected') leave();
     else await reload();
   });
@@ -278,7 +279,7 @@ function versionRow(): Row {
 async function check() {
   checking = true;
   update();
-  const ok = await act('Mise à jour', () => host.prefAction('check-update'));
+  const ok = await act('Mise à jour', async () => void (await host.checkUpdate()));
   await reload();
   checking = false;
   checked = ok;

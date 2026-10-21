@@ -15,7 +15,7 @@
 //! des pilules sorties, et une fenêtre qui demande l'attention (Discord à un nouveau message)
 //! fait sortir un instant la pilule de son écran, sa tuile en rose.
 //!
-//! Seulement si Funsaiki coche « Barre pastel » dans le menu de l'icône (barre.json, à côté de
+//! Seulement si Funsaiki active « Barre pastel » dans la page Paramètres (barre.json, à côté de
 //! apps.json, avec les applications épinglées : bar_pins.rs) ; la barre des tâches de Windows
 //! est alors masquée (taskbar.rs).
 
@@ -118,8 +118,12 @@ pub fn init(app: &AppHandle) {
     }
 }
 
-/// Case « Barre pastel » du menu de l'icône ; renvoie le nouvel état (d'après la barre, pas
-/// d'après barre.json, qui a pu être modifié à la main)
+/// Barre pastel en marche (d'après la barre, pas d'après barre.json, qui a pu être modifié à la main)
+pub fn running() -> bool {
+    RUNNING.load(SeqCst)
+}
+
+/// Interrupteur « Barre pastel » de la page Paramètres (prefs.rs) ; renvoie le nouvel état
 pub fn toggle(app: &AppHandle) -> bool {
     let active = !RUNNING.load(SeqCst);
     update(app, |settings| settings.active = active);
@@ -699,8 +703,8 @@ pub fn show_launcher(app: AppHandle) {
     launcher::show(&app);
 }
 
-/// Clic droit sur Applications : le menu de l'icône du lanceur (couper la barre pastel,
-/// quitter…), que la barre de Windows masquée ne montre plus. Ouvert depuis la boucle du fil
+/// Clic droit sur Applications : le menu de l'icône du lanceur (Afficher, Paramètres, Quitter),
+/// que la barre de Windows masquée ne montre plus. Ouvert depuis la boucle du fil
 /// principal, pas pendant la commande : le menu attend le choix de Funsaiki.
 #[tauri::command]
 pub async fn bar_menu(app: AppHandle) {

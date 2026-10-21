@@ -1177,7 +1177,7 @@ function init() {
     hide(true);
     host.showLauncher();
   });
-  // Clic droit : le menu de l'icône du lanceur (couper la barre pastel, quitter…)
+  // Clic droit : le menu de l'icône du lanceur (Afficher, Paramètres, Quitter)
   $('bar-apps').addEventListener('contextmenu', (e) => {
     e.preventDefault();
     host.barMenu();

@@ -156,7 +156,8 @@ export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 /* Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026) : ce que réglait le menu de
    l'icône, et la langue */
 export type Language = 'fr' | 'en';
-export type SpotifyLink = 'connected' | 'disconnected' | 'outdated';   // outdated : d'avant les playlists
+// outdated : d'avant les playlists ; pending : connexion en cours dans le navigateur
+export type SpotifyLink = 'connected' | 'disconnected' | 'outdated' | 'pending';
 export interface Prefs {
   language: Language;
   autostart: boolean | null;   // null : version de développement (seule la version installée s'inscrit)
@@ -167,7 +168,7 @@ export interface Prefs {
   update: string | null;       // version proposée
 }
 export type PrefSwitch = 'autostart' | 'bar';
-export type PrefAction = 'spotify' | 'edit-config' | 'reload' | 'check-update' | 'quit';
+export type PrefAction = 'spotify' | 'edit-config' | 'reload' | 'quit';
 
 /* Aperçu navigateur : apparence gardée dans la page (localStorage, partagé avec barre.html) */
 const PREVIEW_LOOK = 'apparence-apercu';
@@ -279,10 +280,10 @@ let previewPins: Omit<PinnedApp, 'icon'>[] = [
 ];
 
 /* Aperçu navigateur : réglages de la page Paramètres ; ?maj : une mise à jour trouvée par
-   « Vérifier » */
+   « Vérifier » ; ?dev : version de développement (Démarrer avec Windows grisé) */
 const previewPrefs: Prefs = {
   language: navigator.language.startsWith('fr') ? 'fr' : 'en',
-  autostart: false,
+  autostart: new URLSearchParams(location.search).has('dev') ? null : false,
   bar: true,
   shortcut: 'Alt+Space',
   spotify: 'connected',
@@ -527,8 +528,8 @@ export const host = {
       previewPrefs[key] = on;
     } else await invoke('set_pref_switch', { key, on });
   },
-  /* Spotify : connecter (navigateur), reconnecter ou déconnecter selon l'état ; quit : Pastille
-     quitte pendant l'appel */
+  /* Spotify : connecter (navigateur), reconnecter, rouvrir la page de la connexion en cours ou
+     déconnecter selon l'état ; quit : Pastille quitte pendant l'appel */
   async prefAction(action: PrefAction) {
     if (!PREVIEW) {
       await invoke('pref_action', { action });
@@ -536,10 +537,13 @@ export const host = {
     }
     console.info('[aperçu] paramètres :', action);
     if (action === 'spotify') previewPrefs.spotify = previewPrefs.spotify === 'connected' ? 'disconnected' : 'connected';
-    if (action === 'check-update') {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      previewPrefs.update = new URLSearchParams(location.search).has('maj') ? '1.12.0' : null;
-    }
+  },
+  /* « Vérifier » : la version trouvée (gardée, proposée aussi dans Notifs) */
+  async checkUpdate(): Promise<string | null> {
+    if (!PREVIEW) return invoke<string | null>('check_update');
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    previewPrefs.update = new URLSearchParams(location.search).has('maj') ? '1.12.0' : null;
+    return previewPrefs.update;
   },
   /* Le nom du fichier seulement : Rust le cherche dans Téléchargements */
   async openDownload(name: string) {
@@ -736,9 +740,10 @@ export const host = {
   async isVisible(): Promise<boolean> {
     return PREVIEW || getCurrentWindow().isVisible();
   },
-  /* Envoyés par Rust : raccourci, zone de notification, perte de focus, Alt+F4 */
-  onShown(fn: () => void) {
-    if (!PREVIEW) listen('launcher:shown', fn);
+  /* Envoyés par Rust : raccourci, zone de notification, perte de focus, Alt+F4. `page` : ce qui
+     s'ouvre une fois le téléphone monté (« prefs » : Paramètres, du menu de l'icône) */
+  onShown(fn: (page: string | null) => void) {
+    if (!PREVIEW) listen<string | null>('launcher:shown', (e) => fn(e.payload));
   },
   onHideRequest(fn: () => void) {
     if (!PREVIEW) listen('launcher:hide', fn);

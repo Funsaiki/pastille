@@ -1,5 +1,5 @@
 //! Volume interne de Spotify (demande de Funsaiki, compte Premium), par l'API web de Spotify.
-//! Connexion une fois, depuis le menu de l'icône (« Connecter Spotify… ») : autorisation dans
+//! Connexion une fois, depuis la page Paramètres (section Spotify, « Connecter ») : autorisation dans
 //! le navigateur avec PKCE (pas de secret à garder), retour sur une adresse locale (REDIRECT,
 //! déclarée dans l'app Spotify de chacun sur developer.spotify.com). L'identifiant de cette app
 //! et le jeton de renouvellement sont dans spotify.json, à côté de apps.json. Chacun a sa propre
@@ -22,7 +22,7 @@ use std::{
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{menu::MenuItem, AppHandle, Manager, Wry};
+use tauri::{AppHandle, Manager};
 use windows::core::{h, RuntimeType, HSTRING};
 use windows::Foundation::Uri;
 use windows::Storage::Streams::UnicodeEncoding;
@@ -71,9 +71,7 @@ pub struct Spotify {
     /// Un renouvellement à la fois : Spotify peut remplacer le jeton de renouvellement, deux
     /// demandes avec l'ancien se gêneraient
     refreshing: Mutex<()>,
-    /// Entrée du menu de l'icône, remise à jour à chaque connexion ou déconnexion
-    menu: OnceLock<MenuItem<Wry>>,
-    /// Pendant une connexion : la page ouverte dans le navigateur, rouverte par l'entrée du menu
+    /// Pendant une connexion : la page ouverte dans le navigateur, rouverte par la page Paramètres
     /// (onglet fermé ou perdu)
     pending: Mutex<Option<String>>,
 }
@@ -120,7 +118,6 @@ pub fn reload(app: &AppHandle) {
         }
         auth.saved = saved;
     }
-    update_menu(app);
 }
 
 /// Fichier temporaire puis renommage : un arrêt en pleine écriture ne perd pas l'identifiant
@@ -163,32 +160,21 @@ fn has_scopes(granted: &str) -> bool {
     SCOPES.split(' ').all(|scope| granted.split(' ').any(|g| g == scope))
 }
 
-/* ── Menu de l'icône ── */
+/* ── Page Paramètres ── */
 
-/// Libellé de l'entrée Spotify du menu
-pub fn menu_label(app: &AppHandle) -> &'static str {
+/// État de la connexion pour la page : « pending » pendant une connexion dans le navigateur
+pub fn link(app: &AppHandle) -> &'static str {
     if app.state::<Spotify>().pending.lock().unwrap().is_some() {
-        return "Rouvrir la connexion à Spotify…";
+        return "pending";
     }
     match status(app) {
-        Status::NoClient | Status::Disconnected => "Connecter Spotify…",
-        Status::Connected => "Déconnecter Spotify",
-        Status::Outdated => "Reconnecter Spotify (playlists)…",
+        Status::NoClient | Status::Disconnected => "disconnected",
+        Status::Connected => "connected",
+        Status::Outdated => "outdated",
     }
 }
 
-/// Appelée par tray.rs une fois l'entrée créée
-pub fn set_menu_item(app: &AppHandle, item: MenuItem<Wry>) {
-    let _ = app.state::<Spotify>().menu.set(item);
-}
-
-fn update_menu(app: &AppHandle) {
-    if let Some(item) = app.state::<Spotify>().menu.get() {
-        let _ = item.set_text(menu_label(app));
-    }
-}
-
-/// Clic sur la notification « Reconnecter » : comme l'entrée du menu, sans jamais déconnecter
+/// Clic sur la notification « Reconnecter » : comme le bouton de la page, sans jamais déconnecter
 #[tauri::command]
 pub fn spotify_reconnect(app: AppHandle) -> Result<(), String> {
     if status(&app) == Status::Connected {
@@ -198,8 +184,8 @@ pub fn spotify_reconnect(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Clic sur l'entrée : connexion dans le navigateur, ou déconnexion. Connexion en cours : sa
-/// page, rouverte.
+/// Bouton de la page Paramètres : connexion dans le navigateur, ou déconnexion. Connexion en
+/// cours : sa page, rouverte.
 pub fn toggle(app: &AppHandle) {
     let pending = app.state::<Spotify>().pending.lock().unwrap().clone();
     if let Some(page) = pending {
@@ -232,7 +218,6 @@ fn start_connect(app: &AppHandle) {
     };
     let page = if client_id.is_empty() { login.setup_url() } else { login.authorize_url(&client_id) };
     *app.state::<Spotify>().pending.lock().unwrap() = Some(page.clone());
-    update_menu(app);
     let app = app.clone();
     std::thread::spawn(move || {
         let result = crate::shell::open_as_is(&page).and_then(|_| connect(&app, &listener, &login, client_id));
@@ -247,7 +232,6 @@ fn finish(app: &AppHandle, result: Result<(), String>) {
         eprintln!("[lanceur] Spotify : {e}");
     }
     app.state::<Spotify>().auth.lock().unwrap().problem = result.as_ref().err().map(|e| format!("Connexion impossible : {e}"));
-    update_menu(app);
     // Nouvelles portées : les playlists peuvent maintenant être lues
     if result.is_ok() {
         crate::config::rescan(app);
@@ -264,7 +248,6 @@ fn disconnect(app: &AppHandle, problem: Option<String>) {
         auth.problem = problem;
         save(app, &auth.saved);
     }
-    update_menu(app);
 }
 
 /* ── Connexion (PKCE) ── */
@@ -492,7 +475,7 @@ fn page(result: &Result<(), String>) -> String {
         Err(e) => (
             "Connexion à Spotify impossible",
             e.as_str(),
-            r#"<p style="margin:8px 0 0;color:rgba(15,59,66,.72)">Pour réessayer&nbsp;: menu de Pastille (clic droit sur son icône, près de l'heure), «&nbsp;Connecter Spotify…&nbsp;».</p>"#,
+            r#"<p style="margin:8px 0 0;color:rgba(15,59,66,.72)">Pour réessayer&nbsp;: Paramètres de Pastille (la clé à côté de ton nom), section Spotify, «&nbsp;Connecter&nbsp;».</p>"#,
         ),
     };
     format!(
@@ -595,7 +578,7 @@ fn store(app: &AppHandle, json: &Value, sent: Option<&str>) -> Result<String, St
     let token = json["access_token"].as_str().ok_or("réponse de Spotify sans jeton.")?.to_string();
     let seconds = json["expires_in"].as_u64().unwrap_or(3600);
     let granted = json["scope"].as_str().map(String::from);
-    let menu_changes = {
+    {
         let spotify = app.state::<Spotify>();
         let mut auth = spotify.auth.lock().unwrap();
         if sent.is_some() && auth.saved.refresh_token.as_deref() != sent {
@@ -607,14 +590,10 @@ fn store(app: &AppHandle, json: &Value, sent: Option<&str>) -> Result<String, St
             auth.saved.refresh_token = Some(refresh.to_string());
             save(app, &auth.saved);
         }
-        let changes = granted.is_some() && granted != auth.granted;
+        // Portées accordées : sans celles des playlists, la page propose de se reconnecter
         if granted.is_some() {
             auth.granted = granted;
         }
-        changes
-    };
-    if menu_changes {
-        update_menu(app); // « Reconnecter Spotify (playlists)… » s'il manque des portées
     }
     Ok(token)
 }
@@ -641,7 +620,7 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
         // Autorisation retirée, app supprimée… : le curseur repasse au volume de Windows
         Err(TokenError::Refused(e)) => {
             eprintln!("[lanceur] Spotify : {e}");
-            let expired = "Connexion à Spotify expirée : reconnecte-le depuis le menu de l'icône de Pastille.";
+            let expired = "Connexion à Spotify expirée : reconnecte-le depuis les Paramètres de Pastille.";
             disconnect(app, Some(expired.into()));
             Err(expired.into())
         }
@@ -804,7 +783,7 @@ pub fn playlists(app: &AppHandle) -> Option<Vec<Playlist>> {
 fn fetch_playlists(app: &AppHandle) -> Result<Vec<Playlist>, String> {
     let token = access_token(app)?;
     // Le jeton dit quelles portées sont accordées : connexion d'avant les playlists, Spotify
-    // refuserait ; le menu de l'icône propose de se reconnecter
+    // refuserait ; la page Paramètres propose de se reconnecter
     if status(app) == Status::Outdated {
         return Ok(Vec::new());
     }

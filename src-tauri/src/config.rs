@@ -555,6 +555,11 @@ pub fn init(app: &AppHandle) {
     scan_games(app);
 }
 
+/// Raccourci de apps.json (« Alt+Space »), pour la page Paramètres
+pub fn shortcut(app: &AppHandle) -> String {
+    app.state::<SharedConfig>().lock().unwrap().config.shortcut.clone()
+}
+
 /// Premier lancement (apps.json créé à ce démarrage) : le lanceur s'affiche de lui-même
 pub fn first_run(app: &AppHandle) -> bool {
     app.state::<SharedConfig>().lock().unwrap().first_run
@@ -670,7 +675,7 @@ pub fn get_config(app: AppHandle, state: tauri::State<'_, SharedConfig>) -> Conf
     let s = state.lock().unwrap();
     let mut config = s.config.clone();
     annotate(&app, &mut config.apps, &mut HashMap::new());
-    let welcome = s.first_run.then(|| Welcome { shortcut: s.registered.clone(), autostart: tray::autostart_enabled(&app) });
+    let welcome = s.first_run.then(|| Welcome { shortcut: s.registered.clone(), autostart: crate::prefs::autostart_enabled(&app) });
     ConfigPayload { config, problems: s.problems.clone(), welcome }
 }
 

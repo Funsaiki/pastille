@@ -22,7 +22,8 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 **The phone (quick settings)**
 - Volume, microphone, per-app volume mixer, CPU and memory usage, network speed.
 - Spotify now playing: title, cover art, controls and, once Spotify is connected, its own volume, shuffle and repeat.
-- Shortcuts to Wi-Fi, Bluetooth, Settings and a power menu (with confirmation).
+- Shortcuts to Wi-Fi, Bluetooth, Windows Settings and a power menu (with confirmation).
+- A **Paramètres** (settings) page, behind the wrench next to your name: start with Windows, the pastel bar, customization, Spotify connection, `apps.json`, updates.
 - **Apps** tab: apps running in the background (notification area). **Notifs** tab: recent downloads, Steam updates, restart required by Windows Update, low disk space.
 
 **Apps**
@@ -37,7 +38,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 - The notification area, whose icons respond just like in the Windows taskbar (right-click included).
 - Sound, a calendar and a Spotify player.
 
-**Customize**
+**Customize** (in the settings page)
 - Accent, case, screen and ink colors, from a palette or any custom color.
 - The strap charm (or your own image) and the bead colors. The pastel bar uses the same accent and ink.
 
@@ -49,7 +50,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 
 Updates: from version 1.11.0, Pastille checks the releases by itself and shows new versions in its **Notifs** tab; one click downloads, verifies and installs the update, then Pastille restarts. Earlier versions are updated by running the new installer, after quitting Pastille. Your config, Spotify connection and customization are kept.
 
-The menu of Pastille's icon, next to the clock, lets you edit or reload `apps.json`, connect Spotify, turn on the pastel bar, start with Windows, and quit. When the pastel bar is on, open this menu by right-clicking the Applications tile of the pill.
+Settings are in the phone: click the wrench next to your name. The menu of Pastille's icon, next to the clock, has **Afficher** (show), **Paramètres** (settings) and **Quitter** (quit); when the pastel bar is on, open this menu by right-clicking the Applications tile of the pill.
 
 Pastille is made for Windows 11; it hasn't been tried on Windows 10.
 
@@ -84,15 +85,15 @@ The config lives in `%APPDATA%\dev.lanceur.pastel\apps.json`, created on first l
 
 - An `app` or `default` tile that can't be found on the PC is not shown, so the same config works on several PCs.
 - `keywords` adds extra words for the search.
-- After editing, choose "Recharger la config" (reload) in the icon menu.
+- "Modifier apps.json" in the settings page opens it; Pastille reloads it the next time it opens, or right away with "Recharger la config".
 
 ### Spotify (optional)
 
-Without connecting, Pastille already shows and controls what's playing. Connecting adds Spotify's own volume, shuffle, repeat and your playlists. It requires a **Premium** account, and everyone creates their own (free) Spotify app to get a Client ID. "Connecter Spotify…" in the icon menu opens a page that walks you through it.
+Without connecting, Pastille already shows and controls what's playing. Connecting adds Spotify's own volume, shuffle, repeat and your playlists. It requires a **Premium** account, and everyone creates their own (free) Spotify app to get a Client ID. "Connecter" in the Spotify section of the settings page opens a page that walks you through it.
 
 ### Pastel bar
 
-Check "Barre pastel" in the icon menu: the Windows taskbar is hidden and a pill appears at the bottom of each screen. Uncheck it or quit Pastille to get the taskbar back; if Pastille stops unexpectedly, a small watchdog process brings it back.
+Turn on "Barre pastel" in the settings page: the Windows taskbar is hidden and a pill appears at the bottom of each screen. Turn it off or quit Pastille to get the taskbar back; if Pastille stops unexpectedly, a small watchdog process brings it back.
 
 ## Development
 

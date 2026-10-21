@@ -14,6 +14,7 @@ mod media;
 mod mixer;
 mod open_windows;
 mod power;
+mod prefs;
 mod shell;
 mod shell_hook;
 mod spotify;
@@ -89,7 +90,12 @@ pub fn run() {
             appearance::get_appearance,
             appearance::set_appearance,
             appearance::pick_charm_image,
-            tray::enable_autostart,
+            prefs::enable_autostart,
+            prefs::prefs,
+            prefs::set_language,
+            prefs::set_pref_switch,
+            prefs::pref_action,
+            update::check_update,
             launcher::first_show,
             launcher::hide_window,
             shell::launch,

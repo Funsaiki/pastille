@@ -111,6 +111,12 @@ pub fn hide_window(app: AppHandle) {
 }
 
 pub fn show(app: &AppHandle) {
+    show_page(app, None);
+}
+
+/// `page` : ce que le front ouvre une fois le téléphone monté (« prefs » : la page Paramètres,
+/// depuis le menu de l'icône)
+pub fn show_page(app: &AppHandle, page: Option<&str>) {
     let Some(w) = window(app) else { return };
     set_memory_low(&w, false);
     // apps.json modifié depuis la dernière ouverture : le front reçoit la nouvelle config avant « shown »
@@ -124,7 +130,7 @@ pub fn show(app: &AppHandle) {
     }
     let _ = w.show();
     let _ = w.set_focus();
-    let _ = app.emit("launcher:shown", ());
+    let _ = app.emit("launcher:shown", page);
 }
 
 /// Premier lancement (après l'installation) : le téléphone se montre de lui-même, avec la

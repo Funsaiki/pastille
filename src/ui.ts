@@ -522,7 +522,7 @@ async function controlMedia(action: MediaAction) {
 }
 
 /* ── Volume de Spotify (demandé par Funsaiki), réglable depuis la carte de lecture (curseur,
-   molette) : celui de Spotify lui-même quand il est connecté (API web, menu de l'icône), sinon
+   molette) : celui de Spotify lui-même quand il est connecté (API web, page Paramètres), sinon
    celui du mélangeur de Windows (ce curseur et la tranche de Spotify se suivent alors). Relu à
    l'affichage de la vue réglages puis toutes les 5 s. ── */
 let spotifyVolume: SpotifyVolume | null = null;
@@ -1932,10 +1932,11 @@ export async function init() {
     configLoading = loadConfig().catch(console.error);
   });
 
-  host.onShown(async () => {
+  host.onShown(async (page) => {
     shownCount++;
     await configLoading;   // si apps.json a changé, Rust a envoyé la nouvelle config juste avant
     playEntrance();
+    if (page === 'prefs') showPrefs();   // « Paramètres » du menu de l'icône
   });
   host.onHideRequest(hideLauncher);
   if (await host.isVisible()) playEntrance();

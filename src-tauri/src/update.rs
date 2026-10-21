@@ -35,13 +35,9 @@ pub fn init(app: &AppHandle) {
         std::thread::sleep(if cfg!(debug_assertions) { Duration::from_secs(5) } else { FIRST_CHECK });
         loop {
             // Hors ligne : la mise à jour déjà trouvée reste proposée
-            match tauri::async_runtime::block_on(check(&app)) {
-                Ok(found) => {
-                    if let Some(update) = &found {
-                        eprintln!("[lanceur] mise à jour : {} disponible", update.version);
-                    }
-                    *app.state::<Pending>().0.lock().unwrap() = found;
-                }
+            match tauri::async_runtime::block_on(check_now(&app)) {
+                Ok(Some(version)) => eprintln!("[lanceur] mise à jour : {version} disponible"),
+                Ok(None) => {}
                 Err(e) => eprintln!("[lanceur] mise à jour : vérification impossible : {e}"),
             }
             std::thread::sleep(EVERY);
@@ -75,7 +71,22 @@ async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
     builder.build().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())
 }
 
-/// Version proposée, lue avec les notifications (feed.rs)
+/// Vérifie et garde la mise à jour trouvée ; renvoie sa version
+async fn check_now(app: &AppHandle) -> Result<Option<String>, String> {
+    let found = check(app).await?;
+    let version = found.as_ref().map(|u| u.version.clone());
+    *app.state::<Pending>().0.lock().unwrap() = found;
+    Ok(version)
+}
+
+/// « Vérifier » de la page Paramètres : tout de suite, aussi en développement (contre la vraie
+/// release ; rien ne s'installe sans clic, et en développement rien du tout)
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
+    check_now(&app).await.map_err(|e| format!("Vérification impossible : {e}"))
+}
+
+/// Version proposée, lue avec les notifications (feed.rs) et la page Paramètres
 pub fn available(app: &AppHandle) -> Option<String> {
     app.state::<Pending>().0.lock().unwrap().as_ref().map(|u| u.version.clone())
 }
