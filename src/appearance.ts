@@ -6,7 +6,7 @@
    ══════════════════════════════════════════════════════════ */
 import { CONFIG } from './config';
 
-export type Charm = 'miku' | 'etoile' | 'coeur' | 'pilule' | 'chat' | 'image' | 'aucune';
+export type Charm = 'pilule' | 'etoile' | 'coeur' | 'chat' | 'image' | 'aucune';
 export type ColorKey = 'accent' | 'coque' | 'ecran' | 'encre';
 
 /* Ce qui est gardé (couleurs en #rrggbb) ; un champ absent : celui d'origine. L'accent

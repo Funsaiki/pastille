@@ -27,9 +27,10 @@ const PLUS = 'M12 6v12M6 12h12';
 const PICTURE = 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9h.01';
 const NONE = 'M12 3a9 9 0 100 18 9 9 0 000-18zM5.6 5.6l12.8 12.8';
 
-/* ── Breloques : Miku (fournie par Funsaiki) et quatre dessins dans le style du lanceur, de
-   52 × 64 comme la place de Miku au bout du cordon. Chacune a son anneau en haut, au milieu,
-   prolongé jusqu'au cordon. ── */
+/* ── Breloques : quatre dessins dans le style du lanceur, de 52 × 64, la pastille par défaut.
+   Chacune a son anneau en haut, au milieu, prolongé jusqu'au cordon. ── */
+const DEFAULT_CHARM: Charm = 'pilule';
+
 const ring = (cy: number, body: number) =>
   `<path d="M26 0V${cy - 3.2}M26 ${cy + 3.2}V${body}" stroke-width="2.4"/><circle cx="26" cy="${cy}" r="3.2" stroke-width="2.4"/>`;
 
@@ -63,10 +64,9 @@ const DRAWN: Partial<Record<Charm, string>> = {
 };
 
 const CHARMS: { key: Charm; name: string }[] = [
-  { key: 'miku', name: 'Miku' },
+  { key: 'pilule', name: 'Pastille' },
   { key: 'etoile', name: 'Étoile' },
   { key: 'coeur', name: 'Cœur' },
-  { key: 'pilule', name: 'Pastille' },
   { key: 'chat', name: 'Chat' },
   { key: 'image', name: 'Ton image' },
   { key: 'aucune', name: 'Sans strap' },
@@ -74,22 +74,21 @@ const CHARMS: { key: Charm; name: string }[] = [
 
 const charmName = (key: Charm) => CHARMS.find((c) => c.key === key)!.name;
 
-/* La breloque `key` en image ; l'image choisie, à défaut Miku */
+/* La breloque `key` en image ; sans image choisie, la pastille */
 function charmNode(key: Charm): Element {
-  const drawn = DRAWN[key];
-  if (drawn) {
-    const box = document.createElement('span');
-    box.innerHTML = `<svg viewBox="0 0 52 64" width="52" height="64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${drawn}</svg>`;
-    return box.firstElementChild!;
+  if (key === 'image' && image) {
+    const img = el('img');
+    img.src = image;
+    img.alt = '';
+    img.draggable = false;
+    return img;
   }
-  const img = el('img');
-  img.src = key === 'image' && image ? image : '/assets/SvgMiku3.svg';
-  img.alt = '';
-  img.draggable = false;
-  return img;
+  const box = document.createElement('span');
+  box.innerHTML = `<svg viewBox="0 0 52 64" width="52" height="64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${DRAWN[key] ?? DRAWN[DEFAULT_CHARM]}</svg>`;
+  return box.firstElementChild!;
 }
 
-const charmOf = (): Charm => appearance().breloque ?? 'miku';
+const charmOf = (): Charm => appearance().breloque ?? DEFAULT_CHARM;
 
 /* Strap du téléphone : sa breloque, ou rien */
 export function applyStrap() {
@@ -135,7 +134,7 @@ function setBead(i: number, color: string) {
 
 function setCharm(key: Charm) {
   const a = { ...appearance() };
-  if (key === 'miku') delete a.breloque;
+  if (key === DEFAULT_CHARM) delete a.breloque;
   else a.breloque = key;
   setAppearance(a);
   changed();

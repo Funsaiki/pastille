@@ -106,16 +106,15 @@ button, input { font-family: 'Nunito', sans-serif; }
 .landscape .strap { transform: translateZ(3px) rotate(90deg); }
 .strap-swing { position: relative; width: 100%; height: 100%; transform-origin: 31px 10px; animation: strap-swing 1.8s .2s both; }
 .strap-swing svg { display: block; }
-/* Breloque : Miku (assets/SvgMiku3.svg) par défaut, le haut du crâne au bout du cordon, avec
-   l'ombre d'encre de 3 px des autres éléments ; les autres (customize.ts) ont leur anneau au même
-   endroit */
+/* Breloque (customize.ts) : son anneau au bout du cordon, avec l'ombre d'encre de 3 px des
+   autres éléments */
 .strap-charm {
   position: absolute; left: 5px; top: 134px; width: 52px; user-select: none;
   filter: drop-shadow(0 3px 0 var(--ink));
 }
 .strap-charm > * { display: block; width: 100%; height: auto; }
-/* Dessins de customize.ts (52 × 64) réduits à la hauteur de Miku (47 px, un peu plus avec
-   l'anneau) : téléphone couché, une breloque plus haute sortirait par le bas de l'écran */
+/* Dessins de customize.ts (52 × 64) réduits à 44 × 54 : téléphone couché, une breloque plus
+   haute sortirait par le bas de l'écran */
 .strap-charm > svg { width: 44px; height: 54px; margin: 0 auto; }
 @keyframes strap-swing {
   0%, 100% { rotate: 0deg; animation-timing-function: ease-in-out; }
@@ -141,7 +140,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 
 /* ── Téléphone : incliné et debout, ou à plat et couché (.landscape sur la scène) ──
    Couché, il est agrandi de 10 % (demande de Funsaiki) et remonté de 140 px au lieu de 130 :
-   la Miku du strap reste au-dessus du bord de l'écran. */
+   la breloque du strap reste au-dessus du bord de l'écran. */
 .phone { position: absolute; left: 500px; top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%; }
 .phone-tilt {
   position: relative; width: 410px; height: 830px;

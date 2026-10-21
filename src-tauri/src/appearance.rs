@@ -38,7 +38,7 @@ pub struct Appearance {
     ecran: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     encre: Option<String>,
-    /// Absente : Miku
+    /// Absente : la pastille
     #[serde(default, skip_serializing_if = "Option::is_none")]
     breloque: Option<String>,
     /// Trois couleurs, de haut en bas
@@ -46,8 +46,8 @@ pub struct Appearance {
     perles: Option<Vec<String>>,
 }
 
-/// Breloques connues du front, sauf Miku (par défaut)
-const CHARMS: [&str; 6] = ["etoile", "coeur", "pilule", "chat", "image", "aucune"];
+/// Breloques connues du front, sauf la pastille (par défaut)
+const CHARMS: [&str; 5] = ["etoile", "coeur", "chat", "image", "aucune"];
 
 fn is_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
