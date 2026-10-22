@@ -6,7 +6,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 
 <p align="center">
   <img src="docs/reglages.webp" alt="The tilted phone: quick settings, volume, now playing and background apps" width="380">
-  <img src="docs/personnaliser.webp" alt="The Customize card: accent, case, screen and ink colors" width="380">
+  <img src="docs/parametres.webp" alt="The settings page: language, start with Windows, pastel bar, shortcut and colors" width="380">
 </p>
 <p align="center">
   <img src="docs/applications.webp" alt="The phone laid flat: apps, recents and folders" width="760">
