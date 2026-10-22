@@ -78,7 +78,7 @@ mod tests {
     #[ignore]
     fn real_audio() {
         let state = tauri::async_runtime::block_on(audio());
-        eprintln!("volume : {:?}, coupé : {}, micro coupé : {:?}", state.volume, state.muted, state.mic_muted);
+        eprintln!("volume: {:?}, muted: {}, mic muted: {:?}", state.volume, state.muted, state.mic_muted);
         assert!(state.volume.is_some_and(|v| v <= 100));
     }
 }

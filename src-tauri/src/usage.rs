@@ -49,7 +49,7 @@ pub fn record(app: &AppHandle, key: String) {
     // Under the lock: two launches close together don't write the file at the same time
     if let (Some(path), Ok(text)) = (file(app), serde_json::to_string(&*map)) {
         if let Err(e) = fs::write(path, text) {
-            eprintln!("[lanceur] usage.json : {e}");
+            eprintln!("[pastille] usage.json: {e}");
         }
     }
 }

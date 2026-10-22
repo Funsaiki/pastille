@@ -131,7 +131,7 @@ fn save(app: &AppHandle, saved: &Saved) {
     let written = fs::write(&temp, serde_json::to_string_pretty(saved).unwrap_or_default())
         .and_then(|_| fs::rename(&temp, &path));
     if let Err(e) = written {
-        eprintln!("[lanceur] Spotify : {} non enregistré : {e}", path.display());
+        eprintln!("[pastille] Spotify: {} not saved: {e}", path.display());
     }
 }
 
@@ -195,7 +195,7 @@ pub fn toggle(app: &AppHandle) {
     if let Some(page) = pending {
         std::thread::spawn(move || {
             if let Err(e) = crate::shell::open_as_is(&page) {
-                eprintln!("[lanceur] Spotify : {e}");
+                eprintln!("[pastille] Spotify: {e}");
             }
         });
         return;
@@ -233,7 +233,7 @@ fn start_connect(app: &AppHandle) {
 /// End of a connection: a failure is shown in the notifications
 fn finish(app: &AppHandle, result: Result<(), String>) {
     if let Err(e) = &result {
-        eprintln!("[lanceur] Spotify : {e}");
+        eprintln!("[pastille] Spotify: {e}");
     }
     app.state::<Spotify>().auth.lock().unwrap().problem = result.as_ref().err().map(|e| tr(format!("Connexion impossible : {e}"), format!("Couldn't connect: {e}")));
     // New scopes: the playlists can now be read
@@ -640,7 +640,7 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
         Ok(json) => store(app, &json, Some(&refresh)),
         // Authorization revoked, app deleted…: the slider goes back to the Windows volume
         Err(TokenError::Refused(e)) => {
-            eprintln!("[lanceur] Spotify : {e}");
+            eprintln!("[pastille] Spotify: {e}");
             let expired = tr(
                 "Connexion à Spotify expirée : reconnecte-le depuis les Paramètres de Pastille.",
                 "Spotify connection expired: reconnect it from Pastille's Settings.",
@@ -699,7 +699,7 @@ pub async fn spotify_state(app: AppHandle) -> PlayerState {
                     state.repeat = Some(player.repeat);
                 }
                 Ok(None) => {}
-                Err(e) => eprintln!("[lanceur] Spotify : {e}"),
+                Err(e) => eprintln!("[pastille] Spotify: {e}"),
             }
         } else {
             state.volume = crate::com::with_com(|| crate::mixer::spotify_session().ok().flatten())
@@ -781,7 +781,7 @@ fn log_shuffle(json: &Value) {
     let now = format!("shuffle_state={} smart_shuffle={}", json["shuffle_state"], json["smart_shuffle"]);
     let mut last = LAST.lock().unwrap();
     if *last != now {
-        eprintln!("[lanceur] Spotify : {now}");
+        eprintln!("[pastille] Spotify: {now}");
         *last = now;
     }
 }
@@ -801,7 +801,7 @@ pub fn playlists(app: &AppHandle) -> Option<Vec<Playlist>> {
     if !connected(app) {
         return Some(Vec::new());
     }
-    fetch_playlists(app).map_err(|e| eprintln!("[lanceur] Spotify, playlists : {e}")).ok()
+    fetch_playlists(app).map_err(|e| eprintln!("[pastille] Spotify, playlists: {e}")).ok()
 }
 
 fn fetch_playlists(app: &AppHandle) -> Result<Vec<Playlist>, String> {
@@ -880,12 +880,12 @@ fn play_when_ready(app: &AppHandle, context: &str) {
         match this_pc(app) {
             Ok(Some(device)) => {
                 if let Err(e) = start(app, context, Some(&device)) {
-                    eprintln!("[lanceur] Spotify : {e}");
+                    eprintln!("[pastille] Spotify: {e}");
                 }
                 return;
             }
             Ok(None) => {}
-            Err(e) => return eprintln!("[lanceur] Spotify : {e}"),
+            Err(e) => return eprintln!("[pastille] Spotify: {e}"),
         }
     }
 }
@@ -1034,10 +1034,10 @@ mod tests {
     #[test]
     fn scopes_and_playable_targets() {
         assert!(has_scopes(&format!("other {SCOPES}")));
-        assert!(!has_scopes("user-read-playback-state user-modify-playback-state"), "connexion d'avant les playlists");
+        assert!(!has_scopes("user-read-playback-state user-modify-playback-state"), "connection from before the playlists");
         assert!(is_playable("spotify:playlist:37i9dQZF1DX"));
         assert!(is_playable("spotify:user:johnny:collection"));
-        assert!(!is_playable("spotify:"), "le lanceur de Spotify s'ouvre, il ne se joue pas");
+        assert!(!is_playable("spotify:"), "the Spotify launcher opens, it isn't played");
         assert!(!is_playable("steam://rungameid/1"));
     }
 
@@ -1089,14 +1089,14 @@ mod tests {
                 let _ = stream.read_to_string(&mut answer);
                 answer
             };
-            assert!(get("/spotify?n=autre").starts_with("HTTP/1.1 400"), "jeton d'un autre essai");
+            assert!(get("/spotify?n=other").starts_with("HTTP/1.1 400"), "token of another attempt");
             assert!(get(&format!("/ailleurs?n={nonce}")).starts_with("HTTP/1.1 404"));
             let setup = get(&format!("/spotify?n={nonce}"));
             assert!(setup.starts_with("HTTP/1.1 200") && setup.contains(REDIRECT) && setup.contains(&nonce));
             assert!(!setup.contains("{{") && !setup.contains(r#"class="error""#));
             let refused = get(&format!("/identifiant?n={nonce}&id=%22abc%3E"));
             assert!(refused.contains(r#"class="error""#) && refused.contains("(là : 5)"));
-            assert!(refused.contains(r#"value="&quot;abc&gt;""#), "valeur échappée");
+            assert!(refused.contains(r#"value="&quot;abc&gt;""#), "value escaped");
             assert!(get(&format!("/identifiant?n={nonce}&id=")).contains("Colle d'abord"));
             let sent = get(&format!("/identifiant?n={nonce}&id=+0123456789ABCDEF0123456789abcdef+"));
             assert!(sent.starts_with("HTTP/1.1 303"));
@@ -1121,21 +1121,36 @@ mod tests {
     #[test]
     fn client_ids() {
         assert_eq!(client_id_of(" 0123456789ABCDEF0123456789abcdef\n").as_deref(), Some("0123456789abcdef0123456789abcdef"));
-        assert_eq!(client_id_of("0123456789abcdef0123456789abcde"), None, "31 caractères");
-        assert_eq!(client_id_of("0123456789abcdef0123456789abcdeg"), None, "pas hexadécimal");
+        assert_eq!(client_id_of("0123456789abcdef0123456789abcde"), None, "31 characters");
+        assert_eq!(client_id_of("0123456789abcdef0123456789abcdeg"), None, "not hexadecimal");
         assert_eq!(client_id_of("0123456789abcdef 0123456789abcdef"), None);
     }
 
-    /// Preview of the setup page, to open in a browser
-    /// cargo test write_setup_page -- --ignored (file in the temp folder)
+    /// Both languages: every placeholder filled in, the page's language set
+    #[test]
+    fn setup_page_in_both_languages() {
+        let english = crate::i18n::in_english(|| setup_page("n", "", None));
+        for (page, lang) in [(setup_page("n", "", None), "fr"), (english, "en")] {
+            assert!(!page.contains("{{"), "placeholder left in the {lang} page");
+            assert!(page.contains(&format!(r#"<html lang="{lang}">"#)));
+        }
+    }
+
+    /// Preview of the setup and result pages, in French then in English (`-en`), to open in a
+    /// browser: cargo test write_setup_page -- --ignored (files in the temp folder)
     #[test]
     #[ignore]
     fn write_setup_page() {
         let dir = std::env::temp_dir();
-        fs::write(dir.join("pastille-spotify.html"), setup_page("jeton", "", None)).unwrap();
-        fs::write(dir.join("pastille-spotify-erreur.html"), setup_page("jeton", "abc", Some(&client_id_error("abc")))).unwrap();
-        fs::write(dir.join("pastille-spotify-ok.html"), page(&Ok(()))).unwrap();
-        fs::write(dir.join("pastille-spotify-echec.html"), page(&Err("autorisation refusée.".into()))).unwrap();
+        let write = |suffix: &str| {
+            let file = |name: &str| dir.join(format!("pastille-spotify{name}{suffix}.html"));
+            fs::write(file(""), setup_page("token", "", None)).unwrap();
+            fs::write(file("-error"), setup_page("token", "abc", Some(&client_id_error("abc")))).unwrap();
+            fs::write(file("-ok"), page(&Ok(()))).unwrap();
+            fs::write(file("-failed"), page(&Err(tr("autorisation refusée.", "authorization denied.").into()))).unwrap();
+        };
+        write("");
+        crate::i18n::in_english(|| write("-en"));
         eprintln!("{}", dir.display());
     }
 
@@ -1170,7 +1185,7 @@ mod tests {
         for _ in 0..2 {
             let start = Instant::now();
             let (status, body) = http("GET", &format!("{API}/me/player"), None, None).unwrap();
-            eprintln!("{status} en {:?} : {}", start.elapsed(), body.replace(char::is_whitespace, ""));
+            eprintln!("{status} in {:?}: {}", start.elapsed(), body.replace(char::is_whitespace, ""));
             assert_eq!(status, 401);
         }
     }

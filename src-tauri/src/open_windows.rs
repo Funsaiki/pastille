@@ -104,9 +104,9 @@ mod tests {
         crate::com::with_com(|| {
             let start = std::time::Instant::now();
             for w in list() {
-                eprintln!("{:<22} {}  (icône : {})", w.app, w.title, w.icon.is_some());
+                eprintln!("{:<22} {}  (icon: {})", w.app, w.title, w.icon.is_some());
             }
-            eprintln!("durée : {:?}", start.elapsed());
+            eprintln!("time: {:?}", start.elapsed());
         });
     }
 }

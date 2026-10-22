@@ -37,7 +37,7 @@ const REOPEN_GUARD: Duration = Duration::from_millis(400);
 /// Log of show/hide decisions, in debug only.
 fn debug_log(message: &str) {
     if cfg!(debug_assertions) {
-        eprintln!("[lanceur] {message}");
+        eprintln!("[pastille] {message}");
     }
 }
 
@@ -51,7 +51,7 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
 pub fn disable_key_menu(app: &AppHandle) {
     let Some(hwnd) = window(app).and_then(|w| w.hwnd().ok()) else { return };
     if !unsafe { SetWindowSubclass(hwnd, Some(ignore_key_menu), 1, 0) }.as_bool() {
-        eprintln!("[lanceur] mode menu clavier : interception impossible");
+        eprintln!("[pastille] keyboard menu mode: couldn't intercept");
     }
 }
 
@@ -64,7 +64,7 @@ unsafe extern "system" fn ignore_key_menu(
     _data: usize,
 ) -> LRESULT {
     if message == WM_SYSCOMMAND && (wparam.0 as u32 & 0xFFF0) == SC_KEYMENU {
-        debug_log("mode menu clavier (Alt) ignoré");
+        debug_log("keyboard menu mode (Alt) ignored");
         return LRESULT(0);
     }
     unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
@@ -125,7 +125,7 @@ pub fn show_page(app: &AppHandle, page: Option<&str>) {
     // Already shown ("Show" menu): don't move
     if !is_visible(&w) {
         if let Err(e) = cover_cursor_monitor(&w) {
-            eprintln!("[lanceur] placement sur l'écran de la souris impossible : {e}");
+            eprintln!("[pastille] couldn't place on the mouse's screen: {e}");
         }
     }
     let _ = w.show();
@@ -153,17 +153,17 @@ pub fn hide(app: &AppHandle) {
 pub fn toggle(app: &AppHandle) {
     let Some(w) = window(app) else { return };
     if DIALOG.load(Ordering::SeqCst) {
-        debug_log("raccourci ignoré : boîte de dialogue ouverte");
+        debug_log("shortcut ignored: dialog open");
         return;
     }
     let just_hidden = LAST_HIDE.lock().unwrap().is_some_and(|t| t.elapsed() < REOPEN_GUARD);
     if is_visible(&w) {
-        debug_log("raccourci : masquer");
+        debug_log("shortcut: hide");
         hide(app);
     } else if just_hidden {
-        debug_log("raccourci ignoré : le lanceur vient d'être masqué");
+        debug_log("shortcut ignored: the launcher was just hidden");
     } else {
-        debug_log("raccourci : afficher");
+        debug_log("shortcut: show");
         show(app);
     }
 }
@@ -180,6 +180,6 @@ pub fn on_blur(app: &AppHandle) {
             return;
         }
     }
-    debug_log("perte de focus : masquer");
+    debug_log("focus lost: hide");
     hide(app);
 }

@@ -38,9 +38,9 @@ pub fn init(app: &AppHandle) {
         loop {
             // Offline: the update already found is still offered
             match tauri::async_runtime::block_on(check_now(&app)) {
-                Ok(Some(version)) => eprintln!("[lanceur] mise à jour : {version} disponible"),
+                Ok(Some(version)) => eprintln!("[pastille] update: {version} available"),
                 Ok(None) => {}
-                Err(e) => eprintln!("[lanceur] mise à jour : vérification impossible : {e}"),
+                Err(e) => eprintln!("[pastille] update: couldn't check: {e}"),
             }
             std::thread::sleep(EVERY);
         }
@@ -65,7 +65,7 @@ async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
         });
     if let Some(test) = dev_test() {
         if test != "1" {
-            let url = test.parse().map_err(|e| format!("PASTILLE_MAJ : {e}"))?;
+            let url = test.parse().map_err(|e| format!("PASTILLE_MAJ: {e}"))?;
             builder = builder.endpoints(vec![url]).map_err(|e| e.to_string())?;
         }
         builder = builder.version_comparator(|_, _| true);
@@ -105,7 +105,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         .map_err(|e| tr(format!("Téléchargement de la {version} impossible : {e}"), format!("Couldn't download {version}: {e}")))?;
     if cfg!(debug_assertions) {
         eprintln!(
-            "[lanceur] mise à jour {} téléchargée et signature vérifiée ({} octets) ; pas installée en développement",
+            "[pastille] update {} downloaded and signature verified ({} bytes); not installed in development",
             update.version,
             bytes.len()
         );

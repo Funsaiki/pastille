@@ -531,7 +531,7 @@ fn apply_shortcut(app: &AppHandle, s: &mut ConfigState) {
         let _ = shortcuts.unregister(old.as_str());
     }
     if let Err(e) = shortcuts.register(wanted.as_str()) {
-        eprintln!("[lanceur] raccourci {wanted} indisponible : {e}");
+        eprintln!("[pastille] shortcut {wanted} unavailable: {e}");
         let restored = old.filter(|old| shortcuts.register(old.as_str()).is_ok());
         s.problems.push(match &restored {
             Some(old) => tr(
@@ -566,7 +566,7 @@ pub fn init(app: &AppHandle) {
     let first_run = example_mode() || path(app).is_ok_and(|path| !path.exists());
     let base = load(app).unwrap_or_else(|msg| {
         problems.push(tr(format!("{msg} Config par défaut utilisée."), format!("{msg} Default config used.")));
-        parse(example()).expect("apps.example.json embarqué invalide")
+        parse(example()).expect("embedded apps.example.json is invalid")
     });
     let mut state = ConfigState {
         config: merge(&base, &Detected::default()),
@@ -742,7 +742,7 @@ mod tests {
         let config = parse(EXAMPLE).unwrap();
         assert_eq!(config.apps[3].id, "a3");
         let jeux = config.apps[3].children.as_ref().unwrap();
-        assert_eq!(jeux[0].auto.as_deref(), Some("steam"), "dossier Steam dans Jeux");
+        assert_eq!(jeux[0].auto.as_deref(), Some("steam"), "Steam folder in Jeux");
         assert_eq!(jeux[1].id, "a3.1");
         assert_eq!(config.favorites[2].id, "f2");
         // On a PC with nothing installed (nothing found): what doesn't depend on the PC
@@ -795,12 +795,12 @@ mod tests {
         let steam = vec![game(367520, "Hollow Knight"), game(1687950, "Persona 5 Royal")];
         let config = merge(&base, &Detected { steam, ..Default::default() });
         let jeux = config.apps[0].children.as_ref().unwrap();
-        assert_eq!(jeux.len(), 2, "Hollow Knight ajouté à la main n'est pas doublé");
+        assert_eq!(jeux.len(), 2, "Hollow Knight added by hand isn't duplicated");
         assert_eq!(jeux[1].label, "Persona 5 Royal");
         assert_eq!(jeux[1].id, "a0.1");
         assert_eq!(jeux[1].target.as_deref(), Some("steam://rungameid/1687950"));
         assert_eq!(config.apps[1].id, "a1");
-        assert!(base.apps[0].children.as_ref().unwrap().len() == 1, "la config de base reste intacte");
+        assert!(base.apps[0].children.as_ref().unwrap().len() == 1, "the base config stays intact");
     }
 
     #[test]
@@ -820,7 +820,7 @@ mod tests {
         let playlists = vec![spotify::Playlist { name: "Lofi".into(), uri: "spotify:playlist:abc".into() }];
         let config = merge(&base, &Detected { playlists, ..Default::default() });
         let music = config.apps[0].children.as_ref().unwrap();
-        assert_eq!(music[0].label, "Spotify", "le lanceur de Spotify reste en tête");
+        assert_eq!(music[0].label, "Spotify", "the Spotify launcher stays first");
         assert_eq!((music[1].label.as_str(), music[1].icon.as_deref(), music[1].target.as_deref()), ("Lofi", Some("musique"), Some("spotify:playlist:abc")));
     }
 
@@ -838,8 +838,8 @@ mod tests {
         assert_eq!((music.id.as_str(), music.label.as_str(), music.icon.as_deref()), ("a1", "Musique", Some("musique")));
         assert_eq!((music.target.as_deref(), music.children.is_none(), music.auto.as_deref()), (Some("spotify:"), true, None));
         assert_eq!(music.keywords.as_deref(), Some("spotify son"));
-        assert_eq!(alone.apps.len(), 3, "groupe Steam vide retiré");
-        assert!(alone.apps[2].children.is_some(), "un groupe sans auto reste un groupe");
+        assert_eq!(alone.apps.len(), 3, "empty Steam group removed");
+        assert!(alone.apps[2].children.is_some(), "a group without auto stays a group");
         let playlists = vec![spotify::Playlist { name: "Lofi".into(), uri: "spotify:playlist:abc".into() }];
         let full = merge(&base, &Detected { playlists, ..Default::default() });
         assert_eq!((full.apps[1].id.as_str(), full.apps[1].children.as_ref().map(Vec::len)), ("a1", Some(2)));
@@ -861,7 +861,7 @@ mod tests {
         assert_eq!((calc.label.as_str(), calc.id.as_str(), calc.start, calc.icon.as_deref()), ("Calculatrice", "a1.0.0", true, None));
         let json = serde_json::to_string(calc).unwrap();
         assert!(json.contains(r#""start":true"#) && !json.contains("AppsFolder"), "{json}");
-        assert!(parse(r#"{ "apps": [ { "label": "X", "target": "x", "start": true } ] }"#).is_err(), "jamais lu dans apps.json");
+        assert!(parse(r#"{ "apps": [ { "label": "X", "target": "x", "start": true } ] }"#).is_err(), "never read from apps.json");
     }
 
     #[test]
@@ -904,7 +904,7 @@ mod tests {
         let config = merge(&base, &Detected::default());
         let labels: Vec<&str> = config.apps.iter().map(|it| it.label.as_str()).collect();
         assert_eq!(labels, ["Fichiers"]);
-        assert_eq!(config.apps[0].id, "a2", "les identifiants ne bougent pas");
+        assert_eq!(config.apps[0].id, "a2", "identifiers don't move");
         assert!(scan_needed(&base.apps, &Detected::default()));
         // Found: by name, case-insensitive; the real icon without an icon key
         let games = Detected {
@@ -917,7 +917,7 @@ mod tests {
         assert_eq!(labels, ["Code", "Navigateur", "Fichiers", "Discord"]);
         let (code, discord) = (&config.apps[0], &config.apps[3]);
         assert_eq!(code.target.as_deref(), Some(r"shell:AppsFolder\Visual Studio Code"));
-        assert!(!code.start && discord.start, "vraie icône seulement sans clé d'icône");
+        assert!(!code.start && discord.start, "real icon only without an icon key");
         assert_eq!(config.apps[1].target.as_deref(), Some(r"C:\Brave\brave.exe"));
         assert_eq!(discord.id, "a4");
         assert!(!scan_needed(&base.apps, &games));

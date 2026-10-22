@@ -103,7 +103,7 @@ fn spawn_guard() {
             .spawn()
     });
     if let Err(e) = spawned {
-        eprintln!("[lanceur] barre : processus de garde impossible : {e}");
+        eprintln!("[pastille] bar: couldn't start the watchdog process: {e}");
         SPAWNED.store(false, SeqCst);
     }
 }

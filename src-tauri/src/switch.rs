@@ -101,7 +101,7 @@ mod tests {
     // Never call focus_existing here: it would change the foreground window.
     #[test]
     fn only_absolute_exe_targets() {
-        assert!(!focus_existing("wt.exe"), "nom seul : pas de chemin à comparer");
+        assert!(!focus_existing("wt.exe"), "name only: no path to compare");
         assert!(!focus_existing("steam://open/main"));
         assert!(!focus_existing(r"C:\Users"));
     }
@@ -114,7 +114,7 @@ mod tests {
             r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
             &format!(r"{}\Programs\Microsoft VS Code\Code.exe", std::env::var("LOCALAPPDATA").unwrap()),
         ] {
-            eprintln!("{exe} : fenêtre ouverte = {}", find_window(exe).is_some());
+            eprintln!("{exe}: window open = {}", find_window(exe).is_some());
         }
     }
 }

@@ -71,7 +71,7 @@ fn entries() -> Vec<(String, String)> {
         Ok(found)
     };
     read().unwrap_or_else(|e| {
-        eprintln!("[lanceur] menu Démarrer illisible : {}", e.message().trim_end());
+        eprintln!("[pastille] Start menu unreadable: {}", e.message().trim_end());
         Vec::new()
     })
 }
@@ -272,9 +272,9 @@ mod tests {
             let started = std::time::Instant::now();
             let all = entries();
             let apps = installed_apps();
-            eprintln!("{} éléments, {} gardés, lus en {:?}", all.len(), apps.len(), started.elapsed());
+            eprintln!("{} items, {} kept, read in {:?}", all.len(), apps.len(), started.elapsed());
             for (name, parsing) in all.iter().filter(|(n, p)| !is_app(n, p)) {
-                eprintln!("  écarté : {name} — {parsing}");
+                eprintln!("  excluded: {name} — {parsing}");
             }
             let started = std::time::Instant::now();
             let mut missing = Vec::new();
@@ -284,13 +284,13 @@ mod tests {
                     other => missing.push(format!("{} — {} → {other:?}", app.name, app.target)),
                 }
             }
-            eprintln!("cibles retrouvées en {:?} ; introuvables : {missing:#?}", started.elapsed());
+            eprintln!("targets found in {:?}; not found: {missing:#?}", started.elapsed());
             let started = std::time::Instant::now();
             let icons = apps.iter().filter(|a| crate::icon::of_start_app(&a.target).is_some()).count();
-            eprintln!("{icons} icônes sur {} en {:?}", apps.len(), started.elapsed());
+            eprintln!("{icons} icons out of {} in {:?}", apps.len(), started.elapsed());
             let started = std::time::Instant::now();
             let _ = apps.iter().filter(|a| crate::icon::of_start_app(&a.target).is_some()).count();
-            eprintln!("relues (mémoire) en {:?}", started.elapsed());
+            eprintln!("read again (memory) in {:?}", started.elapsed());
             for app in &apps {
                 eprintln!("  {} — {}", app.name, app.target);
             }

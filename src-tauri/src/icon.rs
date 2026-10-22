@@ -171,11 +171,11 @@ mod tests {
     #[test]
     fn explorer_icon_is_read() {
         let windir = std::env::var("SystemRoot").unwrap();
-        let icon = crate::com::with_com(|| of(&format!(r"{windir}\explorer.exe"))).expect("icône de l'Explorateur");
+        let icon = crate::com::with_com(|| of(&format!(r"{windir}\explorer.exe"))).expect("File Explorer icon");
         let bytes = base64::engine::general_purpose::STANDARD.decode(&icon.rgba).unwrap();
         assert_eq!(bytes.len() as u32, icon.width * icon.height * 4);
-        assert!(bytes.chunks(4).any(|p| p[3] == 255), "des pixels opaques");
-        assert!(bytes.chunks(4).any(|p| p[3] == 0), "des pixels transparents");
+        assert!(bytes.chunks(4).any(|p| p[3] == 255), "some opaque pixels");
+        assert!(bytes.chunks(4).any(|p| p[3] == 0), "some transparent pixels");
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tests {
             })
             .collect();
         for reader in readers {
-            assert!(reader.join().unwrap().is_some(), "icône de regedit");
+            assert!(reader.join().unwrap().is_some(), "regedit icon");
         }
     }
 }

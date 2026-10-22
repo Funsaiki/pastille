@@ -318,7 +318,7 @@ fn quit(path: &str, name: &str) -> Result<(), String> {
     if pids.is_empty() {
         return Err(tr(format!("{name} n'est plus ouvert."), format!("{name} is no longer open.")));
     }
-    eprintln!("[lanceur] forcer à quitter {path}");
+    eprintln!("[pastille] force quit {path}");
     let lower = path.to_lowercase();
     let access = PROCESS_TERMINATE | PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION;
     let mut stopped = Vec::new();
@@ -365,7 +365,7 @@ mod tests {
         let path = resolve(r"{F38BF404-1D43-42F2-9305-67DE0B28FC23}\explorer.exe").unwrap();
         assert!(path.eq_ignore_ascii_case(&format!(r"{windir}\explorer.exe")), "{path}");
         assert_eq!(resolve(r"C:\Jeux\jeu.exe").as_deref(), Some(r"C:\Jeux\jeu.exe"));
-        assert!(resolve(r"{pas-un-guid}\x.exe").is_none());
+        assert!(resolve(r"{not-a-guid}\x.exe").is_none());
     }
 
     #[test]
@@ -399,7 +399,7 @@ mod tests {
         assert_eq!(pids_of(&path).len(), 2);
         quit(&path, "Test").unwrap();
         for child in &mut children {
-            assert!(child.try_wait().unwrap().is_some(), "processus arrêté");
+            assert!(child.try_wait().unwrap().is_some(), "process stopped");
         }
         assert_eq!(quit(&path, "Test"), Err("Test n'est plus ouvert.".into()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -412,12 +412,12 @@ mod tests {
         crate::com::with_com(|| {
             let start = std::time::Instant::now();
             for app in list() {
-                eprintln!("{}  ({})  icône : {}  Store : {}", app.name, app.key, app.icon.is_some(), app.packaged);
+                eprintln!("{}  ({})  icon: {}  Store: {}", app.name, app.key, app.icon.is_some(), app.packaged);
             }
-            eprintln!("durée : {:?}", start.elapsed());
+            eprintln!("time: {:?}", start.elapsed());
             let again = std::time::Instant::now();
             list();
-            eprintln!("deuxième lecture (icônes en mémoire) : {:?}", again.elapsed());
+            eprintln!("second read (icons in memory): {:?}", again.elapsed());
         });
     }
 }

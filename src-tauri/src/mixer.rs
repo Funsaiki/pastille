@@ -222,13 +222,13 @@ mod tests {
             let start = std::time::Instant::now();
             let apps = list().unwrap();
             for app in &apps {
-                eprintln!("{:>3} %  {}  ({}) icône : {}", app.volume, app.name, app.key, app.icon.is_some());
+                eprintln!("{:>3}%  {}  ({}) icon: {}", app.volume, app.name, app.key, app.icon.is_some());
             }
             // To see the icons: MIXER_JSON=path cargo test real_mixer -- --ignored
             if let Ok(path) = std::env::var("MIXER_JSON") {
                 std::fs::write(path, serde_json::to_string(&apps).unwrap()).unwrap();
             }
-            eprintln!("durée : {:?}", start.elapsed());
+            eprintln!("time: {:?}", start.elapsed());
         });
     }
 }

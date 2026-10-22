@@ -244,12 +244,12 @@ mod tests {
         assert!(start.elapsed() >= FIRST_WINDOW);
         assert!(stats.down >= 0.0 && stats.up >= 0.0);
         assert!(stats.cpu.is_some_and(|c| c <= 100), "processeur : {:?}", stats.cpu);
-        assert!(stats.ram.is_some_and(|r| r > 0 && r <= 100), "mémoire : {:?}", stats.ram);
+        assert!(stats.ram.is_some_and(|r| r > 0 && r <= 100), "memory: {:?}", stats.ram);
         // Next sample a second later, like the front: no new wait
         thread::sleep(Duration::from_secs(1));
         let start = Instant::now();
         assert!(measure(&meter).cpu.is_some());
-        assert!(start.elapsed() < FIRST_WINDOW, "relevé récent : pas de nouvelle attente");
+        assert!(start.elapsed() < FIRST_WINDOW, "recent reading: no new wait");
         // Sample right after the previous one: it waits for the end of the measuring window
         let start = Instant::now();
         measure(&meter);
@@ -270,9 +270,9 @@ mod tests {
         measure(&meter);
         thread::sleep(Duration::from_secs(1));
         let stats = measure(&meter);
-        eprintln!("débit : ↓ {:.0} o/s, ↑ {:.0} o/s", stats.down, stats.up);
-        eprintln!("processeur : {:?} %, mémoire : {:?} %", stats.cpu, stats.ram);
+        eprintln!("speed: ↓ {:.0} B/s, ↑ {:.0} B/s", stats.down, stats.up);
+        eprintln!("processor: {:?}%, memory: {:?}%", stats.cpu, stats.ram);
         let p = read_profile();
-        eprintln!("profil : {} / {}", p.name, p.system);
+        eprintln!("profile: {} / {}", p.name, p.system);
     }
 }

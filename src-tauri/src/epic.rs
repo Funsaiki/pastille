@@ -82,8 +82,8 @@ mod tests {
             })
         );
         assert!(parse(&MANIFEST.replace(r#""MainGameAppName": "03c9""#, r#""MainGameAppName": "ffff""#)).is_none(), "DLC");
-        assert!(parse(&MANIFEST.replace("false", "true")).is_none(), "inachevé");
-        assert!(parse(&MANIFEST.replace(r#""games", "#, "")).is_none(), "pas un jeu");
+        assert!(parse(&MANIFEST.replace("false", "true")).is_none(), "unfinished");
+        assert!(parse(&MANIFEST.replace(r#""games", "#, "")).is_none(), "not a game");
     }
 
     /// Diagnostic: cargo test real_epic -- --ignored --nocapture

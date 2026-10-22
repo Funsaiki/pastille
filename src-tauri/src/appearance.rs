@@ -82,7 +82,7 @@ fn load(app: &AppHandle) -> Appearance {
     serde_json::from_str::<Appearance>(text.trim_start_matches('\u{feff}'))
         .map(Appearance::cleaned)
         .unwrap_or_else(|e| {
-            eprintln!("[lanceur] apparence.json illisible : {e}");
+            eprintln!("[pastille] apparence.json unreadable: {e}");
             Appearance::default()
         })
 }

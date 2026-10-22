@@ -52,7 +52,7 @@ pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), Strin
                 Some(expand_env(&target))
             };
             if program.is_some_and(|program| crate::switch::focus_existing(&program)) {
-                eprintln!("[lanceur] déjà ouvert, fenêtre ramenée : {target}");
+                eprintln!("[pastille] already open, window brought back: {target}");
                 return Ok(());
             }
         }
@@ -124,7 +124,7 @@ fn run(target: &str, args: &[String], verb: Option<&str>) -> Result<(), String> 
         }
     };
     let params = args.iter().map(|a| quote(a)).collect::<Vec<_>>().join(" ");
-    eprintln!("[lanceur] {} {file} {params}", if verb.is_some() { "ouvrir en administrateur" } else { "ouvrir" });
+    eprintln!("[pastille] {} {file} {params}", if verb.is_some() { "open as administrator" } else { "open" });
     match shell_execute(&file, &params, dir.as_deref(), verb) {
         // UAC prompt declined by Funsaiki: nothing to report
         Err(e) if e.code() == ERROR_CANCELLED.to_hresult() => Ok(()),
@@ -160,7 +160,7 @@ pub(crate) fn encode_query(text: &str) -> String {
 /// ("%20" stays "%20"), and a .ps1 opens as in Explorer instead of being run
 /// by PowerShell (.exe, .bat… are launched, as with a double click)
 pub fn open_as_is(path: &str) -> Result<(), String> {
-    eprintln!("[lanceur] ouvrir {path}");
+    eprintln!("[pastille] open {path}");
     shell_execute(path, "", working_dir(path).as_deref(), None).map_err(|e| format!("{path} : {}", e.message().trim_end()))
 }
 
@@ -283,17 +283,17 @@ mod tests {
     /// Read only: nothing is opened
     #[test]
     fn default_programs() {
-        let browser = default_program("https").expect("un navigateur par défaut");
+        let browser = default_program("https").expect("a default browser");
         assert!(browser.to_lowercase().ends_with(".exe") && Path::new(&browser).is_file(), "{browser}");
         assert_eq!(default_program("https:"), Some(browser));
-        assert!(default_program("protocole-qui-n-existe-pas").is_none());
+        assert!(default_program("protocol-that-does-not-exist").is_none());
     }
 
     #[test]
     fn settings_pages() {
         assert_eq!(setting_target("s0").as_deref(), Some("ms-settings:network-wifi"));
         assert!(setting_target("s999").is_none());
-        assert!(setting_target("a0").is_none(), "une app de apps.json n'est pas une page");
+        assert!(setting_target("a0").is_none(), "an app from apps.json isn't a page");
     }
 
     #[test]
@@ -306,7 +306,7 @@ mod tests {
     fn quoting() {
         assert_eq!(quote("simple"), "simple");
         assert_eq!(quote("C:\\dev\\mon projet"), "\"C:\\dev\\mon projet\"");
-        assert_eq!(quote("C:\\dossier avec espace\\"), "\"C:\\dossier avec espace\\\\\"");
+        assert_eq!(quote("C:\\folder with space\\"), "\"C:\\folder with space\\\\\"");
         assert_eq!(quote("dit \"bonjour\""), "\"dit \\\"bonjour\\\"\"");
         assert_eq!(quote(""), "\"\"");
     }
@@ -316,6 +316,6 @@ mod tests {
         let home = std::env::var("USERPROFILE").unwrap();
         assert_eq!(expand_env("%USERPROFILE%/Projets"), format!("{home}/Projets"));
         assert_eq!(expand_env("%VARIABLE_QUI_N_EXISTE_PAS%"), "%VARIABLE_QUI_N_EXISTE_PAS%");
-        assert_eq!(expand_env("sans variable"), "sans variable");
+        assert_eq!(expand_env("no variable"), "no variable");
     }
 }

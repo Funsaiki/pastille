@@ -64,7 +64,7 @@ pub fn start(sender: Sender<Event>) {
         unsafe {
             SHELL_MESSAGE.store(RegisterWindowMessageW(w!("SHELLHOOK")), SeqCst);
             if !RegisterShellHookWindow(hwnd).as_bool() {
-                eprintln!("[lanceur] barre : signaux de Windows indisponibles");
+                eprintln!("[pastille] bar: Windows signals unavailable");
             }
             let mut msg = MSG::default();
             while GetMessageW(&mut msg, None, 0, 0).as_bool() {
@@ -94,7 +94,7 @@ fn create_window() -> Option<HWND> {
         // Already registered if the bar was turned off then on again: no effect
         RegisterClassW(&WNDCLASSW { lpfnWndProc: Some(on_message), hInstance: instance.into(), lpszClassName: class, ..Default::default() });
         CreateWindowExW(WINDOW_EX_STYLE(WS_EX_TOOLWINDOW.0), class, w!(""), WS_POPUP, 0, 0, 0, 0, None, None, Some(instance.into()), None)
-            .map_err(|e| eprintln!("[lanceur] barre : fenêtre des signaux impossible : {e}"))
+            .map_err(|e| eprintln!("[pastille] bar: couldn't create the signal window: {e}"))
             .ok()
     }
 }
@@ -144,7 +144,7 @@ mod tests {
             let instance = GetModuleHandleW(None).unwrap();
             let class = w!("LanceurPastelEssaiSignaux");
             RegisterClassW(&WNDCLASSW { lpfnWndProc: Some(plain), hInstance: instance.into(), lpszClassName: class, ..Default::default() });
-            let hwnd = CreateWindowExW(WINDOW_EX_STYLE(0), class, w!("Essai du lanceur"), WS_OVERLAPPEDWINDOW, 0, 0, 200, 100, None, None, Some(instance.into()), None).unwrap();
+            let hwnd = CreateWindowExW(WINDOW_EX_STYLE(0), class, w!("Pastille test"), WS_OVERLAPPEDWINDOW, 0, 0, 200, 100, None, None, Some(instance.into()), None).unwrap();
             let _ = ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
             std::thread::sleep(std::time::Duration::from_millis(400));
             let info = FLASHWINFO { cbSize: size_of::<FLASHWINFO>() as u32, hwnd, dwFlags: FLASHW_ALL, uCount: 2, dwTimeout: 0 };
@@ -166,10 +166,10 @@ mod tests {
         stop();
         let events: Vec<_> = signals.try_iter().collect();
         let count = |f: &dyn Fn(&Event) -> bool| events.iter().filter(|e| f(e)).count();
-        eprintln!("signaux : {}", events.len());
-        eprintln!("  changés : {}", count(&|e| matches!(e, Event::Changed)));
-        eprintln!("  clignotements de la fenêtre d'essai : {}", count(&|e| matches!(e, Event::Flash(h) if *h == hwnd)));
-        eprintln!("  fermetures de la fenêtre d'essai : {}", count(&|e| matches!(e, Event::Gone(h) if *h == hwnd)));
-        assert!(events.iter().any(|e| matches!(e, Event::Flash(h) if *h == hwnd)), "clignotement non reçu");
+        eprintln!("signals: {}", events.len());
+        eprintln!("  changed: {}", count(&|e| matches!(e, Event::Changed)));
+        eprintln!("  flashes of the test window: {}", count(&|e| matches!(e, Event::Flash(h) if *h == hwnd)));
+        eprintln!("  closings of the test window: {}", count(&|e| matches!(e, Event::Gone(h) if *h == hwnd)));
+        assert!(events.iter().any(|e| matches!(e, Event::Flash(h) if *h == hwnd)), "flash not received");
     }
 }

@@ -188,9 +188,9 @@ mod tests {
             for a in &apps {
                 let p = Program::of(&MenuItem { target: a.target.clone(), args: Vec::new(), hideable: true, hidden: false });
                 let pin = p.pin.map(|p| format!("{} ({})", p.exe, p.name));
-                eprintln!("{:<34} admin {:<5} emplacement {:<5} épingle {pin:?}", a.name, p.admin, p.file.is_some());
+                eprintln!("{:<34} admin {:<5} location {:<5} pin {pin:?}", a.name, p.admin, p.file.is_some());
             }
-            eprintln!("{} applications en {:?}", apps.len(), started.elapsed());
+            eprintln!("{} apps in {:?}", apps.len(), started.elapsed());
         });
     }
 }

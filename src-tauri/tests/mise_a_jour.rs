@@ -24,8 +24,8 @@ fn real_release_is_signed() {
         .version_comparator(|_, _| true)
         .build()
         .unwrap();
-    let update = tauri::async_runtime::block_on(updater.check()).unwrap().expect("pas de release");
-    eprintln!("{} : {}", update.version, update.download_url);
+    let update = tauri::async_runtime::block_on(updater.check()).unwrap().expect("no release");
+    eprintln!("{}: {}", update.version, update.download_url);
     let bytes = tauri::async_runtime::block_on(update.download(|_, _| {}, || {})).unwrap();
-    eprintln!("{} octets, signature vérifiée", bytes.len());
+    eprintln!("{} bytes, signature verified", bytes.len());
 }

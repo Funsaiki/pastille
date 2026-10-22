@@ -81,7 +81,7 @@ fn save(app: &AppHandle, settings: &Settings) {
     let written = fs::write(&temp, serde_json::to_string_pretty(settings).unwrap_or_default())
         .and_then(|_| fs::rename(&temp, &path));
     if let Err(e) = written {
-        eprintln!("[lanceur] barre : {} non enregistré : {e}", path.display());
+        eprintln!("[pastille] bar: {} not saved: {e}", path.display());
     }
 }
 
@@ -276,7 +276,7 @@ fn ensure_windows(app: &AppHandle, monitors: &[RECT]) {
                 return;
             }
             Ok(w) => place(&w, monitor),
-            Err(e) => eprintln!("[lanceur] barre : fenêtre {label} impossible : {e}"),
+            Err(e) => eprintln!("[pastille] bar: couldn't create window {label}: {e}"),
         }
     }
 }
@@ -760,18 +760,18 @@ mod tests {
     fn real_bar_windows() {
         crate::com::with_com(|| {
             for (i, m) in monitors().iter().enumerate() {
-                eprintln!("écran {i} : {},{} -> {},{}", m.left, m.top, m.right, m.bottom);
+                eprintln!("screen {i}: {},{} -> {},{}", m.left, m.top, m.right, m.bottom);
             }
             let start = std::time::Instant::now();
             for w in list(&[]) {
-                eprintln!("  {:<28} {:<40} icône : {}", w.app, w.title.chars().take(40).collect::<String>(), w.icon.is_some());
+                eprintln!("  {:<28} {:<40} icon: {}", w.app, w.title.chars().take(40).collect::<String>(), w.icon.is_some());
             }
             for hwnd in switch::app_windows() {
                 if switch::process_of(hwnd).0.as_deref().is_some_and(is_hosted) {
-                    eprintln!("  hébergée : {} → {:?}", open_windows::title(hwnd), open_windows::window_app_id(hwnd));
+                    eprintln!("  hosted: {} → {:?}", open_windows::title(hwnd), open_windows::window_app_id(hwnd));
                 }
             }
-            eprintln!("  durée : {:?}", start.elapsed());
+            eprintln!("  time: {:?}", start.elapsed());
         });
     }
 }

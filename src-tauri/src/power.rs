@@ -26,7 +26,7 @@ fn plan(action: &str) -> Result<Plan, String> {
 
 #[cfg(debug_assertions)]
 fn run(plan: Plan) -> Result<(), String> {
-    eprintln!("[lanceur] alimentation (debug : NON exécuté) : {plan:?}");
+    eprintln!("[pastille] power (debug: NOT run): {plan:?}");
     Ok(())
 }
 
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn actions_map_to_system_commands() {
-        assert!(plan("lock").is_err(), "retiré le 14/10/2026");
+        assert!(plan("lock").is_err(), "removed on 2026-10-14");
         assert_eq!(plan("sleep"), Ok(Plan::Sleep));
         assert_eq!(plan("signout"), Ok(Plan::Shutdown(&["/l"])));
         assert_eq!(plan("restart"), Ok(Plan::Shutdown(&["/r", "/t", "0"])));

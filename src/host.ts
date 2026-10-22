@@ -187,7 +187,7 @@ function previewWrite(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
   } catch {
-    console.info('[aperçu] pas de place pour', key);
+    console.info('[preview] no room for', key);
   }
 }
 
@@ -338,7 +338,7 @@ export const host = {
   },
   /* "Start with Windows" from the welcome notification; rejects in development */
   async enableAutostart() {
-    if (PREVIEW) console.info('[aperçu] démarrer avec Windows');
+    if (PREVIEW) console.info('[preview] start with Windows');
     else await invoke('enable_autostart');
   },
   /* Rust finds the target from the id: the front never sends a path.
@@ -347,17 +347,17 @@ export const host = {
   async launch(item: AppItem | Favorite, fresh = false) {
     if (PREVIEW) {
       const app = item as AppItem;
-      console.info('[aperçu] ouvrir :', item.target ?? app.app ?? app.default, app.args ?? [], fresh ? '(nouvelle fenêtre)' : '');
+      console.info('[preview] open:', item.target ?? app.app ?? app.default, app.args ?? [], fresh ? '(new window)' : '');
     }
     else await invoke('launch', { id: item.id, fresh });
   },
   async openTool(tool: Tool) {
-    if (PREVIEW) console.info('[aperçu] ouvrir :', tool);
+    if (PREVIEW) console.info('[preview] open:', tool);
     else await invoke('open_tool', { tool });
   },
   /* In development, Rust only writes a log line (rule 1) */
   async power(action: PowerAction) {
-    if (PREVIEW) console.info('[aperçu] alimentation :', action);
+    if (PREVIEW) console.info('[preview] power:', action);
     else await invoke('power', { action });
   },
   async profile(): Promise<Profile> {
@@ -377,7 +377,7 @@ export const host = {
   },
   async setVolume(level: number) {
     if (PREVIEW) {
-      console.info('[aperçu] volume :', level);
+      console.info('[preview] volume:', level);
       previewSound.volume = level;
       if (level > 0) previewSound.muted = false;
     } else {
@@ -386,7 +386,7 @@ export const host = {
   },
   async setMicMuted(muted: boolean) {
     if (PREVIEW) {
-      console.info('[aperçu] micro coupé :', muted);
+      console.info('[preview] mic muted:', muted);
       previewSound.mic_muted = muted;
     } else {
       await invoke('set_mic_muted', { muted });
@@ -405,7 +405,7 @@ export const host = {
     return invoke<AppVolume[]>('mixer');
   },
   async setAppVolume(key: string, level: number) {
-    if (PREVIEW) console.info('[aperçu] volume de', key, ':', level);
+    if (PREVIEW) console.info('[preview] volume of', key, ':', level);
     else await invoke('set_app_volume', { key, level });
   },
   async spotifyState(): Promise<SpotifyState> {
@@ -423,7 +423,7 @@ export const host = {
   /* "Connect" and "Reconnect" notifications: like the menu entry, in the browser
      (without a Client ID, the setup page) */
   async spotifyReconnect() {
-    if (PREVIEW) console.info('[aperçu] reconnecter Spotify');
+    if (PREVIEW) console.info('[preview] reconnect Spotify');
     else await invoke('spotify_reconnect');
   },
   async setSpotifyShuffle(on: boolean) {
@@ -436,7 +436,7 @@ export const host = {
   },
   /* Spotify's own volume (connected only) */
   async setSpotifyVolume(level: number) {
-    if (PREVIEW) console.info('[aperçu] volume de Spotify :', level);
+    if (PREVIEW) console.info('[preview] Spotify volume:', level);
     else await invoke('set_spotify_volume', { level });
   },
   /* Pastille update, alerts, Steam activity, downloads from the last 24 h */
@@ -461,7 +461,7 @@ export const host = {
   /* Click on an icon that has its clicks: sent to its app */
   async trayClick(key: string, kind: TrayClick) {
     if (PREVIEW) {
-      console.info('[aperçu] zone de notification : clic', kind, key);
+      console.info('[preview] notification area: click', kind, key);
     } else {
       await invoke('tray_click', { key, kind });
     }
@@ -469,7 +469,7 @@ export const host = {
   /* "quit": force quit, to confirm first */
   async trayAppAction(key: string, action: TrayAction) {
     if (PREVIEW) {
-      console.info('[aperçu] zone de notification :', action, key);
+      console.info('[preview] notification area:', action, key);
       if (action === 'quit') previewTray = previewTray.filter((app) => app.key !== key);
     } else {
       await invoke('tray_app_action', { key, action });
@@ -500,7 +500,7 @@ export const host = {
       await invoke('app_action', { id: item.id, action });
       return;
     }
-    console.info('[aperçu] clic droit :', action, item.label);
+    console.info('[preview] right-click:', action, item.label);
     if (action === 'pin') previewPinned.add(item.label);
     if (action === 'unpin') previewPinned.delete(item.label);
     if (action === 'hide' || action === 'show') {
@@ -513,7 +513,7 @@ export const host = {
      production, Pastille quits (the installer restarts it) */
   async installUpdate() {
     if (PREVIEW) {
-      console.info('[aperçu] installer la mise à jour');
+      console.info('[preview] install the update');
       await new Promise((resolve) => setTimeout(resolve, 1500));
     } else await invoke('install_update');
   },
@@ -542,7 +542,7 @@ export const host = {
   /* "Start with Windows" writes to the registry (HKCU\…\Run): only Funsaiki checks it */
   async setPrefSwitch(key: PrefSwitch, on: boolean) {
     if (PREVIEW) {
-      console.info('[aperçu] paramètres :', key, on);
+      console.info('[preview] settings:', key, on);
       previewPrefs[key] = on;
     } else await invoke('set_pref_switch', { key, on });
   },
@@ -553,7 +553,7 @@ export const host = {
       await invoke('pref_action', { action });
       return;
     }
-    console.info('[aperçu] paramètres :', action);
+    console.info('[preview] settings:', action);
     if (action === 'spotify') previewPrefs.spotify = previewPrefs.spotify === 'connected' ? 'disconnected' : 'connected';
   },
   /* "Check": the version found (kept, also offered in Notifs) */
@@ -565,7 +565,7 @@ export const host = {
   },
   /* The file name only: Rust looks for it in Downloads */
   async openDownload(name: string) {
-    if (PREVIEW) console.info('[aperçu] ouvrir le téléchargement :', name);
+    if (PREVIEW) console.info('[preview] open the download:', name);
     else await invoke('open_download', { name });
   },
   /* Icons of the Start menu apps `ids`, in the same order (null: no icon) */
@@ -588,7 +588,7 @@ export const host = {
   },
   async focusWindow(id: string) {
     if (PREVIEW) {
-      console.info('[aperçu] fenêtre :', id);
+      console.info('[preview] window:', id);
       previewBar.forEach((w) => (w.active = w.id === id));
       previewBar.forEach((w) => w.id === id && (w.attention = false));
     } else {
@@ -650,7 +650,7 @@ export const host = {
   },
   async minimizeWindow(id: string) {
     if (PREVIEW) {
-      console.info('[aperçu] réduire :', id);
+      console.info('[preview] minimize:', id);
       previewBar.forEach((w) => w.id === id && (w.active = false));
     } else {
       await invoke('minimize_window', { id });
@@ -659,7 +659,7 @@ export const host = {
   /* Like the close button: the program may ask to save */
   async closeWindow(id: string) {
     if (PREVIEW) {
-      console.info('[aperçu] fermer :', id);
+      console.info('[preview] close:', id);
       previewBar = previewBar.filter((w) => w.id !== id);
     } else {
       await invoke('close_window', { id });
@@ -672,12 +672,12 @@ export const host = {
   },
   /* Sends the window `id` to the next screen (the other screen when there are two) */
   async moveWindow(id: string) {
-    if (PREVIEW) console.info('[aperçu] fenêtre sur l’autre écran :', id);
+    if (PREVIEW) console.info('[preview] window to the other screen:', id);
     else await invoke('move_window', { id });
   },
   /* Starts the program of the window `id` again; Rust finds its path */
   async newWindow(id: string) {
-    if (PREVIEW) console.info('[aperçu] nouvelle fenêtre comme :', id);
+    if (PREVIEW) console.info('[preview] new window like:', id);
     else await invoke('new_window', { id });
   },
   /* Pinned apps (bar_pins.rs), in their order; without the icon of those in `known` */
@@ -701,7 +701,7 @@ export const host = {
   /* Launches the pinned app `exe` */
   async barOpenPin(exe: string) {
     if (PREVIEW) {
-      console.info('[aperçu] ouvrir l’application épinglée :', exe);
+      console.info('[preview] open the pinned app:', exe);
       const p = previewPins.find((x) => x.exe === exe);
       if (p) previewBar.push({ id: `p${Date.now()}`, title: p.name, app: p.name, key: exe, exe, glyph: p.glyph, icon: null, active: false, attention: false });
     } else {
@@ -714,13 +714,13 @@ export const host = {
   },
   /* Brings the phone up on the bar's screen */
   async showLauncher() {
-    if (PREVIEW) console.info('[aperçu] ouvrir le lanceur');
+    if (PREVIEW) console.info('[preview] open the launcher');
     else await invoke('show_launcher');
   },
   /* The launcher's tray icon menu, at the mouse (with the Windows taskbar hidden, the icon is
      out of reach) */
   barMenu() {
-    if (PREVIEW) console.info('[aperçu] menu du lanceur');
+    if (PREVIEW) console.info('[preview] launcher menu');
     else invoke('bar_menu');
   },
   /* Result of a calculation */
@@ -729,7 +729,7 @@ export const host = {
   },
   /* The text only: Rust builds the search URL */
   async webSearch(query: string) {
-    if (PREVIEW) console.info('[aperçu] recherche web :', query);
+    if (PREVIEW) console.info('[preview] web search:', query);
     else await invoke('web_search', { query });
   },
   /* Spotify only; null when it is not open */
@@ -744,7 +744,7 @@ export const host = {
   },
   async mediaControl(action: MediaAction) {
     if (PREVIEW) {
-      console.info('[aperçu] lecture :', action);
+      console.info('[preview] playback:', action);
       if (action === 'toggle') previewMedia.playing = !previewMedia.playing;
     } else {
       await invoke('media_control', { action });
@@ -752,7 +752,7 @@ export const host = {
   },
   /* Rust hides the window and lets WebView2 give back memory */
   hide() {
-    if (PREVIEW) console.info('[aperçu] masquer le lanceur');
+    if (PREVIEW) console.info('[preview] hide the launcher');
     else invoke('hide_window');
   },
   async isVisible(): Promise<boolean> {

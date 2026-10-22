@@ -141,17 +141,17 @@ mod tests {
         crate::com::keep_mta();
         with_com(|| {
             for s in manager().unwrap().GetSessions().unwrap() {
-                eprintln!("session : {}", s.SourceAppUserModelId().unwrap());
+                eprintln!("session: {}", s.SourceAppUserModelId().unwrap());
             }
             for _ in 0..2 {
                 let start = std::time::Instant::now();
                 match now_playing().unwrap() {
-                    Some(n) => eprintln!("Spotify : « {} » de {} (lecture : {})", n.title, n.artist, n.playing),
-                    None => eprintln!("Spotify n'est pas ouvert"),
+                    Some(n) => eprintln!("Spotify: \"{}\" by {} (playing: {})", n.title, n.artist, n.playing),
+                    None => eprintln!("Spotify isn't open"),
                 }
                 let cover = cover().unwrap();
-                eprintln!("pochette : {:?}", cover.as_deref().map(|c| (&c[..c.find(',').unwrap_or(0)], c.len())));
-                eprintln!("durée : {:?}", start.elapsed());
+                eprintln!("cover: {:?}", cover.as_deref().map(|c| (&c[..c.find(',').unwrap_or(0)], c.len())));
+                eprintln!("time: {:?}", start.elapsed());
             }
         });
     }

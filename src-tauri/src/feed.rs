@@ -180,7 +180,7 @@ mod tests {
     #[test]
     #[ignore]
     fn real_feed() {
-        eprintln!("Téléchargements : {:?}", downloads_dir());
+        eprintln!("Downloads: {:?}", downloads_dir());
         eprintln!("{}", serde_json::to_string_pretty(&read(None)).unwrap());
     }
 }

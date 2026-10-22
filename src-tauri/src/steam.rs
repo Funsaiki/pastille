@@ -229,6 +229,6 @@ mod tests {
         for g in installed_games() {
             eprintln!("{:>8}  {}", g.appid, g.name);
         }
-        eprintln!("activité : {:?}", activity());
+        eprintln!("activity: {:?}", activity());
     }
 }

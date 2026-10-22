@@ -68,7 +68,7 @@ pub fn popup_menu(app: &AppHandle) {
     let (Some(menu), Some(w)) = (MENU.get(), app.get_webview_window("main")) else { return };
     let before = unsafe { GetForegroundWindow() };
     if let Err(e) = menu.popup(w.as_ref().window()) {
-        eprintln!("[lanceur] menu du lanceur : {e}");
+        eprintln!("[pastille] launcher menu: {e}");
     }
     // Windows put the hidden launcher window in the foreground for the menu: the keyboard
     // goes back to the previous window ("Show" then brings the phone back to the front)

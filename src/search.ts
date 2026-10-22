@@ -63,11 +63,11 @@ export function evaluate(input: string): number | null {
     if (peek() === '(') {
       i++;
       const v = expr();
-      if (src[i++] !== ')') throw new Error('parenthèse');
+      if (src[i++] !== ')') throw new Error('parenthesis');
       return v;
     }
     const m = /^(\d+\.?\d*|\.\d+)/.exec(src.slice(i));
-    if (!m) throw new Error('nombre');
+    if (!m) throw new Error('number');
     i += m[0].length;
     return parseFloat(m[0]);
   }

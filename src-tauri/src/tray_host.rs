@@ -188,7 +188,7 @@ fn notify(n: &Notify) -> bool {
                 // A modified icon we didn't know about (added before Pastille) is taken too
                 None if n.hwnd != 0 => {
                     if cfg!(debug_assertions) {
-                        eprintln!("[lanceur] zone de notification : icône de {} ({})", pid_of_window(n.hwnd), n.tip.lines().next().unwrap_or(""));
+                        eprintln!("[pastille] notification area: icon from {} ({})", pid_of_window(n.hwnd), n.tip.lines().next().unwrap_or(""));
                     }
                     let id = NEXT_ID.fetch_add(1, SeqCst);
                     let entry = Entry {
@@ -250,7 +250,7 @@ pub fn start() {
         );
         let hwnd = match created {
             Ok(hwnd) => hwnd,
-            Err(e) => return eprintln!("[lanceur] zone de notification impossible : {e}"),
+            Err(e) => return eprintln!("[pastille] notification area unavailable: {e}"),
         };
         // Programs at a lower integrity level can declare their icon too
         let _ = ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, None);
