@@ -323,6 +323,12 @@ What belongs to each person stays in their files in `%APPDATA%\dev.lanceur.paste
   - Installer: English and French (NSIS `languages`), Windows' language if it's one of the two, otherwise English.
 - **Repo in English** (requested by Funsaiki on 2026-10-22): code comments and this brief translated from French; still in French: the French half of the interface (`tr` pairs, `data-en` attributes keep French as the HTML text), the French files (`apps.example.json`, `spotify-setup.html`) and the test data that checks French output.
 
+### Addition — Phone tilt (requested by Funsaiki on 2026-10-23; mockup to be validated)
+- Funsaiki's choices: a slider, in a third tab of the Appearance section (Couleurs | Strap | Téléphone; Colors | Strap | Phone).
+- Phone tab: "Inclinaison · 60 %" row (`custom-label`), the volume slider (`tp-range`) from 0 (face-on) to 100 (the mockup's tilt), its two ends below as small buttons ("De face" / "Face-on", "Incliné" / "Tilted": 12 px 800, ink on hover; "Maquette" offered at first, but other people don't know the mockup). The phone turns live: `--tilt` on the root multiplies the three rotations of `.phone-tilt` (quick settings view only; the apps view stays flat), 0.2 s while dragging (`.tilting`) instead of 0.7 s. Measured in the preview with a real mouse: the knob stays within ~9 px of the pointer while the phone turns under it. 100 isn't saved (`tilt` of appearance.json, % of the mockup's); default rendering identical (same matrix). "Reset" on this tab: the mockup's tilt.
+- Tab pill: three tabs as wide as their name (equal thirds wide enough for "Téléphone" leave no room for "Réinitialiser"); the thumb is placed under the open tab by customize.ts (`placeThumb`), leading edge first in both directions (`data-dir`, the middle tab being reached from both sides).
+- Steps: 1. mockup in the preview; 2. wiring (`tilt` in appearance.rs).
+
 ### Step 8 — Installation (validated by Funsaiki on 2026-10-15: plan finished)
 - **Installed on Funsaiki's PC (1.0.0)**; power buttons tried for real by Funsaiki: everything works.
 - **1.1.0** (2026-10-15, after the code review of the day's additions): laid-flat phone enlarged, Apps tab, animated pill, Spotify volume. `Lanceur pastel_1.1.0_x64-setup.exe` (2 MB). The Spotify connection is kept (same spotify.json).

@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════
    Appearance (requested by Funsaiki on 2026-10-19): accent, case, screen and ink of the
    phone, beads and charm of the strap, chosen in the Customize card
-   (customize.ts). A chosen color gives every shade of the mockup that depends on
+   (customize.ts); the phone's tilt since 2026-10-23. A chosen color gives every shade of the mockup that depends on
    it; with no choice, the mockup (styles.css) stays as it is.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG } from './config';
@@ -19,6 +19,7 @@ export interface Appearance {
   ink?: string;
   charm?: Charm;
   beads?: string[];   // three colors, top to bottom
+  tilt?: number;      // phone's tilt, % of the mockup's (0: face-on)
 }
 
 export interface Swatch {

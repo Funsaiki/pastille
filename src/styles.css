@@ -140,13 +140,16 @@ button, input { font-family: 'Nunito', sans-serif; }
 
 /* ── Phone: tilted and upright, or flat and on its side (.landscape on the stage) ──
    Laid flat, it is enlarged by 10% (Funsaiki's request) and raised by 140 px instead of 130:
-   the strap's charm stays above the screen edge. */
+   the strap's charm stays above the screen edge. Tilt: share of the mockup's, from 0 (face-on)
+   to 1 (`--tilt`, Appearance section, customize.ts). */
 .phone { position: absolute; left: 500px; top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%; }
 .phone-tilt {
   position: relative; width: 410px; height: 830px;
-  transform: translateY(0px) scale(1) rotateZ(6deg) rotateX(13deg) rotateY(-36deg);
+  transform: translateY(0px) scale(1) rotateZ(calc(6deg * var(--tilt, 1))) rotateX(calc(13deg * var(--tilt, 1))) rotateY(calc(-36deg * var(--tilt, 1)));
   transform-style: preserve-3d; transition: transform .7s var(--turn);
 }
+/* While the tilt slider is dragged: the phone follows it closely */
+.tilting .phone-tilt { transition-duration: .2s; }
 .landscape .phone-tilt { transform: translateY(-140px) scale(1.1) rotateZ(0deg) rotateX(0deg) rotateY(0deg); }
 .phone-orient {
   position: absolute; left: 0; top: 0; width: 410px; height: 830px;
@@ -613,12 +616,19 @@ button.prefs-row > svg:last-child { flex: none; }
    judge on it, and the ink changes there too) */
 .custom { padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 14px; }
 .custom-head { display: flex; align-items: center; justify-content: space-between; }
-/* Tab pill of the notifications card, placed in the card */
+/* Tab pill of the notifications card, placed in the card. Three tabs as wide as their name
+   (equal thirds wide enough for "Téléphone" would not leave room for "Reset"): the thumb is
+   placed under the open one by customize.ts. */
 .custom-tabs {
-  position: relative; width: 168px; height: 28px; box-sizing: border-box; align-items: center;
+  position: relative; flex: none; height: 28px; box-sizing: border-box; align-items: center;
+  grid-template-columns: repeat(3, auto);
   border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
 }
-.custom-tabs .notifs-tab { padding: 0 5px; }
+.custom-tabs .notifs-tab { padding: 0 8px; }
+.custom-tabs .tabs-thumb, .custom-tabs[data-pane] .tabs-thumb { left: var(--thumb-l, 2px); right: var(--thumb-r, 66%); }
+/* The leading edge first, whichever way the thumb goes (the middle tab is reached from both sides) */
+.custom-tabs[data-dir="left"] .tabs-thumb { transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
+.custom-tabs[data-dir="right"] .tabs-thumb { transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
 .custom-reset {
   height: 26px; padding: 0 4px; background: transparent; border: none; cursor: pointer;
   font-weight: 900; font-size: 12px; color: rgb(from var(--ink) r g b / .8);
@@ -629,6 +639,15 @@ button.prefs-row > svg:last-child { flex: none; }
 .custom-label { display: flex; align-items: baseline; gap: 6px; font-weight: 900; font-size: 13px; }
 .custom-value { font-weight: 800; font-size: 12px; color: var(--soft); }
 .custom-value::before { content: '· '; }
+/* Tilt: the volume slider (room for its knob), its two ends below as small buttons */
+.custom-row > .tp-range { margin: 6px 0 2px; }
+.tilt-ends { display: flex; justify-content: space-between; }
+.tilt-end {
+  height: 22px; padding: 0 2px; background: transparent; border: none; cursor: pointer;
+  font-weight: 800; font-size: 12px; color: var(--soft); transition: color .15s;
+}
+.tilt-end:hover { color: var(--ink); }
+.tilt-end:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
 
 /* Swatches: 32 px dots, the chosen one ringed in ink; the last one, "Other color",
    in pastel rainbow with a +, in its color once chosen */
