@@ -5,14 +5,14 @@ An app launcher for Windows 11, shaped like a pastel phone. **Alt+Space** slides
 The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.reddit.com/r/unixporn/comments/1x37y28/hyprland_project_sekai_inspired_quickshell/) shared on r/unixporn by [u/Single-Flamingo-8194](https://www.reddit.com/user/Single-Flamingo-8194/), who kindly gave me permission to use their idea. Thank you so much!
 
 <p align="center">
-  <img src="docs/reglages.webp" alt="The tilted phone: quick settings, volume, now playing and background apps" width="380">
-  <img src="docs/parametres.webp" alt="The settings page: language, start with Windows, pastel bar, shortcut and colors" width="380">
+  <img src="docs/quick-settings.webp" alt="The tilted phone: quick settings, volume, now playing and background apps" width="380">
+  <img src="docs/settings.webp" alt="The settings page: language, start with Windows, pastel bar, shortcut and colors" width="380">
 </p>
 <p align="center">
-  <img src="docs/applications.webp" alt="The phone laid flat: apps, recents and folders" width="760">
+  <img src="docs/apps.webp" alt="The phone laid flat: apps, recents and folders" width="760">
 </p>
 <p align="center">
-  <img src="docs/barre.webp" alt="The pastel bar with the Spotify player open" width="740">
+  <img src="docs/bar.webp" alt="The pastel bar with the Spotify player open" width="740">
 </p>
 
 > The interface is in English and French: Pastille starts in the language of Windows, and the settings page switches between the two.
@@ -105,15 +105,15 @@ npm run tauri dev     # the app, rebuilt on every change
 npm run tauri build   # the installer, in src-tauri/target/release/bundle/nsis/ (signed for
                       # updates: needs the TAURI_SIGNING_PRIVATE_KEY environment variable)
 npm run dev           # browser preview with sample data:
-                      # http://localhost:1420/ (phone) and http://localhost:1420/barre.html (bar)
+                      # http://localhost:1420/ (phone) and http://localhost:1420/bar.html (bar)
 ```
 
 The development build shares its config and shortcut with the installed version: quit Pastille before `npm run tauri dev`.
 
 - `src/`: the interface, in TypeScript, without a framework.
 - `src-tauri/`: Rust (Tauri 2 and the Windows API).
-- `maquette/`: the reference mockup of the phone.
-- `CLAUDE.md`: the project brief (in French), developed with [Claude Code](https://claude.com/claude-code).
+- `mockup/`: the reference mockup of the phone.
+- `CLAUDE.md`: the project brief, developed with [Claude Code](https://claude.com/claude-code).
 
 Pushing a `vX.Y.Z` tag matching the version in `src-tauri/tauri.conf.json` runs the "Release" workflow, which builds and publishes the release (installer, signature and the `latest.json` read by installed copies).
 

@@ -6,7 +6,7 @@
    behind ^ (main screen), clock.
    One transparent window per screen (bar.rs): Rust shows it when the mouse touches the bottom
    edge, says when the mouse is on the pill or clicks elsewhere, and only takes the mouse on
-   the rectangles sent by `reportRects`. Browser preview: barre.html (?ecran=2).
+   the rectangles sent by `reportRects`. Browser preview: bar.html (?screen=2).
    ══════════════════════════════════════════════════════════ */
 import { ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
@@ -1169,10 +1169,10 @@ function init() {
     document.body.classList.add('preview');
     const help = $('preview-help');
     help.textContent = MAIN
-      ? tr('Barre pastel, écran principal : souris tout en bas pour la faire sortir. Second écran : ?ecran=2',
-        'Pastel bar, main screen: move the mouse to the very bottom to bring it out. Second screen: ?ecran=2')
-      : tr('Barre pastel, second écran : souris tout en bas pour la faire sortir. Écran principal : sans ?ecran=2',
-        'Pastel bar, second screen: move the mouse to the very bottom to bring it out. Main screen: without ?ecran=2');
+      ? tr('Barre pastel, écran principal : souris tout en bas pour la faire sortir. Second écran : ?screen=2',
+        'Pastel bar, main screen: move the mouse to the very bottom to bring it out. Second screen: ?screen=2')
+      : tr('Barre pastel, second écran : souris tout en bas pour la faire sortir. Écran principal : sans ?screen=2',
+        'Pastel bar, second screen: move the mouse to the very bottom to bring it out. Main screen: without ?screen=2');
     help.hidden = false;
   }
   loadColors();

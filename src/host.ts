@@ -171,9 +171,9 @@ export interface Prefs {
 export type PrefSwitch = 'autostart' | 'bar';
 export type PrefAction = 'spotify' | 'edit-config' | 'reload' | 'quit';
 
-/* Browser preview: appearance kept in the page (localStorage, shared with barre.html) */
-const PREVIEW_LOOK = 'apparence-apercu';
-const PREVIEW_IMAGE = 'apparence-apercu-image';
+/* Browser preview: appearance kept in the page (localStorage, shared with bar.html) */
+const PREVIEW_LOOK = 'preview-appearance';
+const PREVIEW_IMAGE = 'preview-appearance-image';
 
 function previewRead(key: string) {
   try {
@@ -196,10 +196,10 @@ function previewConfig(): Config {
   const config: Config = structuredClone(EXAMPLE);
   const now = Math.floor(Date.now() / 1000);
   config.apps.slice(0, 3).forEach((app, i) => Object.assign(app, { uses: 3 - i, last: now - i * 600 }));
-  // Group of the Start menu apps ("All apps"); ?demarrer: Calculator launched
+  // Group of the Start menu apps ("All apps"); ?start: Calculator launched
   // last. The example's `app` and `default` tiles are all there, as if everything were installed.
   const all: AppItem[] = PREVIEW_START.map((label, i) => ({ id: `d${i}`, label, target: `shell:AppsFolder\\${label}`, start: true }));
-  if (new URLSearchParams(location.search).has('demarrer')) all[3].last = now;
+  if (new URLSearchParams(location.search).has('start')) all[3].last = now;
   // Hidden (right-click): in a group at the end, like config.rs
   const children = all.filter((it) => !previewHidden.has(it.label));
   const hidden = all.filter((it) => previewHidden.has(it.label)).map((it) => ({ ...it, hidden: true }));
@@ -281,7 +281,7 @@ let previewPins: Omit<PinnedApp, 'icon'>[] = [
   { exe: 'epicgameslauncher.exe', name: 'Epic Games Launcher', glyph: 'epic' },
 ];
 
-/* Browser preview: Settings page values; ?maj: an update found by "Check"; ?dev:
+/* Browser preview: Settings page values; ?update: an update found by "Check"; ?dev:
    development build (Start with Windows grayed out) */
 const previewPrefs: Prefs = {
   language: LANGUAGE,
@@ -297,8 +297,8 @@ const previewLanguageListeners: ((language: Language) => void)[] = [];
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
-    // ?bienvenue: first run
-    const welcome = new URLSearchParams(location.search).has('bienvenue') ? { shortcut: 'Alt+Space', autostart: false } : null;
+    // ?welcome: first run
+    const welcome = new URLSearchParams(location.search).has('welcome') ? { shortcut: 'Alt+Space', autostart: false } : null;
     if (PREVIEW) return { config: previewConfig(), problems: [], welcome };
     return invoke<ConfigPayload>('get_config');
   },
@@ -410,12 +410,12 @@ export const host = {
   },
   async spotifyState(): Promise<SpotifyState> {
     if (PREVIEW) {
-      // ?reconnecter: connection from before the playlists; ?connecter: not connected (Windows volume)
+      // ?reconnect: connection from before the playlists; ?connect: not connected (Windows volume)
       const params = new URLSearchParams(location.search);
-      if (params.has('connecter')) {
+      if (params.has('connect')) {
         return { volume: { source: 'windows', key: 'spotify.exe', volume: 80 }, shuffle: null, repeat: null, problem: null, reconnect: false, connect: true };
       }
-      const reconnect = params.has('reconnecter');
+      const reconnect = params.has('reconnect');
       return { volume: { source: 'app', key: '', volume: 80 }, shuffle: previewShuffle, repeat: previewRepeat, problem: null, reconnect, connect: false };
     }
     return invoke<SpotifyState>('spotify_state');
@@ -442,8 +442,8 @@ export const host = {
   /* Pastille update, alerts, Steam activity, downloads from the last 24 h */
   async feed(): Promise<FeedEvent[]> {
     if (PREVIEW) {
-      // ?maj: an update offered
-      const update: FeedEvent[] = new URLSearchParams(location.search).has('maj') ? [{ kind: 'update', version: '1.12.0' }] : [];
+      // ?update: an update offered
+      const update: FeedEvent[] = new URLSearchParams(location.search).has('update') ? [{ kind: 'update', version: '1.12.0' }] : [];
       return [
         ...update,
         { kind: 'steam', game: 'Street Fighter 6', progress: 62, paused: false, age: null },
@@ -560,7 +560,7 @@ export const host = {
   async checkUpdate(): Promise<string | null> {
     if (!PREVIEW) return invoke<string | null>('check_update');
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    previewPrefs.update = new URLSearchParams(location.search).has('maj') ? '1.12.0' : null;
+    previewPrefs.update = new URLSearchParams(location.search).has('update') ? '1.12.0' : null;
     return previewPrefs.update;
   },
   /* The file name only: Rust looks for it in Downloads */
@@ -596,9 +596,9 @@ export const host = {
     }
   },
   /* ── Pastel bar (bar.rs): one window per screen, "bar-0" for the main one ── */
-  /* The window's screen; preview: ?ecran=2 for the second one */
+  /* The window's screen; preview: ?screen=2 for the second one */
   barScreen(): number {
-    if (PREVIEW) return Math.max(0, Number(new URLSearchParams(location.search).get('ecran') ?? 1) - 1);
+    if (PREVIEW) return Math.max(0, Number(new URLSearchParams(location.search).get('screen') ?? 1) - 1);
     return Number(getCurrentWindow().label.replace('bar-', '')) || 0;
   },
   /* Where the window takes the mouse (x, y, width, height in CSS pixels); elsewhere, it lets

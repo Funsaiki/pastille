@@ -68,7 +68,7 @@ jobs:
 
   # Published release: do installed copies find it (latest.json), and does the downloaded
   # installer have a valid signature for the public key in tauri.conf.json? Nothing is
-  # installed (tests/mise_a_jour.rs).
+  # installed (tests/update_check.rs).
   verification:
     needs: windows
     if: startsWith(github.ref, 'refs/tags/')
@@ -92,5 +92,5 @@ jobs:
 
       - run: npm run build
 
-      - run: cargo test --test mise_a_jour -- --ignored --nocapture
+      - run: cargo test --test update_check -- --ignored --nocapture
         working-directory: src-tauri

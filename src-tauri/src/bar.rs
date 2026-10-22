@@ -1,5 +1,5 @@
 //! Pastel bar (requested by Funsaiki on 2026-10-16): instead of the Windows taskbar, a pill
-//! at the bottom of each screen (barre.html, bar.ts), auto-hidden.
+//! at the bottom of each screen (bar.html, bar.ts), auto-hidden.
 //!
 //! One transparent window per screen ("bar-0" for the primary one, then left to right),
 //! across the whole width of its bottom edge and HEIGHT tall, for the notification area and the
@@ -282,7 +282,7 @@ fn ensure_windows(app: &AppHandle, monitors: &[RECT]) {
 }
 
 fn create(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
-    let w = WebviewWindowBuilder::new(app, label, WebviewUrl::App("barre.html".into()))
+    let w = WebviewWindowBuilder::new(app, label, WebviewUrl::App("bar.html".into()))
         .title(tr("Barre pastel", "Pastel bar"))
         .decorations(false)
         .transparent(true)

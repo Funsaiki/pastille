@@ -18,10 +18,10 @@ function stored(): Language | null {
   }
 }
 
-/* Browser preview: ?langue=en or ?langue=fr (screenshots) */
+/* Browser preview: ?lang=en or ?lang=fr (screenshots) */
 function asked(): Language | null {
   if ('__TAURI_INTERNALS__' in window) return null;
-  const value = new URLSearchParams(location.search).get('langue');
+  const value = new URLSearchParams(location.search).get('lang');
   return value === 'fr' || value === 'en' ? value : null;
 }
 
@@ -39,7 +39,7 @@ export function tr<T>(fr: T, en: T): T {
 /* Percentage: "14 %" in French, "14%" in English */
 export const percent = (value: number | string) => tr(`${value} %`, `${value}%`);
 
-/* HTML texts (index.html, barre.html), written in French: their English version is in
+/* HTML texts (index.html, bar.html), written in French: their English version is in
    data-en (text of an element without children), data-en-title, data-en-label (aria-label) and
    data-en-placeholder */
 export function translatePage() {

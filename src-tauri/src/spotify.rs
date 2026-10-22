@@ -94,7 +94,7 @@ struct Auth {
 fn file(app: &AppHandle) -> Option<PathBuf> {
     // Simulated first launch (config::example_mode): Spotify not set up yet, as on
     // another PC; Funsaiki's connection stays intact
-    let name = if crate::config::example_mode() { "spotify-exemple.json" } else { "spotify.json" };
+    let name = if crate::config::example_mode() { "spotify-example.json" } else { "spotify.json" };
     app.path().app_config_dir().ok().map(|dir| dir.join(name))
 }
 
@@ -373,11 +373,11 @@ fn wait_for_callback(
 
 /* ── Setup page (first setup) ── */
 
-/// /spotify: the tutorial and the id field; /identifiant: the pasted id. Valid,
+/// /spotify: the tutorial and the id field; /client-id: the pasted id. Valid,
 /// it is returned and the browser goes to Spotify's authorization; otherwise the page comes back
 /// with the error. One can go back and paste another one as long as the wait lasts.
 fn serve_setup(stream: &mut TcpStream, login: &Login, path: &str, params: &HashMap<String, String>) -> Option<String> {
-    if !matches!(path, "/spotify" | "/identifiant") {
+    if !matches!(path, "/spotify" | "/client-id") {
         respond(stream, "404 Not Found", "");
         return None;
     }
@@ -428,7 +428,7 @@ fn setup_page(state: &str, typed: &str, error: Option<&str>) -> String {
         .replace("{{id}}", &escape(typed))
 }
 
-/// Launcher icon (Apps tile, icons/icone.svg) for the tab
+/// Launcher icon (Apps tile, icons/icon.svg) for the tab
 const FAVICON: &str = "<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect x='80' y='103' width='864' height='864' rx='290' fill='%230f3b42'/%3E%3Crect x='80' y='58' width='864' height='864' rx='290' fill='%239fe0dc' stroke='%230f3b42' stroke-width='37'/%3E%3Cpath d='M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' transform='translate(248 226) scale(22)' fill='none' stroke='%230f3b42' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\">";
 
 /// Nunito (700 to 900), the launcher's font, in the pages: embedded (the listener stops right
@@ -1094,11 +1094,11 @@ mod tests {
             let setup = get(&format!("/spotify?n={nonce}"));
             assert!(setup.starts_with("HTTP/1.1 200") && setup.contains(REDIRECT) && setup.contains(&nonce));
             assert!(!setup.contains("{{") && !setup.contains(r#"class="error""#));
-            let refused = get(&format!("/identifiant?n={nonce}&id=%22abc%3E"));
+            let refused = get(&format!("/client-id?n={nonce}&id=%22abc%3E"));
             assert!(refused.contains(r#"class="error""#) && refused.contains("(là : 5)"));
             assert!(refused.contains(r#"value="&quot;abc&gt;""#), "value escaped");
-            assert!(get(&format!("/identifiant?n={nonce}&id=")).contains("Colle d'abord"));
-            let sent = get(&format!("/identifiant?n={nonce}&id=+0123456789ABCDEF0123456789abcdef+"));
+            assert!(get(&format!("/client-id?n={nonce}&id=")).contains("Colle d'abord"));
+            let sent = get(&format!("/client-id?n={nonce}&id=+0123456789ABCDEF0123456789abcdef+"));
             assert!(sent.starts_with("HTTP/1.1 303"));
             assert!(sent.contains("Location: https://accounts.spotify.com/authorize?client_id=0123456789abcdef0123456789abcdef&"));
             assert!(sent.contains(&format!("&state={nonce}")));

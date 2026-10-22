@@ -135,9 +135,9 @@ function mix(a: string, b: string, t: number) {
 /* Shades of the mockup's case, as lightness and saturation offsets from its
    middle color (#1f5f68: 187°, 54%, 26%): top and bottom of the gradient, edge, buttons,
    lens rim */
-const COQUE_SHADES: [string, number, number][] = [
-  ['--coque-top', 9, -5],
-  ['--coque-bottom', -5, 2],
+const CASE_SHADES: [string, number, number][] = [
+  ['--case-top', 9, -5],
+  ['--case-bottom', -5, 2],
   ['--edge-1', 6.5, -5],
   ['--edge-hi', 24, -25],
   ['--edge-2', -2, 2],
@@ -155,8 +155,8 @@ export function applyColors() {
   set('--fill', colorOf('accent'));
   set('--ink', encre);
   set('--ink-deep', encre && shade(encre, -toHsl(encre)[2] * 0.3, 0));
-  set('--coque', coque);
-  for (const [name, dl, ds] of COQUE_SHADES) set(name, coque && shade(coque, dl, ds));
+  set('--case', coque);
+  for (const [name, dl, ds] of CASE_SHADES) set(name, coque && shade(coque, dl, ds));
   set('--screen-top', ecran);
   set('--screen-mid', ecran && mix(ecran, '#ffffff', 0.64));
   set('--screen-dot', ecran && mix(ecran, '#ffffff', 0.5));

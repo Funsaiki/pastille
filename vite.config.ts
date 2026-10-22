@@ -30,7 +30,7 @@ export default defineConfig(() => ({
   // Two pages: the launcher and the pastel bar (one window per screen, bar.rs)
   build: {
     rolldownOptions: {
-      input: { main: "index.html", barre: "barre.html" },
+      input: { main: "index.html", bar: "bar.html" },
     },
   },
 }));

@@ -6,7 +6,7 @@
 //! shows in Notifs; a click downloads it, checks its signature, runs the installer
 //! (progress bar only) and quits: the installer restarts Pastille.
 //!
-//! In development, nothing, except with `PASTILLE_MAJ` (`1`: the real release; otherwise the URL
+//! In development, nothing, except with `PASTILLE_UPDATE` (`1`: the real release; otherwise the URL
 //! of a latest.json): any version is offered, and a click downloads it and checks its
 //! signature without installing it.
 
@@ -47,9 +47,9 @@ pub fn init(app: &AppHandle) {
     });
 }
 
-/// `PASTILLE_MAJ`, in development only
+/// `PASTILLE_UPDATE`, in development only
 fn dev_test() -> Option<String> {
-    if cfg!(debug_assertions) { std::env::var("PASTILLE_MAJ").ok() } else { None }
+    if cfg!(debug_assertions) { std::env::var("PASTILLE_UPDATE").ok() } else { None }
 }
 
 async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
@@ -65,7 +65,7 @@ async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
         });
     if let Some(test) = dev_test() {
         if test != "1" {
-            let url = test.parse().map_err(|e| format!("PASTILLE_MAJ: {e}"))?;
+            let url = test.parse().map_err(|e| format!("PASTILLE_UPDATE: {e}"))?;
             builder = builder.endpoints(vec![url]).map_err(|e| e.to_string())?;
         }
         builder = builder.version_comparator(|_, _| true);

@@ -1,7 +1,7 @@
 //! Updates diagnostic (update.rs): is the latest release (latest.json, installer,
 //! signature) valid for the public key in tauri.conf.json? Downloads without installing
 //! anything, without a window or any link to the installed Pastille:
-//! cargo test --test mise_a_jour -- --ignored --nocapture
+//! cargo test --test update_check -- --ignored --nocapture
 //! (Integration test: only this kind of target gets the manifest from build.rs.)
 
 use std::time::Duration;

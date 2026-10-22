@@ -82,7 +82,7 @@ pub fn restore() {
 }
 
 /// Argument of the watchdog process, followed by the launcher's identifier
-const GUARD: &str = "--garde-barre";
+const GUARD: &str = "--bar-guard";
 
 /// Safety net: a second process of the launcher (the same exe), which only waits for the
 /// first one to end to show the Windows taskbar again. One per launcher, started the first

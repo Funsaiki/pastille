@@ -1907,7 +1907,7 @@ function hideLauncher() {
 /* ── Language changed in the Settings page: the page reloads (its texts are written on
    load). The phone goes down, after enough time to see the tab slider slide, then comes back up in
    the new language, on the Settings page. ── */
-const REOPEN_KEY = 'rouvrir-parametres';
+const REOPEN_KEY = 'reopen-settings';
 
 function changeLanguage(language: Language) {
   if (!rememberLanguage(language)) return;

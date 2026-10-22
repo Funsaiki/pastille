@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════
-   Pastille — values taken from maquette/Telephone.dc.html,
+   Pastille — values taken from mockup/Telephone.dc.html,
    the reference. Nunito font bundled (works offline).
    ══════════════════════════════════════════════════════════ */
 @import '@fontsource/nunito/700.css';
@@ -15,9 +15,9 @@
   --turn: cubic-bezier(.45, .05, .25, 1);
   /* Case and screen from the mockup; the Customize card replaces them (appearance.ts derives
      the shades from a single color) */
-  --coque-top: #2d7a84;
-  --coque: #1f5f68;
-  --coque-bottom: #174b52;
+  --case-top: #2d7a84;
+  --case: #1f5f68;
+  --case-bottom: #174b52;
   --edge-1: #2a727c;
   --edge-hi: #5a9ca4;
   --edge-2: #1b5760;
@@ -187,7 +187,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .side-btn {
   position: absolute; left: 10px; width: 14px; box-sizing: border-box; border-radius: 8px;
-  border: 3px solid var(--ink); background: linear-gradient(90deg, var(--btn-hi), var(--coque-top));
+  border: 3px solid var(--ink); background: linear-gradient(90deg, var(--btn-hi), var(--case-top));
   box-shadow: 2px 0 0 var(--ink); transform: translateZ(5px);
 }
 .side-btn.pink { background: linear-gradient(90deg, #f6c6da, #e9a9c4); }
@@ -196,7 +196,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 .phone-body {
   position: absolute; inset: 0; transform: translateZ(1px); box-sizing: border-box; padding: 13px;
   border-radius: 66px; border: 5px solid var(--ink);
-  background: linear-gradient(160deg, var(--coque-top) 0%, var(--coque) 45%, var(--coque-bottom) 100%);
+  background: linear-gradient(160deg, var(--case-top) 0%, var(--case) 45%, var(--case-bottom) 100%);
   box-shadow: 30px 44px 70px rgb(from var(--ink) r g b / .28), inset 0 2px 0 rgba(255, 255, 255, .25);
 }
 .screen {
@@ -209,7 +209,7 @@ button, input { font-family: 'Nunito', sans-serif; }
   border-radius: 15px; background: var(--ink); display: flex; align-items: center; justify-content: flex-end;
   padding-right: 12px; box-sizing: border-box; z-index: 2;
 }
-.island span { width: 10px; height: 10px; border-radius: 50%; background: var(--coque-top); border: 2px solid var(--lens-ring); }
+.island span { width: 10px; height: 10px; border-radius: 50%; background: var(--case-top); border: 2px solid var(--lens-ring); }
 
 /* ══ Quick settings view ══ */
 .view-settings { position: absolute; inset: 0; box-sizing: border-box; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
