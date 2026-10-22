@@ -3,11 +3,11 @@
   "shortcut": "Alt+Space",
   "apps": [
     { "label": "Code", "icon": "code", "app": "Visual Studio Code" },
-    { "label": "Browser", "icon": "navigateur", "default": "https" },
-    { "label": "Files", "icon": "fichiers", "target": "%USERPROFILE%" },
+    { "label": "Browser", "icon": "browser", "default": "https" },
+    { "label": "Files", "icon": "files", "target": "%USERPROFILE%" },
     {
       "label": "Games",
-      "icon": "jeux",
+      "icon": "games",
       "children": [
         {
           "label": "Steam",
@@ -32,11 +32,11 @@
     { "label": "Messages", "icon": "messages", "keywords": "discord", "app": "Discord" },
     {
       "label": "Music",
-      "icon": "musique",
+      "icon": "music",
       "keywords": "spotify",
       "auto": "spotify",
       "children": [
-        { "label": "Spotify", "icon": "musique", "source": "LAUNCHER", "app": "Spotify" }
+        { "label": "Spotify", "icon": "music", "source": "LAUNCHER", "app": "Spotify" }
       ]
     },
     { "label": "Terminal", "icon": "terminal", "target": "wt.exe" },

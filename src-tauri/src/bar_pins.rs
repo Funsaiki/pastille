@@ -1,6 +1,6 @@
 //! Apps pinned to the pastel bar (requested by Funsaiki, 2026-10-17): as in the Windows
 //! taskbar, one tile always there per pinned app, even when closed; a click
-//! launches it. Pinned from the right-click menu of a window tile, kept in barre.json
+//! launches it. Pinned from the right-click menu of a window tile, kept in bar.json
 //! (`pinned`, bar.rs).
 //!
 //! Recognized by the name of their program ("discord.exe"): Discord's folder changes with
@@ -159,7 +159,7 @@ mod tests {
         assert_eq!(exe_of(r"C:\Users\x\AppData\Local\Discord\app-1.0.9\Discord.exe").as_deref(), Some("discord.exe"));
         assert!(bar::is_hosted(r"C:\Windows\System32\ApplicationFrameHost.exe"));
         assert!(!bar::is_hosted(r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"));
-        // Old barre.json, without pins; pin without a Store identifier
+        // Old bar.json, without pins; pin without a Store identifier
         let pin: Pin = serde_json::from_str(r#"{ "exe": "code.exe", "name": "Code", "path": "C:/Code.exe" }"#).unwrap();
         assert!(pin.app_id.is_none());
         assert!(!serde_json::to_string(&pin).unwrap().contains("appId"));

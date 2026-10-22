@@ -72,6 +72,7 @@ pub fn run() {
             // Reads apps.json and registers the shortcut; if it's already taken, the app starts
             // anyway and the launcher reports it (it is opened from the notification area)
             com::keep_mta();
+            config::rename_old_files(app.handle());   // files named in French, before any read
             prefs::init(app.handle());   // language, before any text
             app.manage(usage::load(app.handle()));
             app.manage(spotify::load(app.handle()));

@@ -203,7 +203,7 @@ function previewConfig(): Config {
   // Hidden (right-click): in a group at the end, like config.rs
   const children = all.filter((it) => !previewHidden.has(it.label));
   const hidden = all.filter((it) => previewHidden.has(it.label)).map((it) => ({ ...it, hidden: true }));
-  if (hidden.length) children.push({ label: tr('Masquées', 'Hidden'), icon: 'masquees', hidden: true, children: hidden });
+  if (hidden.length) children.push({ label: tr('Masquées', 'Hidden'), icon: 'hidden', hidden: true, children: hidden });
   const start = config.apps.find((it) => it.auto === 'start');
   if (start) start.children = children;
   // Ids, `auto` groups reduced to their launcher (nothing is added to them here: no games, no
@@ -266,18 +266,18 @@ let previewTray: TrayApp[] = ['Discord', 'EarTrumpet', 'G HUB', 'Lightshot', 'Ri
 /* Browser preview: windows on Funsaiki's two screens, without their icons */
 let previewBar: BarWindow[] = [
   { id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', exe: 'code.exe', glyph: 'code', active: true },
-  { id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'navigateur', active: false },
-  { id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'navigateur', active: false },
-  { id: 'w4', title: tr('Téléchargements', 'Downloads'), app: tr('Explorateur de fichiers', 'File Explorer'), key: 'explorer', exe: 'explorer.exe', glyph: 'fichiers', active: false },
+  { id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'browser', active: false },
+  { id: 'w3', title: 'GitHub — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'browser', active: false },
+  { id: 'w4', title: tr('Téléchargements', 'Downloads'), app: tr('Explorateur de fichiers', 'File Explorer'), key: 'explorer', exe: 'explorer.exe', glyph: 'files', active: false },
   { id: 'w5', title: 'PowerShell', app: 'Terminal', key: 'terminal', exe: 'windowsterminal.exe', glyph: 'terminal', active: false },
   { id: 'w6', title: tr('#général — Discord', '#general — Discord'), app: 'Discord', key: 'discord', exe: 'discord.exe', glyph: 'messages', active: false },
-  { id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', exe: 'spotify.exe', glyph: 'musique', active: false },
+  { id: 'w7', title: 'Spotify Premium', app: 'Spotify', key: 'spotify', exe: 'spotify.exe', glyph: 'music', active: false },
   { id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', exe: 'steam.exe', glyph: 'steam', active: false },
 ].map((w) => ({ ...w, icon: null, attention: w.key === 'discord' }));
 
 /* Browser preview: Brave pinned and open, the Epic launcher pinned and closed */
 let previewPins: Omit<PinnedApp, 'icon'>[] = [
-  { exe: 'brave.exe', name: 'Brave', glyph: 'navigateur' },
+  { exe: 'brave.exe', name: 'Brave', glyph: 'browser' },
   { exe: 'epicgameslauncher.exe', name: 'Epic Games Launcher', glyph: 'epic' },
 ];
 
@@ -302,7 +302,7 @@ export const host = {
     if (PREVIEW) return { config: previewConfig(), problems: [], welcome };
     return invoke<ConfigPayload>('get_config');
   },
-  /* Customize card: saved appearance (apparence.json, next to apps.json); `image`: with the
+  /* Customize card: saved appearance (appearance.json, next to apps.json); `image`: with the
      charm's image (the pastel bar does not ask for it) */
   async appearance(image = true): Promise<AppearancePayload> {
     if (!PREVIEW) return invoke<AppearancePayload>('get_appearance', { image });

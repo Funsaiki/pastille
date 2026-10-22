@@ -13,7 +13,7 @@ export const SETTINGS: AppItem[] = settings.map((s, i) => ({
   label: tr(s.label, s.en),
   keywords: tr(s.keywords, s.enKeywords),
   target: s.target,   // preview only
-  icon: 'parametres',
+  icon: 'settings',
 }));
 
 /* ── Calculation: "12*3,5" → tile "= 42", Enter copies the result ──
@@ -24,7 +24,7 @@ const fmtCopy = new Intl.NumberFormat(LOCALE, { maximumSignificantDigits: 12, us
 export function calcResult(query: string): AppItem | null {
   const value = evaluate(query);
   if (value === null) return null;
-  return { id: 'calc', label: '= ' + fmtResult.format(value), icon: 'calcul', copy: fmtCopy.format(value) };
+  return { id: 'calc', label: '= ' + fmtResult.format(value), icon: 'calculator', copy: fmtCopy.format(value) };
 }
 
 export function evaluate(input: string): number | null {

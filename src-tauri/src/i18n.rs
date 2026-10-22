@@ -1,5 +1,5 @@
 //! Pastille's language (requested by Funsaiki on 2026-10-21): French or English, chosen in
-//! the Settings page (prefs.rs, reglages.json), otherwise Windows's. The Rust texts the
+//! the Settings page (prefs.rs, settings.json), otherwise Windows's. The Rust texts the
 //! user sees (errors shown in the notifications, tray icon menu, Spotify connection
 //! pages) are written in both: `tr("français", "English")`, and two
 //! `format!` for a text with values. The development logs are in English only.

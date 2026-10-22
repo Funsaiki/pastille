@@ -212,7 +212,7 @@ function groupTile(g: Group, i: number) {
 }
 
 /* ══ Pinned apps (bar_pins.rs, Funsaiki's request): pinned from the right-click menu of a
-   window tile, saved in barre.json. Closed, its tile is flat (no shadow) and
+   window tile, saved in bar.json. Closed, its tile is flat (no shadow) and
    lifts on hover; click or middle click: launch it. Open, its windows take its
    tile. ══ */
 let pins: PinnedApp[] = [];
@@ -442,7 +442,7 @@ function updateWindowMenu() {
 /* ══ Notification area (main screen): the phone's Apps tab, same actions ══ */
 const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[] = [
   { action: 'open', label: tr('Ouvrir', 'Open'), d: OPEN, bg: 'var(--fill)' },
-  { action: 'location', label: tr('Emplacement du fichier', 'Open file location'), d: ICONS.fichiers, bg: '#c9d8ff' },
+  { action: 'location', label: tr('Emplacement du fichier', 'Open file location'), d: ICONS.files, bg: '#c9d8ff' },
   { action: 'quit', label: tr('Forcer à quitter', 'Force quit'), d: CLOSE, bg: '#f6c6da' },
 ];
 
@@ -1196,7 +1196,7 @@ function init() {
   $('bar-tray').append(icon(CHEVRON, 20, 2.6));
   $('bar-tray').hidden = !MAIN;
   $('bar-tray').addEventListener('click', () => togglePop());
-  $('bar-music').prepend(icon(ICONS.musique, 22, 2.4));
+  $('bar-music').prepend(icon(ICONS.music, 22, 2.4));
   $('bar-music').addEventListener('click', () => togglePlayer());
   $('bar-music').addEventListener('wheel', (e) => {
     e.preventDefault();

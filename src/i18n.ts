@@ -2,12 +2,14 @@
    Interface language: French or English (Settings page, asked for
    by Funsaiki on 2026-10-21). Known as soon as the page loads, before
    any text: module constants read it. Rust is the source of truth
-   (reglages.json, otherwise the Windows language); the page keeps it in
+   (settings.json, otherwise the Windows language); the page keeps it in
    localStorage for the next load and reloads when it changes.
    ══════════════════════════════════════════════════════════ */
+import './storage';
+
 export type Language = 'fr' | 'en';
 
-const KEY = 'langue';
+const KEY = 'language';
 
 function stored(): Language | null {
   try {

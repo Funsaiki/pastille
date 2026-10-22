@@ -5,7 +5,7 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::Mutex,
     thread,
@@ -35,7 +35,7 @@ pub struct AppItem {
     #[serde(default, skip_deserializing)]
     pub id: String,
     pub label: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "icon_key", skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(default, skip_serializing)]
     pub target: Option<String>,
@@ -85,6 +85,29 @@ pub struct AppItem {
 
 fn is_zero<T: Default + PartialEq>(value: &T) -> bool {
     *value == T::default()
+}
+
+/// Icon keys in French until 2026-10-22: an apps.json written before keeps its icons
+const OLD_ICONS: [(&str, &str); 14] = [
+    ("navigateur", "browser"),
+    ("fichiers", "files"),
+    ("jeux", "games"),
+    ("musique", "music"),
+    ("parametres", "settings"),
+    ("bibliotheque", "library"),
+    ("bouclier", "shield"),
+    ("etoile", "star"),
+    ("epee", "sword"),
+    ("voiture", "car"),
+    ("cartes", "cards"),
+    ("trophee", "trophy"),
+    ("calcul", "calculator"),
+    ("masquees", "hidden"),
+];
+
+fn icon_key<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let key = Option::<String>::deserialize(d)?;
+    Ok(key.map(|k| OLD_ICONS.iter().find(|(old, _)| *old == k).map_or(k, |(_, new)| new.to_string())))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -146,7 +169,7 @@ struct Detected {
     epic: Vec<epic::Game>,
     playlists: Vec<spotify::Playlist>,
     start: Vec<start_menu::StartApp>,
-    /// Hidden Start menu apps (demarrer.json, start_menu.rs): read again under the
+    /// Hidden Start menu apps (start-menu.json, start_menu.rs): read again under the
     /// config lock, as they are changed (set_start_hidden)
     hidden: Vec<String>,
     /// (value of `default`, program): ("https", "C:\…\brave.exe")
@@ -315,17 +338,17 @@ fn merge(base: &Config, games: &Detected) -> Config {
             match it.auto.as_deref() {
                 Some("steam") => {
                     for g in &games.steam {
-                        add(children, &g.name, format!("steam://rungameid/{}", g.appid), "STEAM", "jeux");
+                        add(children, &g.name, format!("steam://rungameid/{}", g.appid), "STEAM", "games");
                     }
                 }
                 Some("epic") => {
                     for g in &games.epic {
-                        add(children, &g.name, g.target.clone(), "EPIC", "jeux");
+                        add(children, &g.name, g.target.clone(), "EPIC", "games");
                     }
                 }
                 Some("spotify") => {
                     for p in &games.playlists {
-                        add(children, &p.name, p.uri.clone(), "SPOTIFY", "musique");
+                        add(children, &p.name, p.uri.clone(), "SPOTIFY", "music");
                     }
                 }
                 // No icon key: the front shows the real one (start_icons). Hidden ones in a
@@ -333,7 +356,7 @@ fn merge(base: &Config, games: &Detected) -> Config {
                 Some("start") => {
                     let mut hidden = Vec::new();
                     for a in &games.start {
-                        let item = AppItem { start: true, ..found(&a.name, a.target.clone(), "DÉMARRER") };
+                        let item = AppItem { start: true, ..found(&a.name, a.target.clone(), "START") };
                         if games.hidden.contains(&a.target) {
                             hidden.push(AppItem { hidden: true, ..item });
                         } else {
@@ -343,7 +366,7 @@ fn merge(base: &Config, games: &Detected) -> Config {
                     if !hidden.is_empty() {
                         children.push(AppItem {
                             label: tr("Masquées", "Hidden").into(),
-                            icon: Some("masquees".into()),
+                            icon: Some("hidden".into()),
                             children: Some(hidden),
                             hidden: true,
                             added: true,
@@ -427,6 +450,44 @@ pub fn path(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| tr(format!("Dossier de config introuvable : {e}."), format!("Config folder not found: {e}.")))
 }
 
+/// Files next to apps.json named in French until 2026-10-22: (new name, old name)
+const RENAMED: [(&str, &str); 4] = [
+    ("appearance.json", "apparence.json"),
+    ("bar.json", "barre.json"),
+    ("start-menu.json", "demarrer.json"),
+    ("settings.json", "reglages.json"),
+];
+
+/// The file to read for `path` (one of RENAMED, written under its new name): the old
+/// name as long as only that one exists. Development: the installed version still uses it.
+pub fn to_read(path: PathBuf) -> PathBuf {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+    match RENAMED.iter().find(|(new, _)| *new == name) {
+        Some((_, old)) if !path.exists() && path.with_file_name(old).exists() => path.with_file_name(old),
+        _ => path,
+    }
+}
+
+/// Installed version, at startup before any read: the files of a version from before
+/// 2026-10-22 take their new name, replacing those a development build may have written.
+pub fn rename_old_files(app: &AppHandle) {
+    if let (false, Ok(dir)) = (cfg!(debug_assertions), app.path().app_config_dir()) {
+        rename_in(&dir);
+    }
+}
+
+fn rename_in(dir: &Path) {
+    for (new, old) in RENAMED {
+        let old = dir.join(old);
+        if old.exists() {
+            if let Err(e) = fs::rename(&old, dir.join(new)) {
+                eprintln!("[pastille] {} not renamed: {e}", old.display());
+            }
+        }
+    }
+    crate::appearance::rename_old_image(dir);
+}
+
 /// Creates apps.json from the example, in Pastille's language, if it doesn't exist yet.
 fn ensure_file(app: &AppHandle) -> Result<PathBuf, String> {
     let path = path(app)?;
@@ -494,7 +555,7 @@ pub fn menu_item(app: &AppHandle, id: &str) -> Option<MenuItem> {
     })
 }
 
-/// Hides or shows again a Start menu app (demarrer.json); the front receives the
+/// Hides or shows again a Start menu app (start-menu.json); the front receives the
 /// rebuilt config. Under the lock: a game scan in progress will read it again (scan_games).
 pub fn set_start_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
     let state = app.state::<SharedConfig>();
@@ -821,7 +882,27 @@ mod tests {
         let config = merge(&base, &Detected { playlists, ..Default::default() });
         let music = config.apps[0].children.as_ref().unwrap();
         assert_eq!(music[0].label, "Spotify", "the Spotify launcher stays first");
-        assert_eq!((music[1].label.as_str(), music[1].icon.as_deref(), music[1].target.as_deref()), ("Lofi", Some("musique"), Some("spotify:playlist:abc")));
+        assert_eq!((music[1].label.as_str(), music[1].icon.as_deref(), music[1].target.as_deref()), ("Lofi", Some("music"), Some("spotify:playlist:abc")));
+    }
+
+    #[test]
+    fn files_renamed_in_english() {
+        let dir = std::env::temp_dir().join(format!("pastille-renamed-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        // Development: the old name is read as long as the new one doesn't exist
+        fs::write(dir.join("barre.json"), "old").unwrap();
+        assert_eq!(to_read(dir.join("bar.json")), dir.join("barre.json"));
+        fs::write(dir.join("bar.json"), "dev").unwrap();
+        assert_eq!(to_read(dir.join("bar.json")), dir.join("bar.json"));
+        assert_eq!(to_read(dir.join("apps.json")), dir.join("apps.json"));
+        // Installed version: the old files replace those written by development
+        fs::write(dir.join("breloque.png"), "old image").unwrap();
+        fs::write(dir.join("charm.svg"), "dev image").unwrap();
+        rename_in(&dir);
+        assert_eq!(fs::read_to_string(dir.join("bar.json")).unwrap(), "old");
+        assert!(!dir.join("barre.json").exists() && !dir.join("charm.svg").exists());
+        assert_eq!(fs::read_to_string(dir.join("charm.png")).unwrap(), "old image");
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     /// Spotify not connected (no playlists): the group only has the launcher, it becomes that
@@ -835,7 +916,7 @@ mod tests {
             { "label": "Seul", "children": [ { "label": "Garde", "target": "x.exe" } ] } ] }"#).unwrap();
         let alone = merge(&base, &Detected::default());
         let music = &alone.apps[1];
-        assert_eq!((music.id.as_str(), music.label.as_str(), music.icon.as_deref()), ("a1", "Musique", Some("musique")));
+        assert_eq!((music.id.as_str(), music.label.as_str(), music.icon.as_deref()), ("a1", "Musique", Some("music")), "old icon key, read in English");
         assert_eq!((music.target.as_deref(), music.children.is_none(), music.auto.as_deref()), (Some("spotify:"), true, None));
         assert_eq!(music.keywords.as_deref(), Some("spotify son"));
         assert_eq!(alone.apps.len(), 3, "empty Steam group removed");

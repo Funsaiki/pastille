@@ -2,7 +2,7 @@
 //! used to set (Start with Windows, pastel bar, Spotify, apps.json, Quit), and the language.
 //! The tray icon menu keeps only Show, Settings and Quit (tray.rs).
 //!
-//! The language is kept in reglages.json, next to apps.json (not in apps.json: an older version
+//! The language is kept in settings.json, next to apps.json (not in apps.json: an older version
 //! would refuse it). With no choice, the Windows language: French if Windows is in
 //! French, otherwise English. Rust follows it (i18n.rs); the pages keep a copy (i18n.ts).
 
@@ -24,28 +24,28 @@ pub enum Language {
     En,
 }
 
-/* ── Settings: reglages.json ── */
+/* ── Settings: settings.json (reglages.json until 2026-10-22) ── */
 
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
     /// Missing: the Windows language. An unknown value (newer version) makes the file
     /// unreadable: we fall back to the Windows language.
-    #[serde(default, rename = "langue", skip_serializing_if = "Option::is_none")]
+    #[serde(default, alias = "langue", skip_serializing_if = "Option::is_none")]
     language: Option<Language>,
 }
 
 fn file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("reglages.json"))
+    app.path().app_config_dir().ok().map(|dir| dir.join("settings.json"))
 }
 
 fn settings(app: &AppHandle) -> Settings {
     file(app)
-        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|path| fs::read_to_string(config::to_read(path)).ok())
         .and_then(|text| serde_json::from_str(text.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default()
 }
 
-/// Temporary file then rename, like barre.json
+/// Temporary file then rename, like bar.json
 fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = file(app).ok_or(tr("Dossier de config introuvable.", "Config folder not found."))?;
     let temp = path.with_extension("json.tmp");
@@ -196,11 +196,12 @@ mod tests {
     #[test]
     fn language_is_read_and_unknown_values_fall_back() {
         let read = |text: &str| serde_json::from_str::<Settings>(text).ok().and_then(|s| s.language);
-        assert_eq!(read(r#"{ "langue": "en" }"#), Some(Language::En));
-        assert_eq!(read(r#"{ "langue": "fr" }"#), Some(Language::Fr));
+        assert_eq!(read(r#"{ "language": "en" }"#), Some(Language::En));
+        assert_eq!(read(r#"{ "language": "fr" }"#), Some(Language::Fr));
+        assert_eq!(read(r#"{ "langue": "en" }"#), Some(Language::En), "name until 2026-10-22");
         assert_eq!(read("{}"), None);
-        assert_eq!(read(r#"{ "langue": "de" }"#), None);
-        assert_eq!(serde_json::to_string(&Settings { language: Some(Language::En) }).unwrap(), r#"{"langue":"en"}"#);
+        assert_eq!(read(r#"{ "language": "de" }"#), None);
+        assert_eq!(serde_json::to_string(&Settings { language: Some(Language::En) }).unwrap(), r#"{"language":"en"}"#);
         assert_eq!(serde_json::to_string(&Settings::default()).unwrap(), "{}");
     }
 }

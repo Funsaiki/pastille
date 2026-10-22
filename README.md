@@ -66,12 +66,12 @@ The config lives in `%APPDATA%\dev.lanceur.pastel\apps.json`, created on first l
     // a Start menu app, by name
     { "label": "Code", "icon": "code", "app": "Visual Studio Code" },
     // the default program for a protocol or file extension
-    { "label": "Browser", "icon": "navigateur", "default": "https" },
+    { "label": "Browser", "icon": "browser", "default": "https" },
     // a path, with arguments if needed
     { "label": "Terminal", "icon": "terminal", "target": "wt.exe" },
     // a group; "auto" fills it with Steam games ("steam"), Epic games ("epic"),
     // Spotify playlists ("spotify") or Start menu apps ("start")
-    { "label": "Games", "icon": "jeux", "children": [
+    { "label": "Games", "icon": "games", "children": [
       { "label": "Steam", "icon": "steam", "auto": "steam", "children": [
         { "label": "Steam", "icon": "steam", "app": "Steam" }
       ] }
@@ -84,6 +84,7 @@ The config lives in `%APPDATA%\dev.lanceur.pastel\apps.json`, created on first l
 ```
 
 - An `app` or `default` tile that can't be found on the PC is not shown, so the same config works on several PCs.
+- `icon`: `code`, `browser`, `files`, `games`, `messages`, `music`, `terminal`, `settings`, `library`, `shield`, `star`, `sword`, `car`, `cards`, `cube`, `trophy`, `document`, `applications`, `steam`, `epic`, `lol`, `valorant`, `starrail`, `zzz`, `wuwa`, `nte` or `endfield`. An `app` tile without one shows the app's own icon.
 - `keywords` adds extra words for the search.
 - "Edit apps.json" in the settings page opens it; Pastille reloads it the next time it opens, or right away with "Reload the config".
 

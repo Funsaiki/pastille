@@ -729,7 +729,7 @@ function feedNotif(e: FeedEvent): Notif {
     case 'steam': {
       const when = e.age != null ? ago(e.age) : e.paused ? tr('en pause', 'paused') : e.progress != null ? percent(e.progress) : tr('en cours', 'in progress');
       const body = `${e.game} · ${e.age != null ? tr('mis à jour', 'updated') : tr('mise à jour', 'updating')}`;
-      return { id: `steam:${e.game}:${e.age != null ? 'fin' : 'cours'}`, title: 'Steam', when, body, d: ICONS.jeux, bg: '#c9d8ff', open: () => host.openTool('steam-downloads') };
+      return { id: `steam:${e.game}:${e.age != null ? 'fin' : 'cours'}`, title: 'Steam', when, body, d: ICONS.games, bg: '#c9d8ff', open: () => host.openTool('steam-downloads') };
     }
     case 'download':
       return { id: 'download:' + e.name, title: tr('Téléchargements', 'Downloads'), when: ago(e.age), body: e.name, d: DOWNLOAD, bg: '#f6e2ec', open: () => host.openDownload(e.name) };
@@ -742,11 +742,11 @@ function allNotifs(): Notif[] {
   if (spotifyProblem) problems.push({ id: 'spotify:' + spotifyProblem, title: 'Spotify', when: '', body: spotifyProblem, d: ALERT, bg: '#ffe08a' });
   // Connection from before playlists (asked for by Funsaiki): a click redoes it in the browser
   if (spotifyReconnect) {
-    problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: tr('Reconnecter pour voir les playlists', 'Reconnect to see the playlists'), d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
+    problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: tr('Reconnecter pour voir les playlists', 'Reconnect to see the playlists'), d: ICONS.music, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
   // Not connected, Spotify open (other PCs): a click opens the connection page
   if (spotifyConnect && media) {
-    problems.push({ id: 'spotify:connect', title: 'Spotify', when: '', body: tr('Connecter pour le volume et les playlists', 'Connect for the volume and playlists'), d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
+    problems.push({ id: 'spotify:connect', title: 'Spotify', when: '', body: tr('Connecter pour le volume et les playlists', 'Connect for the volume and playlists'), d: ICONS.music, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
   // First run (other PCs): the shortcut, and Start with Windows in one click
   if (welcome) {
@@ -785,7 +785,7 @@ async function installUpdate() {
 }
 
 /* Cleared notifications: kept from one opening to the next (the window's storage) */
-const DISMISSED_KEY = 'notifs-effacees';
+const DISMISSED_KEY = 'dismissed-notifications';
 let dismissed = new Set<string>(loadDismissed());
 
 function loadDismissed(): string[] {
@@ -861,7 +861,7 @@ async function refreshFeed() {
 /* ── Tabs of the bottom card (asked for by Funsaiki): Apps (notification area) or
    Notifs. The last one chosen comes back at each opening; an error shows Notifs this time. ── */
 type Pane = 'apps' | 'notifs';
-const PANE_KEY = 'onglet-carte';
+const PANE_KEY = 'card-tab';
 let pane: Pane = savedPane();
 
 function savedPane(): Pane {
@@ -926,7 +926,7 @@ const OPEN_LABEL = tr('Ouvrir', 'Open');
 const LOCATION_LABEL = tr('Emplacement du fichier', 'Open file location');
 const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[] = [
   { action: 'open', label: OPEN_LABEL, d: OPEN, bg: 'var(--fill)' },
-  { action: 'location', label: LOCATION_LABEL, d: ICONS.fichiers, bg: '#c9d8ff' },
+  { action: 'location', label: LOCATION_LABEL, d: ICONS.files, bg: '#c9d8ff' },
   { action: 'quit', label: tr('Forcer à quitter', 'Force quit'), d: CLOSE, bg: '#f6c6da' },
 ];
 
@@ -1196,11 +1196,11 @@ function appButton(item: AppItem, index: number) {
     ic.classList.add('app-picture');
     startIconSlot(ic, item, () => {
       ic.style.background = palette()[index % 4];
-      ic.prepend(icon(ICONS.fichiers, 26, 2.1));
+      ic.prepend(icon(ICONS.files, 26, 2.1));
     });
   } else {
     ic.style.background = palette()[index % 4];
-    ic.append(icon(ICONS[item.icon ?? ''] ?? ICONS.fichiers, 26, 2.1));
+    ic.append(icon(ICONS[item.icon ?? ''] ?? ICONS.files, 26, 2.1));
   }
   if (item.children) {
     const count = el('span', 'app-count', String(item.children.length));
@@ -1310,7 +1310,7 @@ function renderRecents() {
     const dot = el('span', 'recent-dot');
     const glyph = () => {
       dot.style.background = palette()[i % 4];
-      dot.append(icon(ICONS[it.icon ?? ''] ?? ICONS.fichiers, 13, 2.4));
+      dot.append(icon(ICONS[it.icon ?? ''] ?? ICONS.files, 13, 2.4));
     };
     // Start menu app: its real icon on a white dot, like the mixer
     if (it.start) {
@@ -1328,7 +1328,7 @@ function renderRecents() {
 function renderFolders() {
   $('folder-row').replaceChildren(...CONFIG.favorites.map((f, i) => {
     const b = el('button', 'tp-press folder');
-    b.append(icon(ICONS.fichiers, 17, 2.1, { fill: palette()[i % 4], caps: false }), el('span', '', f.label));
+    b.append(icon(ICONS.files, 17, 2.1, { fill: palette()[i % 4], caps: false }), el('span', '', f.label));
     b.addEventListener('click', () => launch(f));
     return b;
   }));
@@ -1370,14 +1370,14 @@ async function openAppMenu(item: AppItem, tile: HTMLElement) {
     launch(item);
   })];
   const add = (label: string, d: string, bg: string, action: AppAction) => entries.push(menuItem(label, d, bg, () => appAction(item, action)));
-  if (options.admin) add(tr('Exécuter en admin', 'Run as admin'), ICONS.bouclier, '#ffe08a', 'admin');
-  if (options.location) add(LOCATION_LABEL, ICONS.fichiers, '#c9d8ff', 'location');
+  if (options.admin) add(tr('Exécuter en admin', 'Run as admin'), ICONS.shield, '#ffe08a', 'admin');
+  if (options.location) add(LOCATION_LABEL, ICONS.files, '#c9d8ff', 'location');
   if (options.pinned !== null) {
     const label = options.pinned ? tr('Détacher de la pilule', 'Unpin from the pill') : tr('Épingler à la pilule', 'Pin to the pill');
     add(label, PIN, '#c9d8ff', options.pinned ? 'unpin' : 'pin');
   }
   if (options.hidden !== null) {
-    add(options.hidden ? tr('Réafficher', 'Show') : tr('Masquer', 'Hide'), options.hidden ? EYE : ICONS.masquees, '#f6c6da', options.hidden ? 'show' : 'hide');
+    add(options.hidden ? tr('Réafficher', 'Show') : tr('Masquer', 'Hide'), options.hidden ? EYE : ICONS.hidden, '#f6c6da', options.hidden ? 'show' : 'hide');
   }
   $('app-menu-items').replaceChildren(...entries);
   placeAppMenu(tile);

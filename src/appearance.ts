@@ -7,18 +7,18 @@
 import { CONFIG } from './config';
 import { tr } from './i18n';
 
-export type Charm = 'pilule' | 'etoile' | 'coeur' | 'chat' | 'image' | 'aucune';
-export type ColorKey = 'accent' | 'coque' | 'ecran' | 'encre';
+export type Charm = 'pill' | 'star' | 'heart' | 'cat' | 'image' | 'none';
+export type ColorKey = 'accent' | 'case' | 'screen' | 'ink';
 
 /* What is saved (colors as #rrggbb); a missing field: the original one. The original
    accent is the one from apps.json. The charm's image is saved separately. */
 export interface Appearance {
   accent?: string;
-  coque?: string;
-  ecran?: string;
-  encre?: string;
-  breloque?: Charm;
-  perles?: string[];   // three colors, top to bottom
+  case?: string;
+  screen?: string;
+  ink?: string;
+  charm?: Charm;
+  beads?: string[];   // three colors, top to bottom
 }
 
 export interface Swatch {
@@ -39,7 +39,7 @@ export const SWATCHES: Record<ColorKey, Swatch[]> = {
     { name: tr('Lilas', 'Lilac'), color: '#d9c9f7' },
     { name: tr('Pêche', 'Peach'), color: '#ffcdb2' },
   ],
-  coque: [
+  case: [
     { name: tr('Sarcelle', 'Teal'), color: '#1f5f68' },
     { name: tr('Prune', 'Plum'), color: '#5b2c56' },
     { name: tr('Nuit', 'Night'), color: '#2a3366' },
@@ -47,7 +47,7 @@ export const SWATCHES: Record<ColorKey, Swatch[]> = {
     { name: tr('Ardoise', 'Slate'), color: '#3e4753' },
     { name: tr('Cerise', 'Cherry'), color: '#8c2f4b' },
   ],
-  ecran: [
+  screen: [
     { name: tr('Menthe', 'Mint'), color: '#e2f5f4' },
     { name: tr('Rose', 'Pink'), color: '#fbe7ef' },
     { name: tr('Bleu', 'Blue'), color: '#e7edff' },
@@ -55,7 +55,7 @@ export const SWATCHES: Record<ColorKey, Swatch[]> = {
     { name: tr('Lilas', 'Lilac'), color: '#f0e9fc' },
     { name: tr('Nuage', 'Cloud'), color: '#eef1f4' },
   ],
-  encre: [
+  ink: [
     { name: tr('Sarcelle', 'Teal'), color: '#0f3b42' },
     { name: tr('Prune', 'Plum'), color: '#3a1735' },
     { name: tr('Nuit', 'Night'), color: '#1a2150' },
@@ -90,7 +90,7 @@ export function palette(): string[] {
 
 /* Beads top to bottom: chosen, otherwise the first three colors of the palette */
 export function beadColors(): string[] {
-  return current.perles ?? palette().slice(0, 3).map((c) => (c === 'var(--fill)' ? colorOf('accent') : c));
+  return current.beads ?? palette().slice(0, 3).map((c) => (c === 'var(--fill)' ? colorOf('accent') : c));
 }
 
 /* ── Colors: #rrggbb ↔ hue (degrees), saturation and lightness (%) ── */
@@ -151,16 +151,16 @@ const CASE_SHADES: [string, number, number][] = [
 export function applyColors() {
   const root = document.documentElement.style;
   const set = (name: string, value: string | undefined) => (value ? root.setProperty(name, value) : root.removeProperty(name));
-  const { coque, ecran, encre } = current;
+  const { case: caseColor, screen, ink } = current;
   set('--fill', colorOf('accent'));
-  set('--ink', encre);
-  set('--ink-deep', encre && shade(encre, -toHsl(encre)[2] * 0.3, 0));
-  set('--case', coque);
-  for (const [name, dl, ds] of CASE_SHADES) set(name, coque && shade(coque, dl, ds));
-  set('--screen-top', ecran);
-  set('--screen-mid', ecran && mix(ecran, '#ffffff', 0.64));
-  set('--screen-dot', ecran && mix(ecran, '#ffffff', 0.5));
+  set('--ink', ink);
+  set('--ink-deep', ink && shade(ink, -toHsl(ink)[2] * 0.3, 0));
+  set('--case', caseColor);
+  for (const [name, dl, ds] of CASE_SHADES) set(name, caseColor && shade(caseColor, dl, ds));
+  set('--screen-top', screen);
+  set('--screen-mid', screen && mix(screen, '#ffffff', 0.64));
+  set('--screen-dot', screen && mix(screen, '#ffffff', 0.5));
   // Beads: the first follows the accent as long as they are not chosen
-  const beads = current.perles ?? palette().slice(0, 3);
+  const beads = current.beads ?? palette().slice(0, 3);
   beads.forEach((c, i) => set(`--bead-${i + 1}`, c));
 }

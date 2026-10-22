@@ -6,7 +6,7 @@
 //!
 //! Left out: uninstallers, web pages and documents (README, manuals) that installers
 //! add to the menu, and the launcher itself. Funsaiki hides the others from the right click
-//! (app_menu.rs): demarrer.json, next to apps.json.
+//! (app_menu.rs): start-menu.json, next to apps.json.
 
 use std::collections::HashMap;
 use std::fs;
@@ -175,8 +175,9 @@ pub fn program(target: &str) -> Option<String> {
     shortcut.target.filter(|_| !shortcut.args)
 }
 
-/* ── Hidden apps (requested by Funsaiki): demarrer.json, next to apps.json (an older version
-   would refuse one more field in apps.json); their name in shell:AppsFolder ── */
+/* ── Hidden apps (requested by Funsaiki): start-menu.json (demarrer.json until 2026-10-22),
+   next to apps.json (an older version would refuse one more field in apps.json); their
+   name in shell:AppsFolder ── */
 
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
@@ -185,19 +186,19 @@ struct Settings {
 }
 
 fn settings_file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("demarrer.json"))
+    app.path().app_config_dir().ok().map(|dir| dir.join("start-menu.json"))
 }
 
 /// Hidden targets (`PREFIX` + name). File missing or unreadable: none.
 pub fn hidden(app: &AppHandle) -> Vec<String> {
     settings_file(app)
-        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|path| fs::read_to_string(crate::config::to_read(path)).ok())
         .and_then(|text| serde_json::from_str::<Settings>(text.trim_start_matches('\u{feff}')).ok())
         .map(|settings| settings.hidden.iter().map(|name| format!("{PREFIX}{name}")).collect())
         .unwrap_or_default()
 }
 
-/// Hides or shows `target` again. Temporary file then rename, like barre.json.
+/// Hides or shows `target` again. Temporary file then rename, like bar.json.
 pub fn set_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
     let name = target.strip_prefix(PREFIX).ok_or(tr("Pas une application du menu Démarrer.", "Not a Start menu app."))?;
     let path = settings_file(app).ok_or(tr("Dossier de config introuvable.", "Config folder not found."))?;

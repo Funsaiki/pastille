@@ -15,7 +15,7 @@
 //! their windows again, and a window asking for attention (Discord on a new message)
 //! briefly slides out the pill of its screen, its tile in pink.
 //!
-//! Only if Funsaiki turns on "Pastel bar" in the Settings page (barre.json, next to
+//! Only if Funsaiki turns on "Pastel bar" in the Settings page (bar.json, next to
 //! apps.json, with the pinned apps: bar_pins.rs); the Windows taskbar
 //! is then hidden (taskbar.rs).
 
@@ -43,7 +43,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use crate::bar_pins::{self, Pin};
 use crate::i18n::tr;
 use crate::shell_hook::{self, Event};
-use crate::{bar_preview, launcher, open_windows, switch, taskbar, tray_apps};
+use crate::{bar_preview, config, launcher, open_windows, switch, taskbar, tray_apps};
 
 /// Height of the bar windows, in logical pixels: the pill, and above it the notification
 /// area with a menu open
@@ -51,7 +51,7 @@ const HEIGHT: f64 = 520.0;
 /// Mouse polling
 const POLL: Duration = Duration::from_millis(50);
 
-/* ── Setting: barre.json ── */
+/* ── Setting: bar.json (barre.json until 2026-10-22) ── */
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Settings {
@@ -63,13 +63,13 @@ pub struct Settings {
 }
 
 fn file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("barre.json"))
+    app.path().app_config_dir().ok().map(|dir| dir.join("bar.json"))
 }
 
 /// File missing or unreadable: bar off
 fn settings(app: &AppHandle) -> Settings {
     file(app)
-        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|path| fs::read_to_string(config::to_read(path)).ok())
         .and_then(|text| serde_json::from_str(text.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default()
 }
@@ -85,7 +85,7 @@ fn save(app: &AppHandle, settings: &Settings) {
     }
 }
 
-/// Reads, changes and rewrites barre.json, one change at a time
+/// Reads, changes and rewrites bar.json, one change at a time
 pub fn update(app: &AppHandle, change: impl FnOnce(&mut Settings)) {
     static WRITING: Mutex<()> = Mutex::new(());
     let _writing = WRITING.lock().unwrap();
@@ -119,7 +119,7 @@ pub fn init(app: &AppHandle) {
     }
 }
 
-/// Pastel bar running (according to the bar, not to barre.json, which may have been edited by hand)
+/// Pastel bar running (according to the bar, not to bar.json, which may have been edited by hand)
 pub fn running() -> bool {
     RUNNING.load(SeqCst)
 }
@@ -746,7 +746,7 @@ mod tests {
 
     #[test]
     fn settings_file() {
-        // barre.json from before pins
+        // bar.json from before pins
         let old: Settings = serde_json::from_str(r#"{ "active": true }"#).unwrap();
         assert!(old.active && old.pinned.is_empty());
         let text = r#"{ "active": false, "pinned": [{ "exe": "discord.exe", "name": "Discord", "path": "C:/Discord.exe" }] }"#;

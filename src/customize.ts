@@ -2,7 +2,7 @@
    Customize (requested by Funsaiki on 2026-10-19): two tabs, Colors
    (accent, case, screen, ink) and Strap (charm, beads). Swatches for each color and
    an "Other color" dot that opens hue, lightness and code. Everything changes live
-   and is saved (host.setAppearance: apparence.json). First a separate card, then the
+   and is saved (host.setAppearance: appearance.json). First a separate card, then the
    Appearance section of the Settings page (2026-10-21, prefs.ts).
    ══════════════════════════════════════════════════════════ */
 import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Swatch } from './appearance';
@@ -23,14 +23,14 @@ let bead = 0;                        // chosen bead, top to bottom
 let paletteChanged = () => {};       // ui.ts redraws what takes the palette's colors
 let report = (e: unknown) => console.error(e);   // ui.ts: in the notifications
 
-const LABELS: Record<ColorKey, string> = { accent: 'Accent', coque: tr('Coque', 'Case'), ecran: tr('Écran', 'Screen'), encre: tr('Encre', 'Ink') };
+const LABELS: Record<ColorKey, string> = { accent: 'Accent', case: tr('Coque', 'Case'), screen: tr('Écran', 'Screen'), ink: tr('Encre', 'Ink') };
 const PLUS = 'M12 6v12M6 12h12';
 const PICTURE = 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9h.01';
 const NONE = 'M12 3a9 9 0 100 18 9 9 0 000-18zM5.6 5.6l12.8 12.8';
 
 /* ── Charms: four drawings in the launcher's style, 52 × 64, Pastille by default.
    Each has its ring at the top, in the middle, extended up to the cord. ── */
-const DEFAULT_CHARM: Charm = 'pilule';
+const DEFAULT_CHARM: Charm = 'pill';
 
 const ring = (cy: number, body: number) =>
   `<path d="M26 0V${cy - 3.2}M26 ${cy + 3.2}V${body}" stroke-width="2.4"/><circle cx="26" cy="${cy}" r="3.2" stroke-width="2.4"/>`;
@@ -45,19 +45,19 @@ function starPath(cx: number, cy: number, outer: number, inner: number) {
 }
 
 const DRAWN: Partial<Record<Charm, string>> = {
-  etoile: ring(7, 12)
+  star: ring(7, 12)
     + `<path d="${starPath(26, 35, 23, 11)}" fill="#ffe08a" stroke-width="2.5"/>`
     + '<circle cx="20.5" cy="29.5" r="2.2" fill="#ffffff" stroke="none"/>',
-  coeur: ring(11, 18.3)
+  heart: ring(11, 18.3)
     + '<path d="M26 56C14 47 5 39 5 27.5 5 19.5 11 13.5 18 13.5c3.7 0 6.6 1.9 8 4.8 1.4-2.9 4.3-4.8 8-4.8 7 0 13 6 13 14 0 11.5-9 19.5-21 28.5z" fill="#f6c6da" stroke-width="2.5"/>'
     + '<circle cx="13.5" cy="24" r="2.2" fill="#ffffff" stroke="none"/>',
   // The namesake pastille: a pill, half accent, half pink
-  pilule: ring(7, 14)
+  pill: ring(7, 14)
     + '<path d="M15 36V25a11 11 0 0122 0v11z" style="fill: var(--fill)" stroke="none"/>'
     + '<path d="M15 36h22v11a11 11 0 01-22 0z" fill="#f6c6da" stroke="none"/>'
     + '<rect x="15" y="14" width="22" height="44" rx="11" stroke-width="2.5"/><path d="M15 36h22" stroke-width="2.5"/>'
     + '<path d="M20.5 21v6" stroke="#ffffff" stroke-width="2.5"/>',
-  chat: ring(10.5, 17)
+  cat: ring(10.5, 17)
     + '<path d="M7 32C7 24 9 18 10 11l9 7c2.2-.7 4.6-1 7-1s4.8.3 7 1l9-7c1 7 3 13 3 21 0 13-9 22-19 22S7 45 7 32z" fill="#c9d8ff" stroke-width="2.5"/>'
     + '<circle cx="19" cy="33" r="2.6" fill="currentColor" stroke="none"/><circle cx="33" cy="33" r="2.6" fill="currentColor" stroke="none"/>'
     + '<path d="M23.5 39h5L26 41.8z" fill="#f6c6da" stroke-width="1.6"/>'
@@ -65,12 +65,12 @@ const DRAWN: Partial<Record<Charm, string>> = {
 };
 
 const CHARMS: { key: Charm; name: string }[] = [
-  { key: 'pilule', name: 'Pastille' },
-  { key: 'etoile', name: tr('Étoile', 'Star') },
-  { key: 'coeur', name: tr('Cœur', 'Heart') },
-  { key: 'chat', name: tr('Chat', 'Cat') },
+  { key: 'pill', name: 'Pastille' },
+  { key: 'star', name: tr('Étoile', 'Star') },
+  { key: 'heart', name: tr('Cœur', 'Heart') },
+  { key: 'cat', name: tr('Chat', 'Cat') },
   { key: 'image', name: tr('Ton image', 'Your image') },
-  { key: 'aucune', name: tr('Sans strap', 'No strap') },
+  { key: 'none', name: tr('Sans strap', 'No strap') },
 ];
 
 const charmName = (key: Charm) => CHARMS.find((c) => c.key === key)!.name;
@@ -89,12 +89,12 @@ function charmNode(key: Charm): Element {
   return box.firstElementChild!;
 }
 
-const charmOf = (): Charm => appearance().breloque ?? DEFAULT_CHARM;
+const charmOf = (): Charm => appearance().charm ?? DEFAULT_CHARM;
 
 /* Phone strap: its charm, or nothing */
 export function applyStrap() {
   const charm = charmOf();
-  $('strap').hidden = charm === 'aucune';
+  $('strap').hidden = charm === 'none';
   $('strap-charm').classList.toggle('own', charm === 'image' && !!image);
   $('strap-charm').replaceChildren(charmNode(charm));
 }
@@ -127,16 +127,16 @@ function setColor(key: ColorKey, color: string) {
 }
 
 function setBead(i: number, color: string) {
-  const perles = beadColors().slice();
-  perles[i] = color.toLowerCase();
-  setAppearance({ ...appearance(), perles });
+  const beads = beadColors().slice();
+  beads[i] = color.toLowerCase();
+  setAppearance({ ...appearance(), beads });
   changed();
 }
 
 function setCharm(key: Charm) {
   const a = { ...appearance() };
-  if (key === DEFAULT_CHARM) delete a.breloque;
-  else a.breloque = key;
+  if (key === DEFAULT_CHARM) delete a.charm;
+  else a.charm = key;
   setAppearance(a);
   changed();
 }
@@ -324,7 +324,7 @@ function charmRow(): Row {
         const key = CHARMS[i].key;
         b.setAttribute('aria-checked', String(key === charm));
         if (key === 'image') b.title = image ? (charm === 'image' ? tr('Changer d’image', 'Change image') : tr('Ton image', 'Your image')) : tr('Choisir une image…', 'Choose an image…');
-        const drawn = key === 'aucune' ? icon(NONE, 18, 2.4) : key === 'image' && !image ? icon(PICTURE, 18, 2.2) : charmNode(key);
+        const drawn = key === 'none' ? icon(NONE, 18, 2.4) : key === 'image' && !image ? icon(PICTURE, 18, 2.2) : charmNode(key);
         if (b.dataset.shown !== (key === 'image' ? image ?? '' : key)) {
           b.dataset.shown = key === 'image' ? image ?? '' : key;
           b.replaceChildren(drawn);
@@ -362,7 +362,7 @@ function beadRow(): Row {
       });
       row.update();
       value.textContent = `${tr('Perle', 'Bead')} ${bead + 1} · ${row.name()}`;
-      node.classList.toggle('off', charmOf() === 'aucune');
+      node.classList.toggle('off', charmOf() === 'none');
     },
   };
 }
@@ -393,8 +393,8 @@ function reset() {
   const a = { ...appearance() };
   if (tab === 'colors') for (const key of Object.keys(LABELS) as ColorKey[]) delete a[key];
   else {
-    delete a.breloque;
-    delete a.perles;
+    delete a.charm;
+    delete a.beads;
   }
   editing = null;
   setAppearance(a);

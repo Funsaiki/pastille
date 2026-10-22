@@ -124,7 +124,7 @@ const LANGUAGES: { key: Language; name: string }[] = [
 
 function languageRow(): Row {
   const node = el('div');
-  const { title, body } = parts(node, ICONS.navigateur, 'var(--fill)');
+  const { title, body } = parts(node, ICONS.browser, 'var(--fill)');
   title.textContent = tr('Langue', 'Language');
   body.remove();
   const group = el('div', 'notifs-tabs prefs-lang');
@@ -211,7 +211,7 @@ const SPOTIFY: Record<SpotifyLink, { sub: string; button: string; primary: boole
 
 function spotifyRow(): Row {
   const node = el('div');
-  const { title, body } = parts(node, ICONS.musique, '#ffe08a');
+  const { title, body } = parts(node, ICONS.music, '#ffe08a');
   title.textContent = tr('Connexion', 'Connection');
   const button = pill(async () => {
     const link = prefs?.spotify;
