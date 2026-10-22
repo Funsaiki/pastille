@@ -1,6 +1,6 @@
-//! Lancements comptés (nombre et date du dernier) pour classer la recherche et remplir la
-//! rangée Récents. Fichier usage.json à côté de apps.json ; clé = cible et arguments, qui
-//! ne changent pas quand apps.json est réorganisé (contrairement aux identifiants).
+//! Launch counts (number and date of the last one) to rank search results and fill the
+//! Recent row. File usage.json next to apps.json; key = target and arguments, which
+//! don't change when apps.json is reorganized (unlike the ids).
 
 use std::{
     collections::HashMap,
@@ -16,7 +16,7 @@ use tauri::{AppHandle, Manager};
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Entry {
     pub count: u32,
-    /// Secondes depuis 1970
+    /// Seconds since 1970
     pub last: u64,
 }
 
@@ -31,7 +31,7 @@ fn file(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|dir| dir.join("usage.json"))
 }
 
-/// Au démarrage ; fichier absent ou illisible : on repart de zéro
+/// At startup; file missing or unreadable: start from scratch
 pub fn load(app: &AppHandle) -> Usage {
     let map = file(app)
         .and_then(|path| fs::read_to_string(path).ok())
@@ -46,7 +46,7 @@ pub fn record(app: &AppHandle, key: String) {
     let entry = map.entry(key).or_default();
     entry.count += 1;
     entry.last = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-    // Sous le verrou : deux lancements rapprochés n'écrivent pas le fichier en même temps
+    // Under the lock: two launches close together don't write the file at the same time
     if let (Some(path), Ok(text)) = (file(app), serde_json::to_string(&*map)) {
         if let Err(e) = fs::write(path, text) {
             eprintln!("[lanceur] usage.json : {e}");

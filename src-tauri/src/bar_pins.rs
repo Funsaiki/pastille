@@ -1,15 +1,15 @@
-//! Applications épinglées à la barre pastel (demande de Funsaiki, 17/10/2026) : comme dans la barre
-//! de Windows, une tuile toujours présente par application épinglée, même fermée ; un clic la
-//! lance. Épinglées depuis le clic droit d'une tuile de fenêtre, gardées dans barre.json
+//! Apps pinned to the pastel bar (requested by Funsaiki, 2026-10-17): as in the Windows
+//! taskbar, one tile always there per pinned app, even when closed; a click
+//! launches it. Pinned from the right-click menu of a window tile, kept in barre.json
 //! (`pinned`, bar.rs).
 //!
-//! Reconnues par le nom de leur programme (« discord.exe ») : le dossier de Discord change à
-//! chaque mise à jour (app-1.0.x), son chemin est remis à jour quand une de ses fenêtres passe
-//! dans la barre (`follow`, même nom d'application : pas un autre « launcher.exe »). Lancées
-//! par leur identifiant d'application pour celles du Store (Spotify, Terminal : leur dossier
-//! change aussi), sinon par leur chemin. Le front n'envoie jamais de chemin : une fenêtre (pour
-//! épingler) ou un nom de programme. Les apps hébergées par ApplicationFrameHost (Paramètres,
-//! Calculatrice) ne s'épinglent pas : elles partagent ce programme.
+//! Recognized by the name of their program ("discord.exe"): Discord's folder changes with
+//! each update (app-1.0.x), its path is updated when one of its windows shows up
+//! in the bar (`follow`, same app name: not another "launcher.exe"). Launched
+//! by their app identifier for Store apps (Spotify, Terminal: their folder
+//! changes too), otherwise by their path. The front never sends a path: a window (to
+//! pin) or a program name. Apps hosted by ApplicationFrameHost (Windows Settings,
+//! Calculator) can't be pinned: they share that program.
 
 use std::path::Path;
 
@@ -23,17 +23,17 @@ use crate::{open_windows, switch, tray_apps};
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pin {
-    /// Nom du programme en minuscules (« discord.exe ») : reconnaît ses fenêtres
+    /// Program name in lowercase ("discord.exe"): recognizes its windows
     pub exe: String,
     pub name: String,
-    /// Chemin du programme : son icône, et son lancement hors Store
+    /// Program path: its icon, and how it is launched outside the Store
     pub path: String,
-    /// App du Store : lancée par `shell:AppsFolder\<identifiant>`
+    /// Store app: launched by `shell:AppsFolder\<identifier>`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
 }
 
-/// Nom du programme d'un chemin, en minuscules
+/// Program name of a path, in lowercase
 pub fn exe_of(path: &str) -> Option<String> {
     Path::new(path).file_name().map(|name| name.to_string_lossy().to_lowercase())
 }
@@ -42,11 +42,11 @@ pub fn exe_of(path: &str) -> Option<String> {
 pub struct PinnedApp {
     exe: String,
     name: String,
-    /// Pas pour les programmes dont le front a déjà l'icône (`known`)
+    /// Not for programs whose icon the front already has (`known`)
     icon: Option<crate::icon::Icon>,
 }
 
-/// Applications épinglées, dans leur ordre
+/// Pinned apps, in their order
 #[tauri::command]
 pub async fn bar_pins(app: AppHandle, known: Vec<String>) -> Vec<PinnedApp> {
     let pins = bar::pins(&app);
@@ -64,7 +64,7 @@ pub async fn bar_pins(app: AppHandle, known: Vec<String>) -> Vec<PinnedApp> {
     .unwrap_or_default()
 }
 
-/// Épingle le programme de la fenêtre `id`, à la fin
+/// Pins the program of the window `id`, at the end
 #[tauri::command]
 pub async fn bar_pin(app: AppHandle, id: String) -> Result<(), String> {
     let pin = crate::blocking(move || {
@@ -92,7 +92,7 @@ pub fn bar_unpin(app: AppHandle, exe: String) {
     remove(&app, &exe);
 }
 
-/// Épingle du programme `path`, nommé comme ses fenêtres dans la barre (`follow` les compare)
+/// Pin for the program `path`, named like its windows in the bar (`follow` compares them)
 pub fn program_pin(path: &str, app_id: Option<String>) -> Option<Pin> {
     let exe = exe_of(path)?;
     let name = crate::mixer::description(path).unwrap_or_else(|| {
@@ -101,7 +101,7 @@ pub fn program_pin(path: &str, app_id: Option<String>) -> Option<Pin> {
     Some(Pin { exe, name, path: path.to_string(), app_id })
 }
 
-/// À la fin, sauf si ce programme est déjà épinglé ; aussi depuis le clic droit du lanceur (app_menu.rs)
+/// At the end, unless this program is already pinned; also from the launcher's right-click menu (app_menu.rs)
 pub fn add(app: &AppHandle, pin: Pin) {
     bar::update(app, |settings| {
         if !settings.pinned.iter().any(|p| p.exe == pin.exe) {
@@ -116,7 +116,7 @@ pub fn remove(app: &AppHandle, exe: &str) {
     bar::emit_all(app, "bar:pins");
 }
 
-/// Lance l'application épinglée `exe` (fermée : ses fenêtres ouvertes passent par leur tuile)
+/// Launches the pinned app `exe` (when closed: its open windows go through their own tile)
 #[tauri::command]
 pub async fn bar_open_pin(app: AppHandle, exe: String) -> Result<(), String> {
     let pin = bar::pins(&app).into_iter().find(|p| p.exe == exe).ok_or(tr("Cette application n'est plus épinglée.", "This app is no longer pinned."))?;
@@ -127,8 +127,8 @@ pub async fn bar_open_pin(app: AppHandle, exe: String) -> Result<(), String> {
     .await?
 }
 
-/// Fenêtres vues dans la barre : le chemin d'une application épinglée qui a changé (mise à
-/// jour de Discord) est remis à jour
+/// Windows seen in the bar: the path of a pinned app that has changed (Discord
+/// update) is brought up to date
 pub fn follow(app: &AppHandle, windows: &[BarWindow]) {
     let moved: Vec<(String, String)> = bar::pins(app)
         .iter()
@@ -159,7 +159,7 @@ mod tests {
         assert_eq!(exe_of(r"C:\Users\x\AppData\Local\Discord\app-1.0.9\Discord.exe").as_deref(), Some("discord.exe"));
         assert!(bar::is_hosted(r"C:\Windows\System32\ApplicationFrameHost.exe"));
         assert!(!bar::is_hosted(r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"));
-        // Ancien barre.json, sans épingles ; épingle sans identifiant du Store
+        // Old barre.json, without pins; pin without a Store identifier
         let pin: Pin = serde_json::from_str(r#"{ "exe": "code.exe", "name": "Code", "path": "C:/Code.exe" }"#).unwrap();
         assert!(pin.app_id.is_none());
         assert!(!serde_json::to_string(&pin).unwrap().contains("appId"));

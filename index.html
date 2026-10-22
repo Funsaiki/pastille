@@ -8,7 +8,7 @@
 <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
-<!-- Scène de 1440 × 900 (la maquette), mise à l'échelle de l'écran et posée sur son bord bas -->
+<!-- 1440 × 900 stage (the mockup), scaled to the screen and resting on its bottom edge -->
 <div class="scene">
 <div class="stage" id="stage" hidden>
   <span class="wallpaper-hint" aria-hidden="true" data-en="[ YOUR WALLPAPER ]">[ TON FOND D'ÉCRAN ]</span>
@@ -17,7 +17,7 @@
   <div class="phone-tilt">
   <div class="phone-orient">
 
-    <!-- Tranche droite du téléphone, visible quand il est incliné -->
+    <!-- Right side edge of the phone, visible when it is tilted -->
     <div class="edges" aria-hidden="true">
       <div class="edge edge-arc" style="left: 374.9px; top: 11.9px; --rz: 35deg"></div>
       <div class="edge edge-arc" style="left: 383.7px; top: 19.3px; --rz: 45deg"></div>
@@ -38,10 +38,10 @@
       </div>
     </div>
 
-    <!-- Strap (demandé par Funsaiki, pas dans la maquette) : anneau dans le bord gauche, cordon,
-         trois perles pastel et une breloque (la pastille par défaut ; au choix dans la carte
-         Apparence de la page Paramètres, posée par customize.ts). Le point d'accroche est le centre
-         de l'anneau. Un clic ouvre la page Paramètres, à l'onglet Strap. -->
+    <!-- Strap (requested by Funsaiki, not in the mockup): ring in the left edge, cord,
+         three pastel beads and a charm (the Pastille charm by default; chosen in the Appearance
+         card of the Settings page, set by customize.ts). The attachment point is the center
+         of the ring. A click opens the Settings page, on the Strap tab. -->
     <div class="strap" id="strap" aria-hidden="true" title="Personnaliser le strap" data-en-title="Customize the strap">
       <div class="strap-swing" id="strap-swing">
         <svg width="62" height="186" viewBox="0 0 44 132" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -65,7 +65,7 @@
     <div class="screen">
       <div class="island" aria-hidden="true"><span></span></div>
 
-      <!-- Vue « réglages », téléphone debout -->
+      <!-- Quick settings view, phone upright -->
       <div class="view-settings" id="settings">
         <div class="status">
           <div class="status-time">
@@ -73,7 +73,7 @@
             <span class="date" id="date"></span>
           </div>
           <div class="status-right">
-            <!-- Wi-Fi et Bluetooth (demandés par Funsaiki, pas dans la maquette) : ajoutés par ui.ts -->
+            <!-- Wi-Fi and Bluetooth (requested by Funsaiki, not in the mockup): added by ui.ts -->
             <div class="status-links" id="links"></div>
             <div class="status-net" title="Débit réseau" data-en-title="Network speed">
               <span id="net-down">↓ –</span>
@@ -88,12 +88,12 @@
             <span class="user-name" id="user-name"></span>
             <span class="user-os" id="user-os"></span>
           </div>
-          <!-- Paramètres de Pastille, de Windows et Alimentation (la rangée de boutons de la maquette
-               est retirée, demande de Funsaiki) -->
+          <!-- Pastille settings, Windows settings and Power (the mockup's row of buttons
+               is removed, Funsaiki's request) -->
           <div class="user-actions" id="actions"></div>
         </div>
 
-        <!-- Bascules (ajoutées par ui.ts devant le bouton Applications) -->
+        <!-- Toggles (added by ui.ts before the Apps button) -->
         <div class="tiles" id="tiles">
           <button class="tp-press tp-pop qtile qtile-apps" id="open-apps">
             <span class="qtile-dot">
@@ -113,7 +113,7 @@
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path id="volume-icon"></path></svg>
               <span>Volume</span>
               <span class="slider-value" id="volume-text"></span>
-              <!-- Mélangeur (demandé par Funsaiki, pas dans la maquette) -->
+              <!-- Mixer (requested by Funsaiki, not in the mockup) -->
               <button class="tp-press mixer-toggle" id="mixer-toggle" aria-label="Mélangeur" title="Mélangeur" data-en-label="Mixer" data-en-title="Mixer" aria-expanded="false" aria-controls="mixer">
                 <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h9M17 6h3M15 4v4M4 12h3M11 12h9M9 10v4M4 18h11M19 18h1M17 16v4"></path></svg>
               </button>
@@ -132,15 +132,15 @@
           <div class="media-text">
             <span class="media-title" id="media-title"></span>
             <span class="media-artist" id="media-artist"></span>
-            <!-- Volume de Spotify (demandé par Funsaiki) : celui de Spotify lui-même une fois
-                 connecté (menu de l'icône), sinon celui du mélangeur de Windows -->
+            <!-- Spotify volume (requested by Funsaiki): Spotify's own once connected
+                 (Settings page), otherwise the one in the Windows mixer -->
             <div class="media-controls">
-              <!-- Dix marches d'égaliseur (Funsaiki trouvait un petit curseur redondant avec le
-                   volume) : clic ou glisser, 10 % par marche ; molette sur la carte, flèches -->
+              <!-- Ten equalizer steps (Funsaiki found a small slider redundant with the
+                   volume): click or drag, 10% per step; wheel on the card, arrow keys -->
               <div class="media-volume" id="media-volume" role="slider" tabindex="0" aria-label="Volume de Spotify" data-en-label="Spotify volume" aria-valuemin="0" aria-valuemax="100">
                 <i style="--h: 5px"></i><i style="--h: 6px"></i><i style="--h: 7px"></i><i style="--h: 8px"></i><i style="--h: 9px"></i><i style="--h: 10px"></i><i style="--h: 11px"></i><i style="--h: 12px"></i><i style="--h: 13px"></i><i style="--h: 14px"></i>
               </div>
-              <!-- Aléatoire et répétition (demandés par Funsaiki), Spotify connecté seulement -->
+              <!-- Shuffle and repeat (requested by Funsaiki), Spotify connected only -->
               <button class="media-mode" id="shuffle" aria-label="Lecture aléatoire" title="Lecture aléatoire" data-en-label="Shuffle" data-en-title="Shuffle" aria-pressed="false" hidden>
                 <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path><path class="smart-spark" d="M4.5 10v7M1 13.5h7"></path></svg>
               </button>
@@ -161,8 +161,8 @@
           </button>
         </div>
 
-        <!-- Carte du bas : deux onglets (demandés par Funsaiki), les applications de la zone de
-             notification et les notifications de la maquette -->
+        <!-- Bottom card: two tabs (requested by Funsaiki), the notification area apps
+             and the mockup's notifications -->
         <div class="notifs">
           <div class="notifs-title notifs-tabs" id="tabs" role="tablist" data-pane="apps">
             <span class="tabs-thumb" aria-hidden="true"></span>
@@ -174,7 +174,7 @@
             </button>
           </div>
 
-          <!-- Applications de la zone de notification : clic pour ouvrir, clic droit pour le menu -->
+          <!-- Notification area apps: click to open, right-click for the menu -->
           <div class="notifs-pane" id="tray-pane" role="tabpanel" aria-labelledby="tab-apps">
             <div class="tray-grid" id="tray-grid"></div>
             <div class="notifs-empty" id="tray-empty" hidden>
@@ -183,7 +183,7 @@
             </div>
           </div>
 
-          <!-- Hors du contenu de l'onglet : il ne glisse pas avec lui (affiché avec Notifs, ui.ts) -->
+          <!-- Outside the tab's content: it does not slide with it (shown with Notifs, ui.ts) -->
           <button class="tp-link notifs-clear" id="notif-clear" data-en="Clear all" hidden>Tout effacer</button>
           <div class="notifs-pane" id="notifs-pane" role="tabpanel" aria-labelledby="tab-notifs" hidden>
             <div class="notifs-list" id="notif-list"></div>
@@ -194,17 +194,17 @@
             </div>
           </div>
 
-          <!-- Menu du clic droit sur une application (les vrais menus des icônes ne sont pas
-               accessibles, voir tray_apps.rs) -->
+          <!-- Right-click menu on an app (the icons' real menus are out of
+               reach, see tray_apps.rs) -->
           <div class="tray-menu" id="tray-menu" role="menu" aria-labelledby="tray-menu-name">
             <span class="tray-menu-name" id="tray-menu-name"></span>
             <div class="tray-menu-items" id="tray-menu-items"></div>
           </div>
         </div>
 
-        <!-- Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026, pas dans la maquette) :
-             glisse à la place du reste de la vue, sous la barre d'état. Rangées ajoutées par
-             prefs.ts ; la section Apparence est l'ancienne carte Personnaliser (customize.ts). -->
+        <!-- Settings page (requested by Funsaiki on 2026-10-21, not in the mockup):
+             slides in place of the rest of the view, below the status bar. Rows added by
+             prefs.ts; the Appearance section is the former Customize card (customize.ts). -->
         <div class="prefs" id="prefs" role="region" aria-labelledby="prefs-title">
           <div class="prefs-head">
             <button class="tp-press back" id="prefs-back" aria-label="Retour" data-en-label="Back">
@@ -216,7 +216,7 @@
             </div>
           </div>
           <div class="prefs-body" id="prefs-body">
-            <!-- Action ratée : en tête de la page (les notifications sont derrière) -->
+            <!-- Failed action: at the top of the page (the notifications are behind it) -->
             <div class="notif prefs-problem" id="prefs-problem" role="alert" hidden>
               <span class="notif-icon" id="prefs-problem-icon" style="background: #ffe08a" aria-hidden="true"></span>
               <span class="notif-text">
@@ -259,7 +259,7 @@
         </div>
       </div>
 
-      <!-- Vue « applications », téléphone couché -->
+      <!-- Apps view, phone laid flat -->
       <div class="view-apps" id="apps" hidden>
         <div class="apps-head">
           <button class="tp-press back" id="back" aria-label="Retour" data-en-label="Back">
@@ -279,13 +279,13 @@
         </div>
 
         <div class="grid" id="grid"></div>
-        <!-- Rien trouvé : recherche sur le web proposée (demande de Funsaiki), Entrée la lance -->
+        <!-- Nothing found: web search offered (Funsaiki's request), Enter runs it -->
         <div class="no-result" id="no-result" hidden>
           <span data-en="No app found">Aucune app trouvée</span>
           <button class="tp-press folder web-search" id="web-search"></button>
         </div>
 
-        <!-- Récents (demandé par Funsaiki, pas dans la maquette) : dernières applications lancées -->
+        <!-- Recent (requested by Funsaiki, not in the mockup): last launched apps -->
         <div class="recents" id="recents" hidden>
           <span class="folders-title" data-en="Recent">Récents</span>
           <div class="folders-row" id="recent-row"></div>
@@ -296,16 +296,16 @@
           <div class="folders-row" id="folder-row"></div>
         </div>
 
-        <!-- Menu du clic droit sur une application (demandé par Funsaiki) : celui de l'onglet Apps,
-             à côté de la tuile -->
+        <!-- Right-click menu on an app (requested by Funsaiki): the Apps tab one,
+             next to the tile -->
         <div class="tray-menu app-menu" id="app-menu" role="menu" aria-labelledby="app-menu-name">
           <span class="tray-menu-name" id="app-menu-name"></span>
           <div class="tray-menu-items" id="app-menu-items"></div>
         </div>
       </div>
 
-      <!-- Menu d'alimentation (demandé par Funsaiki, pas dans la maquette) : assombrit l'écran,
-           choisir une action sert de confirmation -->
+      <!-- Power menu (requested by Funsaiki, not in the mockup): darkens the screen,
+           choosing an action serves as confirmation -->
       <div class="power" id="power" role="dialog" aria-modal="true" aria-label="Alimentation" data-en-label="Power">
         <div class="power-menu">
           <div class="power-choices" id="power-choices"></div>

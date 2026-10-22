@@ -1,7 +1,7 @@
-//! Signaux que Windows envoie à sa barre des tâches, pour la barre pastel (demande de Funsaiki) :
-//! fenêtre ouverte ou fermée, activée, titre changé, et fenêtre qui clignote pour attirer
-//! l'attention (Discord à un nouveau message, par exemple). Une fenêtre invisible inscrite par
-//! `RegisterShellHookWindow`, sur un fil à part ; les signaux sont passés à bar.rs par un canal.
+//! Signals that Windows sends to its taskbar, for the pastel bar (requested by Funsaiki):
+//! window opened or closed, activated, title changed, and window flashing to get
+//! attention (Discord on a new message, for example). An invisible window registered by
+//! `RegisterShellHookWindow`, on its own thread; the signals are passed to bar.rs over a channel.
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
@@ -19,18 +19,18 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PM_NOREMOVE, WINDOW_EX_STYLE, WM_QUIT, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
-/// Fenêtres par leur handle (un HWND ne passe pas d'un fil à l'autre)
+/// Windows by their handle (an HWND can't be passed from one thread to another)
 pub enum Event {
-    /// Fenêtre ouverte, titre changé… : la liste est à relire
+    /// Window opened, title changed…: the list must be read again
     Changed,
-    /// Fenêtre fermée ou masquée
+    /// Window closed or hidden
     Gone(isize),
     Activated(isize),
-    /// Elle demande l'attention (`FlashWindowEx`)
+    /// It asks for attention (`FlashWindowEx`)
     Flash(isize),
 }
 
-// Codes des signaux (HSHELL_…)
+// Signal codes (HSHELL_…)
 const WINDOW_CREATED: usize = 1;
 const WINDOW_DESTROYED: usize = 2;
 const WINDOW_ACTIVATED: usize = 4;
@@ -39,16 +39,16 @@ const WINDOW_REPLACED: usize = 13;
 const RUDE_APP_ACTIVATED: usize = 0x8004;
 const FLASH: usize = 0x8006;
 
-/// Fil qui reçoit les signaux : (identifiant, pour l'arrêter ; le fil)
+/// Thread that receives the signals: (identifier, to stop it; the thread)
 static WATCH: Mutex<Option<(u32, JoinHandle<()>)>> = Mutex::new(None);
-/// Message « SHELLHOOK », propre à chaque session de Windows
+/// "SHELLHOOK" message, specific to each Windows session
 static SHELL_MESSAGE: AtomicU32 = AtomicU32::new(0);
 
 thread_local! {
     static SENDER: RefCell<Option<Sender<Event>>> = const { RefCell::new(None) };
 }
 
-/// Jusqu'à `stop`
+/// Until `stop`
 pub fn start(sender: Sender<Event>) {
     let mut watch = WATCH.lock().unwrap();
     if watch.is_some() {
@@ -56,7 +56,7 @@ pub fn start(sender: Sender<Event>) {
     }
     let (id_sender, id_receiver) = std::sync::mpsc::channel();
     let thread = std::thread::spawn(move || {
-        // File de messages créée avant de donner l'identifiant : `stop` peut y poster WM_QUIT
+        // Message queue created before handing out the identifier: `stop` can post WM_QUIT to it
         let _ = unsafe { PeekMessageW(&mut MSG::default(), None, 0, 0, PM_NOREMOVE) };
         let _ = id_sender.send(unsafe { GetCurrentThreadId() });
         SENDER.with(|s| *s.borrow_mut() = Some(sender));
@@ -86,12 +86,12 @@ pub fn stop() {
     }
 }
 
-/// Fenêtre invisible, hors barre des tâches : elle ne sert qu'à recevoir les signaux
+/// Invisible window, kept out of the taskbar: it only serves to receive the signals
 fn create_window() -> Option<HWND> {
     unsafe {
         let instance = GetModuleHandleW(None).ok()?;
         let class = w!("LanceurPastelSignaux");
-        // Déjà inscrite si la barre a été coupée puis remise : sans effet
+        // Already registered if the bar was turned off then on again: no effect
         RegisterClassW(&WNDCLASSW { lpfnWndProc: Some(on_message), hInstance: instance.into(), lpszClassName: class, ..Default::default() });
         CreateWindowExW(WINDOW_EX_STYLE(WS_EX_TOOLWINDOW.0), class, w!(""), WS_POPUP, 0, 0, 0, 0, None, None, Some(instance.into()), None)
             .map_err(|e| eprintln!("[lanceur] barre : fenêtre des signaux impossible : {e}"))
@@ -133,8 +133,8 @@ mod tests {
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     }
 
-    /// Diagnostic : une fenêtre d'essai, réduite (visible un instant dans la barre des tâches),
-    /// clignote ; le signal doit arriver. cargo test real_shell_signals -- --ignored --nocapture
+    /// Diagnostic: a test window, minimized (visible for a moment in the taskbar),
+    /// flashes; the signal must arrive. cargo test real_shell_signals -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_shell_signals() {
@@ -149,7 +149,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(400));
             let info = FLASHWINFO { cbSize: size_of::<FLASHWINFO>() as u32, hwnd, dwFlags: FLASHW_ALL, uCount: 2, dwTimeout: 0 };
             let _ = FlashWindowEx(&info);
-            // La fenêtre d'essai traite ses messages pendant qu'elle clignote
+            // The test window processes its messages while it flashes
             let until = std::time::Instant::now() + std::time::Duration::from_millis(1200);
             let mut msg = MSG::default();
             while std::time::Instant::now() < until {

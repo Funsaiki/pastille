@@ -1,9 +1,9 @@
 /* ══════════════════════════════════════════════════════════
-   Langue de l'interface : français ou anglais (page Paramètres, demandée
-   par Funsaiki le 21/10/2026). Connue dès le chargement de la page, avant
-   tout texte : les constantes des modules la lisent. Rust en est la source
-   (reglages.json, sinon la langue de Windows) ; la page la garde dans
-   localStorage pour le chargement suivant et se recharge quand elle change.
+   Interface language: French or English (Settings page, asked for
+   by Funsaiki on 2026-10-21). Known as soon as the page loads, before
+   any text: module constants read it. Rust is the source of truth
+   (reglages.json, otherwise the Windows language); the page keeps it in
+   localStorage for the next load and reloads when it changes.
    ══════════════════════════════════════════════════════════ */
 export type Language = 'fr' | 'en';
 
@@ -18,29 +18,29 @@ function stored(): Language | null {
   }
 }
 
-/* Aperçu navigateur : ?langue=en ou ?langue=fr (captures) */
+/* Browser preview: ?langue=en or ?langue=fr (screenshots) */
 function asked(): Language | null {
   if ('__TAURI_INTERNALS__' in window) return null;
   const value = new URLSearchParams(location.search).get('langue');
   return value === 'fr' || value === 'en' ? value : null;
 }
 
-/* Premier chargement : la langue du navigateur (celle de Windows), corrigée par Rust ensuite */
+/* First load: the browser's language (the Windows one), corrected by Rust afterwards */
 export const LANGUAGE: Language = asked() ?? stored() ?? (navigator.language.toLowerCase().startsWith('fr') ? 'fr' : 'en');
 export const EN = LANGUAGE === 'en';
-/* Dates et nombres ; en anglais aussi, l'heure sur 24 h et la semaine du lundi */
+/* Dates and numbers; in English too, 24-hour time and weeks starting on Monday */
 export const LOCALE = EN ? 'en-GB' : 'fr-FR';
 
-/* Le texte de la langue de la page */
+/* The text in the page's language */
 export function tr<T>(fr: T, en: T): T {
   return EN ? en : fr;
 }
 
-/* Pourcentage : « 14 % » en français, « 14% » en anglais */
+/* Percentage: "14 %" in French, "14%" in English */
 export const percent = (value: number | string) => tr(`${value} %`, `${value}%`);
 
-/* Textes du HTML (index.html, barre.html), écrits en français : leur version anglaise est dans
-   data-en (texte d'un élément sans enfants), data-en-title, data-en-label (aria-label) et
+/* HTML texts (index.html, barre.html), written in French: their English version is in
+   data-en (text of an element without children), data-en-title, data-en-label (aria-label) and
    data-en-placeholder */
 export function translatePage() {
   document.documentElement.lang = LANGUAGE;
@@ -51,11 +51,11 @@ export function translatePage() {
   for (const node of document.querySelectorAll<HTMLInputElement>('[data-en-placeholder]')) node.placeholder = node.dataset.enPlaceholder!;
 }
 
-/* Langue de Rust (au chargement, ou changée dans les Paramètres) : gardée pour le prochain
-   chargement. true : elle diffère de celle de la page, qui doit se recharger. Sans
-   localStorage, jamais : le rechargement recommencerait sans fin. */
+/* Rust's language (on load, or changed in Settings): kept for the next
+   load. true: it differs from the page's, which must reload. Without
+   localStorage, never: the reload would start over endlessly. */
 export function rememberLanguage(language: Language): boolean {
-  if (asked()) return false;   // aperçu forcé : rien n'est gardé
+  if (asked()) return false;   // forced preview: nothing is kept
   try {
     localStorage.setItem(KEY, language);
   } catch {

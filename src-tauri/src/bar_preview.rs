@@ -1,7 +1,7 @@
-//! Aperçus des fenêtres au survol de leur tuile dans la barre pastel (demande de Funsaiki) : les
-//! vignettes en direct de Windows (`DwmRegisterThumbnail`), comme dans sa barre des tâches.
-//! Windows les dessine par-dessus la fenêtre de la barre, aux places que le front lui donne
-//! dans sa carte d'aperçu (bar.ts). Une carte à la fois par fenêtre de la barre.
+//! Hover previews of windows over their tile in the pastel bar (requested by Funsaiki): Windows'
+//! live thumbnails (`DwmRegisterThumbnail`), as in its taskbar.
+//! Windows draws them over the bar window, at the places the front gives it
+//! in its preview card (bar.ts). One card at a time per bar window.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -16,11 +16,11 @@ use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, IsIconic};
 
 use crate::open_windows;
 
-/// Par fenêtre de la barre : une vignette par fenêtre demandée (None : réduite ou fermée)
+/// Per bar window: one thumbnail per requested window (None: minimized or closed)
 static THUMBS: Mutex<Option<HashMap<String, Vec<Option<isize>>>>> = Mutex::new(None);
 
-/// Vignettes des fenêtres `ids` ; pour chacune, la taille de sa zone cliente (pixels), ou None
-/// si elle est réduite (Windows n'en garde pas d'image) ou fermée. Remplace la carte précédente.
+/// Thumbnails of the windows `ids`; for each, the size of its client area (pixels), or None
+/// if it is minimized (Windows keeps no image of it) or closed. Replaces the previous card.
 #[tauri::command]
 pub fn bar_preview(window: WebviewWindow, ids: Vec<String>) -> Vec<Option<[i32; 2]>> {
     close(&window);
@@ -46,8 +46,8 @@ pub fn bar_preview(window: WebviewWindow, ids: Vec<String>) -> Vec<Option<[i32; 
     sizes
 }
 
-/// Places des vignettes dans la carte, dans l'ordre de `bar_preview` (pixels CSS de la fenêtre :
-/// x, y, largeur, hauteur) ; elles apparaissent
+/// Places the thumbnails in the card, in the order of `bar_preview` (CSS pixels of the window:
+/// x, y, width, height), and shows them
 #[tauri::command]
 pub fn bar_preview_place(window: WebviewWindow, rects: Vec<[f64; 4]>) {
     let scale = window.scale_factor().unwrap_or(1.0);
@@ -68,7 +68,7 @@ pub fn bar_preview_place(window: WebviewWindow, rects: Vec<[f64; 4]>) {
     }
 }
 
-/// Carte refermée, ou pilule rentrée
+/// Card closed, or pill retracted
 #[tauri::command]
 pub fn bar_preview_close(window: WebviewWindow) {
     close(&window);
@@ -78,7 +78,7 @@ fn close(window: &WebviewWindow) {
     forget(window.label());
 }
 
-/// Vignettes de la fenêtre de la barre `label` libérées (aussi quand elle est détruite)
+/// Releases the thumbnails of the bar window `label` (also when it is destroyed)
 pub fn forget(label: &str) {
     let removed = THUMBS.lock().unwrap().as_mut().and_then(|all| all.remove(label));
     for thumb in removed.into_iter().flatten().flatten() {

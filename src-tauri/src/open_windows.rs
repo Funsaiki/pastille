@@ -1,6 +1,6 @@
-//! Fenêtres ouvertes proposées par la recherche (demande de Funsaiki) : taper « disc » propose
-//! aussi la fenêtre de Discord, comme un Alt+Tab avec recherche. Les fenêtres de la barre des
-//! tâches (switch.rs), sauf celles du lanceur.
+//! Open windows offered by the search (requested by Funsaiki): typing "disc" also offers
+//! Discord's window, like an Alt+Tab with search. The taskbar windows
+//! (switch.rs), except the launcher's.
 
 use std::path::Path;
 
@@ -17,21 +17,21 @@ use crate::switch;
 
 #[derive(Serialize)]
 pub struct OpenWindow {
-    /// Handle de la fenêtre, renvoyé pour la ramener (Rust vérifie qu'elle est encore là)
+    /// Window handle, sent back to bring it up (Rust checks it is still there)
     id: String,
     title: String,
-    /// Programme (« Discord », « Brave Browser »)
+    /// Program ("Discord", "Brave Browser")
     app: String,
     icon: Option<crate::icon::Icon>,
 }
 
-/// La plus récemment active d'abord
+/// The most recently active first
 #[tauri::command]
 pub async fn open_windows() -> Vec<OpenWindow> {
     crate::com::com_task(|| Ok(list())).await.unwrap_or_default()
 }
 
-/// Ramène la fenêtre au premier plan (restaurée si elle était réduite)
+/// Brings the window to the foreground (restored if it was minimized)
 #[tauri::command]
 pub async fn focus_window(id: String) -> Result<(), String> {
     crate::blocking(move || {
@@ -41,8 +41,8 @@ pub async fn focus_window(id: String) -> Result<(), String> {
     .await?
 }
 
-/// Fenêtre envoyée par le front (recherche, barre pastel) : encore une fenêtre de la barre des
-/// tâches, et pas le lanceur. Rien d'autre n'est touché.
+/// Window sent by the front (search, pastel bar): still a taskbar window,
+/// and not the launcher. Nothing else is touched.
 pub(crate) fn app_window(id: &str) -> Result<HWND, String> {
     let handle: isize = id.parse().map_err(|_| tr(format!("Fenêtre {id} inconnue."), format!("Unknown window {id}.")))?;
     let hwnd = HWND(handle as *mut _);
@@ -52,8 +52,8 @@ pub(crate) fn app_window(id: &str) -> Result<HWND, String> {
     Ok(hwnd)
 }
 
-/// Identifiant d'application donné à la fenêtre (`PKEY_AppUserModel_ID`) : celui des apps du
-/// Store hébergées par ApplicationFrameHost (Paramètres, Calculatrice). Avec COM.
+/// App identifier given to the window (`PKEY_AppUserModel_ID`): the one of the Store apps
+/// hosted by ApplicationFrameHost (Settings, Calculator). With COM.
 pub(crate) fn window_app_id(hwnd: HWND) -> Option<String> {
     const APP_ID: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0x9f4c2855_9f79_4b39_a8d0_e1d42de1d5f3), pid: 5 };
     unsafe {
@@ -97,7 +97,7 @@ pub(crate) fn title(hwnd: HWND) -> String {
 mod tests {
     use super::*;
 
-    /// Diagnostic, lecture seule : cargo test real_open_windows -- --ignored --nocapture
+    /// Diagnostic, read-only: cargo test real_open_windows -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_open_windows() {

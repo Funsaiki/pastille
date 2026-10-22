@@ -1,12 +1,12 @@
-//! Applications du menu Démarrer (demande de Funsaiki) : celles de « Toutes les applications »,
-//! lues dans le dossier virtuel shell:AppsFolder (raccourcis du menu Démarrer de Funsaiki et de
-//! tous les utilisateurs, apps du Store), pour les groupes `auto: "start"` (config.rs). Relues
-//! avec les jeux : une application installée plus tard apparaît d'elle-même. Lancées par
-//! `shell:AppsFolder\<nom>`, comme depuis le menu Démarrer (arguments du raccourci compris).
+//! Start menu apps (requested by Funsaiki): those of "All apps",
+//! read from the virtual folder shell:AppsFolder (Start menu shortcuts of Funsaiki and of
+//! all users, Store apps), for the `auto: "start"` groups (config.rs). Read again
+//! with the games: an app installed later shows up by itself. Launched by
+//! `shell:AppsFolder\<name>`, as from the Start menu (shortcut arguments included).
 //!
-//! Écartés : désinstalleurs, pages web et documents (README, manuels) que des installateurs
-//! ajoutent au menu, et le lanceur lui-même. Funsaiki masque les autres depuis le clic droit
-//! (app_menu.rs) : demarrer.json, à côté de apps.json.
+//! Left out: uninstallers, web pages and documents (README, manuals) that installers
+//! add to the menu, and the launcher itself. Funsaiki hides the others from the right click
+//! (app_menu.rs): demarrer.json, next to apps.json.
 
 use std::collections::HashMap;
 use std::fs;
@@ -28,17 +28,17 @@ use crate::i18n::tr;
 use crate::steam::normalize;
 use crate::{com, config};
 
-/// Préfixe des cibles : « shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App »
+/// Target prefix: "shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"
 pub const PREFIX: &str = r"shell:AppsFolder\";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StartApp {
     pub name: String,
-    /// `PREFIX` + nom de l'élément dans shell:AppsFolder
+    /// `PREFIX` + item name in shell:AppsFolder
     pub target: String,
 }
 
-/// Par nom, sans accents ni majuscules. À appeler avec COM initialisé.
+/// By name, ignoring accents and case. To call with COM initialized.
 pub fn installed_apps() -> Vec<StartApp> {
     *URL_ICONS.lock().unwrap() = Some(url_icons());
     let mut apps: Vec<StartApp> = entries()
@@ -51,7 +51,7 @@ pub fn installed_apps() -> Vec<StartApp> {
     apps
 }
 
-/// (nom affiché, nom de l'élément) de tout le dossier, sans filtre
+/// (display name, item name) of the whole folder, unfiltered
 fn entries() -> Vec<(String, String)> {
     let read = || -> windows::core::Result<Vec<(String, String)>> {
         let folder: IShellItem = unsafe { SHCreateItemFromParsingName(w!("shell:AppsFolder"), None)? };
@@ -85,29 +85,29 @@ fn display_name(item: &IShellItem, kind: SIGDN) -> Option<String> {
     }
 }
 
-/// Ce que l'on peut lancer comme une application
+/// What can be launched as an app
 fn is_app(name: &str, parsing: &str) -> bool {
     let name = normalize(name);
     let lower = parsing.to_lowercase();
     if name.starts_with("uninstall") || name.starts_with("desinstaller") || lower == "dev.lanceur.pastel" {
         return false;
     }
-    // Pages web et documentation en ligne ou locale
+    // Web pages and online or local documentation
     if ["http:", "https:", "file:", "mailto:"].iter().any(|p| lower.starts_with(p)) {
         return false;
     }
-    // Chemin de fichier (« C:\… » ou « {dossier connu}\… ») : programmes seulement, pas les
-    // README, manuels (.chm, .pdf, .html) ni raccourcis web (.url) du dossier d'une application
+    // File path ("C:\…" or "{known folder}\…"): programs only, not the
+    // READMEs, manuals (.chm, .pdf, .html) or web shortcuts (.url) of an app's folder
     if lower.contains('\\') {
         let extension = Path::new(&lower).extension().and_then(|e| e.to_str()).unwrap_or("");
         return matches!(extension, "exe" | "msc" | "cpl" | "bat" | "cmd");
     }
-    // Identifiant d'application (Store, programmes déclarés) ou adresse d'un jeu (steam://…)
+    // App identifier (Store, registered programs) or a game address (steam://…)
     true
 }
 
-/// Icônes des applications `ids` (tuiles affichées, Récents), dans le même ordre : le front
-/// n'envoie que des identifiants. ~15 ms par icône la première fois, gardées ensuite (icon.rs).
+/// Icons of the apps `ids` (tiles shown, Recent), in the same order: the front
+/// only sends identifiers. ~15 ms per icon the first time, kept afterwards (icon.rs).
 #[tauri::command]
 pub async fn start_icons(app: AppHandle, ids: Vec<String>) -> Vec<Option<Icon>> {
     let targets: Vec<Option<String>> = ids
@@ -119,14 +119,14 @@ pub async fn start_icons(app: AppHandle, ids: Vec<String>) -> Vec<Option<Icon>> 
         .unwrap_or_default()
 }
 
-/// L'élément du menu Démarrer d'une cible (`PREFIX` + nom). Avec COM.
+/// The Start menu item of a target (`PREFIX` + name). With COM.
 pub fn item(target: &str) -> Option<IShellItem> {
     target.strip_prefix(PREFIX)?;
     unsafe { SHCreateItemFromParsingName(&HSTRING::from(target), None) }.ok()
 }
 
-/// L'élément dont l'icône est celle de la cible : le fichier d'icône d'un raccourci web,
-/// sinon l'élément du menu Démarrer. Avec COM.
+/// The item whose icon is the target's: the icon file of a web shortcut,
+/// else the Start menu item. With COM.
 pub fn icon_item(target: &str) -> Option<IShellItem> {
     let url = target.strip_prefix(PREFIX)?;
     let file = URL_ICONS.lock().unwrap().as_ref().and_then(|icons| icons.get(url).cloned());
@@ -134,24 +134,24 @@ pub fn icon_item(target: &str) -> Option<IShellItem> {
         .or_else(|| item(target))
 }
 
-/// Ce que lance une application du menu Démarrer (clic droit, app_menu.rs)
+/// What a Start menu app launches (right click, app_menu.rs)
 pub struct Shortcut {
-    /// Cible du raccourci : un programme (« C:\…\Code.exe »), ou l'adresse d'un jeu Steam
+    /// Shortcut target: a program ("C:\…\Code.exe"), or a Steam game address
     pub target: Option<String>,
-    /// Le raccourci passe des arguments (League of Legends : --launch-product=…)
+    /// The shortcut passes arguments (League of Legends: --launch-product=…)
     pub args: bool,
-    /// App du Store de bureau (Terminal, Spotify) : elle s'exécute en administrateur, au
-    /// contraire d'une app du Store comme la Calculatrice
+    /// Packaged desktop app (Terminal, Spotify): it runs as administrator, unlike
+    /// a Store app such as Calculator
     pub packaged_desktop: bool,
 }
 
-/// Propriétés des éléments : System.Link.TargetParsingPath, System.Link.Arguments et
-/// System.AppUserModel.HostEnvironment (0 programme, 1 app du Store, 2 app du Store de bureau)
+/// Item properties: System.Link.TargetParsingPath, System.Link.Arguments and
+/// System.AppUserModel.HostEnvironment (0 program, 1 Store app, 2 packaged desktop app)
 const LINK_TARGET: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0xb9b4b3fc_2b51_4a42_b5d8_324146afcf25), pid: 2 };
 const LINK_ARGUMENTS: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0x436f2667_14e2_4feb_b30a_146c53b5b674), pid: 100 };
 const HOST_ENVIRONMENT: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0x9f4c2855_9f79_4b39_a8d0_e1d42de1d5f3), pid: 14 };
 
-/// Avec COM
+/// With COM
 pub fn shortcut(target: &str) -> Option<Shortcut> {
     let item: IShellItem2 = item(target)?.cast().ok()?;
     let text = |key: &PROPERTYKEY| unsafe {
@@ -167,16 +167,16 @@ pub fn shortcut(target: &str) -> Option<Shortcut> {
     })
 }
 
-/// Le programme qu'ouvre une application du menu Démarrer, si son raccourci n'a pas
-/// d'arguments : pour ramener sa fenêtre déjà ouverte (shell::launch), comme une tuile à chemin.
-/// Avec COM.
+/// The program a Start menu app opens, if its shortcut has no
+/// arguments: to bring back its already open window (shell::launch), like a tile with a path.
+/// With COM.
 pub fn program(target: &str) -> Option<String> {
     let shortcut = shortcut(target)?;
     shortcut.target.filter(|_| !shortcut.args)
 }
 
-/* ── Applications masquées (demande de Funsaiki) : demarrer.json, à côté de apps.json (une version
-   plus ancienne refuserait un champ de plus dans apps.json) ; leur nom dans shell:AppsFolder ── */
+/* ── Hidden apps (requested by Funsaiki): demarrer.json, next to apps.json (an older version
+   would refuse one more field in apps.json); their name in shell:AppsFolder ── */
 
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
@@ -188,7 +188,7 @@ fn settings_file(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|dir| dir.join("demarrer.json"))
 }
 
-/// Cibles masquées (`PREFIX` + nom). Fichier absent ou illisible : aucune.
+/// Hidden targets (`PREFIX` + name). File missing or unreadable: none.
 pub fn hidden(app: &AppHandle) -> Vec<String> {
     settings_file(app)
         .and_then(|path| fs::read_to_string(path).ok())
@@ -197,7 +197,7 @@ pub fn hidden(app: &AppHandle) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Masque ou réaffiche `target`. Fichier temporaire puis renommage, comme barre.json.
+/// Hides or shows `target` again. Temporary file then rename, like barre.json.
 pub fn set_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
     let name = target.strip_prefix(PREFIX).ok_or(tr("Pas une application du menu Démarrer.", "Not a Start menu app."))?;
     let path = settings_file(app).ok_or(tr("Dossier de config introuvable.", "Config folder not found."))?;
@@ -212,9 +212,9 @@ pub fn set_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), Strin
         .map_err(|e| tr(format!("{} non enregistré : {e}", path.display()), format!("{} not saved: {e}", path.display())))
 }
 
-/// Raccourcis web (.url) du menu Démarrer : fichier d'icône par adresse. Le menu Démarrer
-/// dessine l'icône du jeu pour ceux de Steam (steam://rungameid/…), le dossier des
-/// applications seulement une page blanche. Relus avec la liste.
+/// Start menu web shortcuts (.url): icon file by address. The Start menu
+/// draws the game's icon for Steam's (steam://rungameid/…), the apps folder
+/// only a blank page. Read again with the list.
 static URL_ICONS: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
 fn url_icons() -> HashMap<String, String> {
@@ -263,7 +263,7 @@ mod tests {
         assert!(!is_app("Pastille", "dev.lanceur.pastel"));
     }
 
-    /// Diagnostic sur le PC (lecture seule, rien n'est lancé) :
+    /// Diagnostic on the PC (read only, nothing is launched):
     /// cargo test real_start_menu -- --ignored --nocapture
     #[test]
     #[ignore]

@@ -1,5 +1,5 @@
-//! Affichage et masquage du lanceur. Rust décide quand ; le front rejoue l'animation
-//! à l'affichage et vide la scène avant de masquer (voir « Image figée » dans CLAUDE.md).
+//! Showing and hiding the launcher. Rust decides when; the front replays the animation
+//! on show and empties the stage before hiding (see the frozen image pitfall in CLAUDE.md).
 
 use std::{
     sync::{
@@ -20,21 +20,21 @@ use windows::Win32::{
 
 use crate::config;
 
-/// Boîte de dialogue du lanceur ouverte (choix de l'image de la breloque) : il lui laisse le
-/// focus sans se masquer, et le raccourci attend qu'elle soit fermée
+/// Launcher dialog open (choosing the charm image): it leaves it the focus without
+/// hiding, and the shortcut waits until it is closed
 static DIALOG: AtomicBool = AtomicBool::new(false);
 
 pub fn set_dialog(open: bool) {
     DIALOG.store(open, Ordering::SeqCst);
 }
 
-/// Dernière demande de masquage
+/// Last hide request
 static LAST_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
-/// Le raccourci arrive parfois juste après un masquage par perte de focus (ex. le menu Démarrer
-/// a pris le focus) : il voulait fermer le lanceur, pas le rouvrir.
+/// The shortcut sometimes arrives right after a hide on focus loss (e.g. the Start menu
+/// took the focus): it meant to close the launcher, not reopen it.
 const REOPEN_GUARD: Duration = Duration::from_millis(400);
 
-/// Journal des décisions d'affichage, en debug seulement.
+/// Log of show/hide decisions, in debug only.
 fn debug_log(message: &str) {
     if cfg!(debug_assertions) {
         eprintln!("[lanceur] {message}");
@@ -45,9 +45,9 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
 }
 
-/// Alt relâché alors que le lanceur a le focus (fin d'Alt+Espace) : Windows passe la fenêtre
-/// en mode menu clavier, qui retient la souris : plus aucun survol jusqu'au prochain clic.
-/// La fenêtre n'a pas de menu : ce mode est ignoré. À appeler depuis le fil principal.
+/// Alt released while the launcher has the focus (end of Alt+Space): Windows puts the window
+/// in keyboard menu mode, which holds the mouse: no more hover until the next click.
+/// The window has no menu: this mode is ignored. To be called from the main thread.
 pub fn disable_key_menu(app: &AppHandle) {
     let Some(hwnd) = window(app).and_then(|w| w.hwnd().ok()) else { return };
     if !unsafe { SetWindowSubclass(hwnd, Some(ignore_key_menu), 1, 0) }.as_bool() {
@@ -74,19 +74,19 @@ fn is_visible(w: &WebviewWindow) -> bool {
     w.is_visible().unwrap_or(false)
 }
 
-/// La fenêtre, transparente, couvre tout l'écran où se trouve la souris (barre des tâches
-/// comprise) : le téléphone monte du bas de l'écran et le front met la scène à l'échelle.
+/// The transparent window covers the whole screen the mouse is on (taskbar
+/// included): the phone rises from the bottom of the screen and the front scales the stage.
 fn cover_cursor_monitor(w: &WebviewWindow) -> tauri::Result<()> {
     let cursor = w.cursor_position()?;
     let Some(monitor) = w.monitor_from_point(cursor.x, cursor.y)? else { return Ok(()) };
-    // Position d'abord : en changeant d'écran, Windows adapte la taille à l'échelle du nouvel écran
+    // Position first: when changing screens, Windows adapts the size to the new screen's scale
     w.set_position(*monitor.position())?;
     w.set_size(*monitor.size())?;
     Ok(())
 }
 
-/// Masqué, WebView2 peut rendre de la mémoire (demande de Funsaiki) ; niveau normal avant chaque
-/// affichage. Le téléphone, et les fenêtres de la barre pastel quand la pilule est rentrée.
+/// When hidden, WebView2 can give memory back (requested by Funsaiki); normal level before each
+/// show. The phone, and the pastel bar windows when the pill is tucked away.
 pub fn set_memory_low(w: &WebviewWindow, low: bool) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
@@ -94,14 +94,14 @@ pub fn set_memory_low(w: &WebviewWindow, low: bool) {
     use windows::core::Interface;
     let _ = w.with_webview(move |webview| unsafe {
         let level = if low { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW } else { COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL };
-        // WebView2 trop ancien (avant la version 1.0.2210) : rien à faire
+        // WebView2 too old (before version 1.0.2210): nothing to do
         if let Ok(core) = webview.controller().CoreWebView2().and_then(|c| c.cast::<ICoreWebView2_19>()) {
             let _ = core.SetMemoryUsageTargetLevel(level);
         }
     });
 }
 
-/// Le front masque la fenêtre par cette commande, une fois la scène vidée (ui.ts)
+/// The front hides the window with this command, once the stage is emptied (ui.ts)
 #[tauri::command]
 pub fn hide_window(app: AppHandle) {
     if let Some(w) = window(&app) {
@@ -114,15 +114,15 @@ pub fn show(app: &AppHandle) {
     show_page(app, None);
 }
 
-/// `page` : ce que le front ouvre une fois le téléphone monté (« prefs » : la page Paramètres,
-/// depuis le menu de l'icône)
+/// `page`: what the front opens once the phone has risen ("prefs": the Settings page,
+/// from the tray icon menu)
 pub fn show_page(app: &AppHandle, page: Option<&str>) {
     let Some(w) = window(app) else { return };
     set_memory_low(&w, false);
-    // apps.json modifié depuis la dernière ouverture : le front reçoit la nouvelle config avant « shown »
+    // apps.json changed since the last opening: the front gets the new config before "shown"
     config::reload_if_changed(app);
     config::refresh_games_if_stale(app);
-    // Déjà affiché (menu « Afficher ») : ne pas bouger
+    // Already shown ("Show" menu): don't move
     if !is_visible(&w) {
         if let Err(e) = cover_cursor_monitor(&w) {
             eprintln!("[lanceur] placement sur l'écran de la souris impossible : {e}");
@@ -133,9 +133,9 @@ pub fn show_page(app: &AppHandle, page: Option<&str>) {
     let _ = app.emit("launcher:shown", page);
 }
 
-/// Premier lancement (après l'installation) : le téléphone se montre de lui-même, avec la
-/// bienvenue. Appelé par la page une fois prête : montré pendant le démarrage, il perdait le
-/// focus pendant que WebView2 se créait. Une fois par démarrage.
+/// First launch (after installation): the phone shows itself, with the
+/// welcome. Called by the page once ready: shown during startup, it lost the
+/// focus while WebView2 was being created. Once per startup.
 #[tauri::command]
 pub fn first_show(app: AppHandle) {
     static DONE: AtomicBool = AtomicBool::new(false);
@@ -144,7 +144,7 @@ pub fn first_show(app: AppHandle) {
     }
 }
 
-/// Le front vide la scène, puis masque la fenêtre lui-même.
+/// The front empties the stage, then hides the window itself.
 pub fn hide(app: &AppHandle) {
     *LAST_HIDE.lock().unwrap() = Some(Instant::now());
     let _ = app.emit("launcher:hide", ());
@@ -173,7 +173,7 @@ pub fn on_blur(app: &AppHandle) {
     if !is_visible(&w) || DIALOG.load(Ordering::SeqCst) {
         return;
     }
-    // En debug, ouvrir les outils de développement fait perdre le focus : rester affiché
+    // In debug, opening the developer tools loses the focus: stay shown
     #[cfg(debug_assertions)]
     {
         if w.is_devtools_open() {

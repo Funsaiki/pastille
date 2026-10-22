@@ -1,23 +1,23 @@
 /* ══════════════════════════════════════════════════════════
-   Recherche (repris du premier lanceur, demandé par Funsaiki) : pages des Paramètres
-   de Windows et calcul. Les fenêtres ouvertes viennent de Rust (open_windows.rs).
+   Search (taken from the first launcher, asked for by Funsaiki): Windows Settings
+   pages and calculation. Open windows come from Rust (open_windows.rs).
    ══════════════════════════════════════════════════════════ */
 import settings from './settings.json';
 import type { AppItem } from './config';
 import { LOCALE, tr } from './i18n';
 
-/* ── Pages des Paramètres : Rust retrouve la cible par l'identifiant « s<position> »
-   (même fichier, shell.rs) ; le front n'envoie jamais de cible ── */
+/* ── Settings pages: Rust finds the target from the id "s<position>"
+   (same file, shell.rs); the front never sends a target ── */
 export const SETTINGS: AppItem[] = settings.map((s, i) => ({
   id: `s${i}`,
   label: tr(s.label, s.en),
   keywords: tr(s.keywords, s.enKeywords),
-  target: s.target,   // aperçu seulement
+  target: s.target,   // preview only
   icon: 'parametres',
 }));
 
-/* ── Calcul : « 12*3,5 » → tuile « = 42 », Entrée copie le résultat ──
-   Petit analyseur (pas d'eval) : + - * / ^ et parenthèses, × et ÷, virgule ou point. */
+/* ── Calculation: "12*3,5" → tile "= 42", Enter copies the result ──
+   Small parser (no eval): + - * / ^ and parentheses, × and ÷, comma or dot. */
 const fmtResult = new Intl.NumberFormat(LOCALE, { maximumSignificantDigits: 12 });
 const fmtCopy = new Intl.NumberFormat(LOCALE, { maximumSignificantDigits: 12, useGrouping: false });
 
@@ -29,7 +29,7 @@ export function calcResult(query: string): AppItem | null {
 
 export function evaluate(input: string): number | null {
   const src = input.replace(/\s+/g, '').replace(/×/g, '*').replace(/÷/g, '/').replace(/,/g, '.');
-  // Il faut au moins un opérateur entre deux nombres ; une date (2026-10-12) n'est pas un calcul
+  // At least one operator between two numbers is needed; a date (2026-10-12) is not a calculation
   if (!/^[\d.+\-*/^()]+$/.test(src) || !/\d[)]*[+\-*/^][(+-]*[\d.(]/.test(src) || /^\d{4}-\d{2}(-\d{2})?$/.test(src)) {
     return null;
   }
@@ -37,7 +37,7 @@ export function evaluate(input: string): number | null {
   const peek = () => src[i];
 
   // expr := term (('+' | '-') term)*   term := factor (('*' | '/') factor)*
-  // factor := ('-' | '+') factor | pow   pow := atom ('^' factor)?   atom := nombre | '(' expr ')'
+  // factor := ('-' | '+') factor | pow   pow := atom ('^' factor)?   atom := number | '(' expr ')'
   function expr(): number {
     let v = term();
     while (peek() === '+' || peek() === '-') v = src[i++] === '+' ? v + term() : v - term();

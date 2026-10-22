@@ -1,6 +1,6 @@
 <!doctype html>
-<!-- Page de configuration de Spotify, en anglais (spotify-setup.html : la version française,
-     qui fait foi ; mêmes accolades, mêmes styles). -->
+<!-- Spotify setup page, in English (spotify-setup.html: the French version,
+     the reference; same braces, same styles). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -110,7 +110,7 @@
   <footer>This page comes from Pastille, on your PC: your identifier only goes to Spotify.</footer>
 </main>
 <script>
-  // Copier : presse-papiers (adresse locale : contexte sûr), sinon sélection classique
+  // Copy: clipboard (local address: secure context), otherwise a classic selection
   for (const button of document.querySelectorAll('[data-copy]')) {
     button.addEventListener('click', async () => {
       const source = document.getElementById(button.dataset.copy);
@@ -129,7 +129,7 @@
       }, 1600);
     });
   }
-  // Identifiant refusé : le champ, prêt à corriger
+  // Client ID refused: the field, ready to be fixed
   if (document.querySelector('.error')) {
     const input = document.getElementById('id');
     input.focus();

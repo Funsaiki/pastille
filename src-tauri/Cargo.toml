@@ -12,8 +12,8 @@ edition = "2024"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "lanceur_pastel_lib"
-# rlib seulement : staticlib et cdylib (modèle Tauri) ne servent qu'aux apps mobiles,
-# et chaque compilation les liait en plus (mesuré sur le premier lanceur)
+# rlib only: staticlib and cdylib (Tauri template) are only for mobile apps,
+# and every build linked them too (measured on the first launcher)
 crate-type = ["rlib"]
 
 [build-dependencies]

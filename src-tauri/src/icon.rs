@@ -1,7 +1,7 @@
-//! Icône d'un programme pour le mélangeur (demande de Funsaiki) : la grande icône du shell
-//! (celle de l'Explorateur), en pixels RGBA que le front dessine dans un canvas. Gardée en
-//! mémoire par chemin : le mélangeur la redemande à chaque ouverture. Celles des applications
-//! du menu Démarrer (start_menu.rs) viennent du menu lui-même, apps du Store comprises.
+//! A program's icon for the mixer (requested by Funsaiki): the shell's large icon
+//! (Explorer's), as RGBA pixels the front draws in a canvas. Kept in
+//! memory by path: the mixer asks for it again on each opening. Those of Start menu
+//! apps (start_menu.rs) come from the menu itself, Store apps included.
 
 use std::{collections::HashMap, sync::Mutex};
 
@@ -23,23 +23,23 @@ use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, HICON, I
 pub struct Icon {
     width: u32,
     height: u32,
-    /// Pixels RGBA, ligne par ligne depuis le haut, en base64
+    /// RGBA pixels, row by row from the top, in base64
     rgba: String,
 }
 
 static CACHE: Mutex<Option<HashMap<String, Option<Icon>>>> = Mutex::new(None);
-/// Une icône lue à la fois : SHGetFileInfoW échoue quand deux fils lisent la même en même
-/// temps (vérifié : les pilules et le téléphone la demandent ensemble au démarrage), et
-/// l'échec resterait en mémoire
+/// One icon read at a time: SHGetFileInfoW fails when two threads read the same one at the same
+/// time (checked: the pills and the phone ask for it together at startup), and
+/// the failure would stay in memory
 static READING: Mutex<()> = Mutex::new(());
 
-/// À appeler avec COM initialisé (com_task)
+/// To be called with COM initialized (com_task)
 pub fn of(path: &str) -> Option<Icon> {
     cached(path, || extract(path))
 }
 
-/// Icône d'une application du menu Démarrer (cible `shell:AppsFolder\…`), celle du menu, en
-/// 48 px (les tuiles de la vue applications sont plus grandes que la liste du mélangeur). Avec COM.
+/// Icon of a Start menu app (target `shell:AppsFolder\…`), the menu's own, at
+/// 48 px (the apps view tiles are larger than the mixer list). With COM.
 pub fn of_start_app(target: &str) -> Option<Icon> {
     const SIZE_PX: i32 = 48;
     cached(target, || {
@@ -60,20 +60,20 @@ fn cached(key: &str, extract: impl FnOnce() -> Option<Icon>) -> Option<Icon> {
     }
     let _reading = READING.lock().unwrap();
     if let Some(cached) = known() {
-        return cached; // lue par un autre fil pendant l'attente
+        return cached; // read by another thread while waiting
     }
     let icon = extract();
     CACHE.lock().unwrap().get_or_insert_with(HashMap::new).insert(key.to_string(), icon.clone());
     icon
 }
 
-/// Image 32 bits du shell, en alpha prémultiplié (couleurs jamais au-dessus de l'alpha) :
-/// remise en alpha simple, celui du canvas
+/// 32-bit image from the shell, in premultiplied alpha (colors never above the alpha):
+/// turned back into straight alpha, the canvas's
 fn image(bitmap: HBITMAP) -> Option<Icon> {
     let (width, height) = size(bitmap)?;
     let mut bgra = bits(bitmap, width, height)?;
     if bgra.chunks(4).all(|p| p[3] == 0) {
-        bgra.chunks_mut(4).for_each(|p| p[3] = 255); // sans transparence
+        bgra.chunks_mut(4).for_each(|p| p[3] = 255); // no transparency
     } else if bgra.chunks(4).all(|p| p[0] <= p[3] && p[1] <= p[3] && p[2] <= p[3]) {
         for p in bgra.chunks_mut(4).filter(|p| p[3] > 0 && p[3] < 255) {
             let alpha = p[3] as u32;
@@ -105,9 +105,9 @@ fn pixels(icon: HICON) -> Option<Icon> {
     let mut parts = ICONINFO::default();
     unsafe { GetIconInfo(icon, &mut parts) }.ok()?;
     let read = || {
-        let (width, height) = size(parts.hbmColor)?; // rien : icône monochrome, sans image couleur
+        let (width, height) = size(parts.hbmColor)?; // none: monochrome icon, no color image
         let mut bgra = bits(parts.hbmColor, width, height)?;
-        // Icône ancienne, sans transparence dans l'image : le masque dit quels pixels sont vides
+        // Old icon, no transparency in the image: the mask says which pixels are empty
         if bgra.chunks(4).all(|p| p[3] == 0) {
             let mask = bits(parts.hbmMask, width, height)?;
             for (pixel, m) in bgra.chunks_mut(4).zip(mask.chunks(4)) {
@@ -141,13 +141,13 @@ fn size(bitmap: HBITMAP) -> Option<(i32, i32)> {
     (filled != 0).then_some((info.bmWidth, info.bmHeight))
 }
 
-/// Pixels d'une image en BGRA 32 bits, de haut en bas
+/// Pixels of an image as 32-bit BGRA, top to bottom
 fn bits(bitmap: HBITMAP, width: i32, height: i32) -> Option<Vec<u8>> {
     let mut info = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {
             biSize: size_of::<BITMAPINFOHEADER>() as u32,
             biWidth: width,
-            biHeight: -height, // négatif : première ligne en haut
+            biHeight: -height, // negative: first row at the top
             biPlanes: 1,
             biBitCount: 32,
             biCompression: BI_RGB.0,

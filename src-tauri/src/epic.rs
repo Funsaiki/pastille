@@ -1,6 +1,6 @@
-//! Jeux Epic installés, pour les groupes marqués `auto: "epic"` : manifestes du lanceur Epic
-//! (%PROGRAMDATA%\Epic\EpicGamesLauncher\Data\Manifests\*.item, en JSON, lecture seule),
-//! lancés par l'adresse du lanceur Epic, comme ses raccourcis de bureau.
+//! Installed Epic games, for groups marked `auto: "epic"`: manifests of the Epic launcher
+//! (%PROGRAMDATA%\Epic\EpicGamesLauncher\Data\Manifests\*.item, JSON, read-only),
+//! launched through the Epic launcher's URL, like its desktop shortcuts.
 
 use std::{fs, path::PathBuf};
 
@@ -32,7 +32,7 @@ struct Manifest {
     categories: Vec<String>,
 }
 
-/// Jeux installés, triés par nom. Vide si le lanceur Epic n'est pas installé.
+/// Installed games, sorted by name. Empty if the Epic launcher is not installed.
 pub fn installed_games() -> Vec<Game> {
     let data = std::env::var_os("ProgramData").map_or_else(|| PathBuf::from(r"C:\ProgramData"), PathBuf::from);
     let Ok(entries) = fs::read_dir(data.join(r"Epic\EpicGamesLauncher\Data\Manifests")) else { return Vec::new() };
@@ -43,7 +43,7 @@ pub fn installed_games() -> Vec<Game> {
         .filter_map(|text| parse(&text))
         .collect();
     games.sort_by_key(|g| normalize(&g.name));
-    // Un jeu peut avoir deux manifestes (deux chez Funsaiki pour F1 Manager 2024) : même nom, voisins
+    // A game can have two manifests (seen in practice): same name, neighbors
     games.dedup_by(|a, b| a.target == b.target);
     games
 }
@@ -51,7 +51,7 @@ pub fn installed_games() -> Vec<Game> {
 fn parse(text: &str) -> Option<Game> {
     let m: Manifest = serde_json::from_str(text.strip_prefix('\u{feff}').unwrap_or(text)).ok()?;
     let dlc = !m.main_game.is_empty() && m.main_game != m.app_name;
-    // Installation inachevée, DLC (rattaché à un autre jeu), ou pas un jeu (moteur, outil)
+    // Incomplete install, DLC (tied to another game), or not a game (engine, tool)
     if m.incomplete || dlc || !m.categories.iter().any(|c| c == "games") {
         return None;
     }
@@ -86,7 +86,7 @@ mod tests {
         assert!(parse(&MANIFEST.replace(r#""games", "#, "")).is_none(), "pas un jeu");
     }
 
-    /// Diagnostic : cargo test real_epic -- --ignored --nocapture
+    /// Diagnostic: cargo test real_epic -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_epic() {

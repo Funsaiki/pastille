@@ -1,5 +1,5 @@
-//! Vue réglages : profil (prénom du compte Windows, version de Windows), débit réseau
-//! des cartes physiques, charge du processeur et de la mémoire.
+//! Quick settings view: profile (first name of the Windows account, Windows version), network
+//! speed of the physical adapters, CPU and memory load.
 
 use std::{
     sync::Mutex,
@@ -20,17 +20,17 @@ use windows::Win32::System::Performance::{
 };
 use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 
-/* ── Profil ── */
+/* ── Profile ── */
 
 #[derive(Serialize, Default)]
 pub struct Profile {
-    /// Prénom : premier mot du nom du compte (« Funsaiki » → « Funsaiki »)
+    /// First name: first word of the account name ("Funsaiki" → "Funsaiki")
     name: String,
-    /// « Windows 11 » ou « Windows 10 »
+    /// "Windows 11" or "Windows 10"
     system: String,
 }
 
-/// Hors du fil principal : le nom du compte peut demander une recherche dans l'annuaire
+/// Off the main thread: the account name may need a directory lookup
 #[tauri::command]
 pub async fn profile() -> Profile {
     crate::blocking(read_profile).await.unwrap_or_default()
@@ -41,11 +41,11 @@ fn read_profile() -> Profile {
     Profile { name: full.split_whitespace().next().unwrap_or_default().to_string(), system: windows_name() }
 }
 
-/// Nom affiché du compte (celui du compte Microsoft s'il y en a un), sinon None.
+/// Display name of the account (the Microsoft account's if there is one), else None.
 fn display_name() -> Option<String> {
     let mut buf = [0u16; 256];
     let mut len = buf.len() as u32;
-    // En cas d'échec (nom trop long…), `len` peut valoir la taille demandée : ne pas s'en servir
+    // On failure (name too long…), `len` may hold the requested size: don't use it
     if !unsafe { GetUserNameExW(NameDisplay, Some(PWSTR(buf.as_mut_ptr())), &mut len) } {
         return None;
     }
@@ -53,7 +53,7 @@ fn display_name() -> Option<String> {
     (!name.trim().is_empty()).then_some(name)
 }
 
-/// Windows 11 garde « Windows 10 » dans ProductName : on se fie au numéro de build.
+/// Windows 11 keeps "Windows 10" in ProductName: we rely on the build number.
 fn windows_name() -> String {
     let build: u32 = LOCAL_MACHINE
         .open(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
@@ -64,37 +64,37 @@ fn windows_name() -> String {
     if build >= 22000 { "Windows 11" } else { "Windows 10" }.into()
 }
 
-/* ── Relevés : débit réseau, processeur, mémoire ── */
+/* ── Stats: network speed, CPU, memory ── */
 
 #[derive(Default)]
 pub struct Meter(Mutex<MeterState>);
 
 #[derive(Default)]
 struct MeterState {
-    /// Dernier relevé du réseau : (instant, octets reçus, octets envoyés) depuis le démarrage de Windows
+    /// Last network sample: (instant, bytes received, bytes sent) since Windows started
     last: Option<(Instant, u64, u64)>,
-    /// Compteur du processeur, ouvert au premier relevé
+    /// CPU counter, opened at the first sample
     cpu: Option<Cpu>,
 }
 
 #[derive(Serialize, Default)]
 pub struct Stats {
-    /// Octets par seconde
+    /// Bytes per second
     down: f64,
     up: f64,
-    /// Pourcentages, comme le Gestionnaire des tâches ; None s'ils sont illisibles
+    /// Percentages, like Task Manager; None if unreadable
     cpu: Option<u8>,
     ram: Option<u8>,
 }
 
-/// Au-delà, le relevé précédent date d'une ouverture passée : on en refait un
+/// Beyond this, the previous sample is from a past opening: we take a new one
 const STALE: Duration = Duration::from_secs(3);
-/// Durée de la première mesure à l'ouverture
+/// Length of the first measure on opening
 const FIRST_WINDOW: Duration = Duration::from_millis(250);
 
-/// Débit et charge du processeur depuis l'appel précédent (le front interroge toutes les
-/// secondes quand la vue réglages est affichée). Hors du fil principal : la première mesure
-/// attend 250 ms.
+/// Network speed and CPU load since the previous call (the front polls every
+/// second while the quick settings view is shown). Off the main thread: the first measure
+/// waits 250 ms.
 #[tauri::command]
 pub async fn stats(app: AppHandle) -> Stats {
     crate::blocking(move || measure(&app.state::<Meter>())).await.unwrap_or_default()
@@ -108,8 +108,8 @@ fn measure(meter: &Meter) -> Stats {
     }
     let before = match state.last {
         Some(sample) if sample.0.elapsed() < STALE => {
-            // Vue quittée puis rouverte aussitôt : mesurer sur presque rien multiplierait les
-            // octets et rendrait le processeur illisible
+            // View left then reopened right away: measuring over almost no time would multiply the
+            // bytes and make the CPU unreadable
             let elapsed = sample.0.elapsed();
             if elapsed < FIRST_WINDOW {
                 thread::sleep(FIRST_WINDOW - elapsed);
@@ -136,13 +136,13 @@ fn measure(meter: &Meter) -> Stats {
     }
 }
 
-/// Compteur « % Processor Utility », celui du Gestionnaire des tâches (plafonné à 100 comme lui)
+/// "% Processor Utility" counter, Task Manager's (capped at 100 like it)
 struct Cpu {
     query: PDH_HQUERY,
     counter: PDH_HCOUNTER,
 }
 
-// Poignées PDH utilisées sous le verrou de Meter, par un seul fil à la fois
+// PDH handles used under Meter's lock, by one thread at a time
 unsafe impl Send for Cpu {}
 
 impl Cpu {
@@ -164,7 +164,7 @@ impl Cpu {
         unsafe { PdhCollectQueryData(self.query) };
     }
 
-    /// Charge moyenne depuis la collecte précédente
+    /// Average load since the previous collection
     fn read(&self) -> Option<u8> {
         let mut value = PDH_FMT_COUNTERVALUE::default();
         unsafe {
@@ -184,7 +184,7 @@ impl Drop for Cpu {
     }
 }
 
-/// Mémoire physique utilisée, en %
+/// Physical memory used, in %
 fn memory_load() -> Option<u8> {
     let mut status = MEMORYSTATUSEX { dwLength: size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
     unsafe { GlobalMemoryStatusEx(&mut status) }.ok()?;
@@ -192,9 +192,9 @@ fn memory_load() -> Option<u8> {
     Some((used * 100.0).round() as u8)
 }
 
-/// Octets reçus et envoyés par les cartes physiques connectées. Les cartes virtuelles
-/// (Hyper-V, WSL, Docker, VPN) et les couches de filtrage de chaque carte sont écartées :
-/// leur trafic passe déjà par une carte physique, il serait compté deux fois.
+/// Bytes received and sent by the connected physical adapters. Virtual adapters
+/// (Hyper-V, WSL, Docker, VPN) and the filter layers of each adapter are left out:
+/// their traffic already goes through a physical adapter, it would be counted twice.
 fn totals() -> (Instant, u64, u64) {
     let (mut down, mut up) = (0, 0);
     for_each_interface(|row| {
@@ -207,13 +207,13 @@ fn totals() -> (Instant, u64, u64) {
 }
 
 fn counted(row: &MIB_IF_ROW2) -> bool {
-    const HARDWARE: u8 = 1; // bits de InterfaceAndOperStatusFlags
+    const HARDWARE: u8 = 1; // bits of InterfaceAndOperStatusFlags
     const FILTER: u8 = 2;
     let flags = row.InterfaceAndOperStatusFlags._bitfield;
     flags & HARDWARE != 0 && flags & FILTER == 0 && row.OperStatus == IfOperStatusUp
 }
 
-/// Lignes de la table des interfaces, lues sur place (sans copie) avant de la libérer
+/// Rows of the interface table, read in place (no copy) before freeing it
 fn for_each_interface(mut f: impl FnMut(&MIB_IF_ROW2)) {
     let mut table: *mut MIB_IF_TABLE2 = std::ptr::null_mut();
     if unsafe { GetIfTable2(&mut table) }.is_err() || table.is_null() {
@@ -245,18 +245,18 @@ mod tests {
         assert!(stats.down >= 0.0 && stats.up >= 0.0);
         assert!(stats.cpu.is_some_and(|c| c <= 100), "processeur : {:?}", stats.cpu);
         assert!(stats.ram.is_some_and(|r| r > 0 && r <= 100), "mémoire : {:?}", stats.ram);
-        // Relevé suivant une seconde plus tard, comme le front : pas de nouvelle attente
+        // Next sample a second later, like the front: no new wait
         thread::sleep(Duration::from_secs(1));
         let start = Instant::now();
         assert!(measure(&meter).cpu.is_some());
         assert!(start.elapsed() < FIRST_WINDOW, "relevé récent : pas de nouvelle attente");
-        // Relevé collé au précédent : il attend la fin de la fenêtre de mesure
+        // Sample right after the previous one: it waits for the end of the measuring window
         let start = Instant::now();
         measure(&meter);
         assert!(start.elapsed() >= FIRST_WINDOW - Duration::from_millis(20));
     }
 
-    /// Diagnostic : cargo test real_network -- --ignored --nocapture
+    /// Diagnostic: cargo test real_network -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_network() {

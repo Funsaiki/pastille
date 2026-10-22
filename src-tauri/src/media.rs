@@ -1,5 +1,5 @@
-//! Lecture en cours de Spotify, par les contrôles multimédias de Windows (ceux qui
-//! s'affichent avec les touches de volume). Spotify seulement, à la demande de Funsaiki.
+//! Spotify's now playing, through the Windows media controls (the ones that show up
+//! with the volume keys). Spotify only, as Funsaiki asked.
 
 use std::sync::Mutex;
 
@@ -22,13 +22,13 @@ pub struct NowPlaying {
     playing: bool,
 }
 
-/// None quand Spotify n'est pas ouvert
+/// None when Spotify is not open
 #[tauri::command]
 pub async fn media() -> Option<NowPlaying> {
     com_task(now_playing).await.ok().flatten()
 }
 
-/// `toggle` (lecture/pause), `next`, `previous`
+/// `toggle` (play/pause), `next`, `previous`
 #[tauri::command]
 pub async fn media_control(action: String) -> Result<(), String> {
     if !matches!(action.as_str(), "toggle" | "next" | "previous") {
@@ -48,20 +48,20 @@ pub async fn media_control(action: String) -> Result<(), String> {
     if sent { Ok(()) } else { Err(tr("Spotify n'est pas ouvert.", "Spotify is not open.").into()) }
 }
 
-/// Pochette du morceau en cours, en image intégrable (data:…) ; None sans pochette. Le front
-/// ne la demande qu'au changement de morceau.
+/// Cover of the current track, as an embeddable image (data:…); None without a cover. The front
+/// only asks for it when the track changes.
 #[tauri::command]
 pub async fn media_cover() -> Option<String> {
     com_task(cover).await.ok().flatten()
 }
 
-/// Au-delà, ce n'est plus une pochette (Spotify en donne de 300 × 300, quelques dizaines de Ko)
+/// Beyond this, it is no longer a cover (Spotify gives 300 × 300 ones, a few tens of KB)
 const MAX_COVER: u64 = 2 * 1024 * 1024;
 
 fn cover() -> windows::core::Result<Option<String>> {
     let Some(session) = spotify()? else { return Ok(None) };
     let props = session.TryGetMediaPropertiesAsync()?.join()?;
-    let Ok(thumbnail) = props.Thumbnail() else { return Ok(None) };   // pas de pochette
+    let Ok(thumbnail) = props.Thumbnail() else { return Ok(None) };   // no cover
     let stream = thumbnail.OpenReadAsync()?.join()?;
     let size = stream.Size()?;
     if size == 0 || size > MAX_COVER {
@@ -89,8 +89,8 @@ fn now_playing() -> windows::core::Result<Option<NowPlaying>> {
     }))
 }
 
-/// Gestionnaire des lecteurs, gardé d'un relevé à l'autre : le demander coûte ~5 ms, le relevé
-/// a lieu toutes les secondes. L'appartement multithread reste en vie (com::keep_mta).
+/// Session manager of the players, kept from one stats read to the next: requesting it costs ~5 ms,
+/// the read happens every second. The multithreaded apartment stays alive (com::keep_mta).
 static MANAGER: Mutex<Option<SessionManager>> = Mutex::new(None);
 
 fn manager() -> windows::core::Result<SessionManager> {
@@ -103,13 +103,13 @@ fn manager() -> windows::core::Result<SessionManager> {
     Ok(manager)
 }
 
-/// Session de Spotify parmi celles des lecteurs ouverts : appli classique (« Spotify.exe »)
-/// ou celle du Microsoft Store (« SpotifyAB.SpotifyMusic_…!Spotify », celle de Funsaiki)
+/// Spotify's session among those of the open players: desktop app ("Spotify.exe")
+/// or the Microsoft Store one ("SpotifyAB.SpotifyMusic_…!Spotify", Funsaiki's)
 fn spotify() -> windows::core::Result<Option<Session>> {
     let sessions = match manager().and_then(|m| m.GetSessions()) {
         Ok(sessions) => sessions,
         Err(e) => {
-            *MANAGER.lock().unwrap() = None;   // service redémarré… : redemandé au prochain relevé
+            *MANAGER.lock().unwrap() = None;   // service restarted…: requested again at the next read
             return Err(e);
         }
     };
@@ -120,7 +120,7 @@ fn is_spotify(app_id: &str) -> bool {
     app_id.to_lowercase().contains("spotify")
 }
 
-// Lecture seule : ne jamais mettre en pause ni changer le morceau de Funsaiki dans un test.
+// Read-only: never pause or change Funsaiki's track in a test.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,7 +134,7 @@ mod tests {
         assert!(!is_spotify("chrome.exe"));
     }
 
-    /// Diagnostic : cargo test real_media -- --ignored --nocapture
+    /// Diagnostic: cargo test real_media -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_media() {

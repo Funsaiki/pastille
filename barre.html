@@ -11,8 +11,8 @@
 <span class="wallpaper-hint" aria-hidden="true" data-en="[ YOUR WALLPAPER ]">[ TON FOND D'ÉCRAN ]</span>
 <p class="preview-help" id="preview-help" hidden></p>
 
-<!-- Pilule : Applications, fenêtres ouvertes (une tuile par programme), Spotify, son, zone de
-     notification (écran principal seulement), heure -->
+<!-- Pill: Apps, open windows (one tile per program), Spotify, sound, notification
+     area (main screen only), clock -->
 <nav class="bar" id="bar" aria-label="Barre des tâches" data-en-label="Taskbar">
   <button class="bar-tile bar-apps tp-press" id="bar-apps" title="Applications (clic droit : menu du lanceur)" aria-label="Applications"
           data-en-title="Apps (right-click: launcher menu)" data-en-label="Apps"></button>
@@ -34,14 +34,14 @@
   <button class="bar-clock" id="bar-clock" aria-expanded="false" aria-controls="bar-cal"><span class="bar-time" id="bar-time"></span><span class="bar-date" id="bar-date"></span></button>
 </nav>
 
-<!-- Zone de notification : les applications de l'onglet Apps du téléphone -->
+<!-- Notification area: the apps of the phone's Apps tab -->
 <section class="bar-card bar-pop" id="bar-pop" aria-label="Applications en arrière-plan" data-en-label="Background apps">
   <div class="bar-pop-head">Apps <span class="bar-pop-count" id="bar-pop-count"></span></div>
   <div class="bar-grid" id="bar-grid"></div>
   <p class="bar-empty" id="bar-empty" hidden data-en="No apps in the background">Aucune app en arrière-plan</p>
 </section>
 
-<!-- Son : clic sur le haut-parleur ; le volume et le micro du téléphone -->
+<!-- Sound: click on the speaker; the phone's volume and mic -->
 <section class="bar-card bar-vol" id="bar-volume" aria-label="Son" data-en-label="Sound">
   <div class="slider">
     <span class="slider-head">
@@ -62,7 +62,7 @@
   </button>
 </section>
 
-<!-- Calendrier : clic sur l'heure -->
+<!-- Calendar: click on the clock -->
 <section class="bar-card bar-cal" id="bar-cal" aria-label="Calendrier" data-en-label="Calendar">
   <div class="bar-cal-head">
     <button class="bar-cal-nav" id="bar-cal-prev" aria-label="Mois précédent" data-en-label="Previous month"></button>
@@ -76,7 +76,7 @@
   </div>
 </section>
 
-<!-- Lecteur : clic sur la tuile de Spotify ; la carte de lecture du téléphone -->
+<!-- Player: click on the Spotify tile; the phone's now playing card -->
 <section class="bar-card bar-player" id="bar-player" aria-label="Lecture en cours" data-en-label="Now playing">
   <div class="media-art" id="bar-player-art" aria-hidden="true">
     <span class="tp-eq" id="bar-player-eq"><i></i><i></i><i></i></span>
@@ -108,11 +108,11 @@
   </button>
 </section>
 
-<!-- Aperçu des fenêtres d'un programme au survol de sa tuile : Windows dessine les vignettes en
-     direct dans les cadres -->
+<!-- Hover preview of a program's windows over its tile: Windows draws the live thumbnails
+     in the frames -->
 <section class="bar-preview" id="bar-preview" aria-hidden="true"></section>
 
-<!-- Menu du clic droit, et liste des fenêtres d'un programme -->
+<!-- Right-click menu, and list of a program's windows -->
 <div class="bar-menu" id="bar-menu" role="menu">
   <div class="bar-menu-name" id="bar-menu-name"></div>
   <div class="bar-menu-items" id="bar-menu-items"></div>

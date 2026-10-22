@@ -1,10 +1,10 @@
 /* ══════════════════════════════════════════════════════════
-   Interface : vue réglages (téléphone debout, incliné) et vue applications
-   (téléphone couché). Les applications, groupes, dossiers et lancements
-   fonctionnent comme dans le premier lanceur. Dans la vue réglages, l'heure,
-   le débit réseau, le profil, les boutons du haut, le volume, le micro, les
-   performances, la lecture en cours (Spotify), les applications de la zone de notification
-   et les notifications (alertes du PC, Steam, téléchargements) sont réels.
+   Interface: quick settings view (phone standing, tilted) and apps view
+   (phone laid flat). Apps, groups, folders and launches
+   work as in the first launcher. In the quick settings view, the time,
+   network speed, profile, top buttons, volume, mic,
+   performance, now playing (Spotify), notification area apps
+   and notifications (PC alerts, Steam, downloads) are real.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
 import { ALERT, EYE, ICONS, MIC, MIC_OFF, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, icon } from './icons';
@@ -25,17 +25,17 @@ function restartAnimation(node: HTMLElement, className: string) {
   node.classList.add(className);
 }
 
-/* Animation jouée une fois : sa classe retirée à la fin, elle ne repart pas au prochain
-   affichage de la scène. Un seul écouteur par élément : rejouée avant la fin, l'ancien est
-   retiré (sinon il couperait la nouvelle). Si elle est interrompue (élément masqué), c'est
-   à l'appelant de retirer la classe (stopPaneAnimations). */
+/* Animation played once: its class is removed at the end, so it does not restart the next
+   time the stage is shown. One listener per element: replayed before the end, the old one is
+   removed (otherwise it would cut the new one). If it is interrupted (element hidden), it is
+   up to the caller to remove the class (stopPaneAnimations). */
 const playing = new WeakMap<HTMLElement, (e: AnimationEvent) => void>();
 
 function playOnce(node: HTMLElement, className: string) {
   const previous = playing.get(node);
   if (previous) node.removeEventListener('animationend', previous);
   const done = (e: AnimationEvent) => {
-    if (e.target !== node) return;   // animation d'un enfant
+    if (e.target !== node) return;   // a child's animation
     node.classList.remove(className);
     node.removeEventListener('animationend', done);
     playing.delete(node);
@@ -48,31 +48,31 @@ function playOnce(node: HTMLElement, className: string) {
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 
-/* ── État ── */
+/* ── State ── */
 const state = {
   view: 'settings' as 'settings' | 'apps',
-  stack: [] as AppItem[],   // groupes ouverts (ex. [Jeux, Steam])
+  stack: [] as AppItem[],   // open groups (e.g. [Games, Steam])
   page: 0,
   query: '',
 };
 
-/* Le son, les relevés et la lecture en cours viennent de Windows */
+/* Sound, stats and now playing come from Windows */
 let sound: AudioState = { volume: null, muted: false, mic_muted: null };
 let stats: Stats | null = null;
 let media: NowPlaying | null = null;
 
-/* ══ Vue réglages ══ */
+/* ══ Quick settings view ══ */
 
-/* Boutons à droite du nom. Funsaiki a retiré la rangée de la maquette (capture d'écran,
-   explorateur, verrouiller) ; il garde ces deux-là, et Personnaliser s'y ajoute (19/10/2026),
-   remplacé par les Paramètres de Pastille (21/10/2026 : une clé, choisie par Funsaiki parmi
-   quatre ; l'interrupteur de la maquette ressemblait trop à un interrupteur).
-   L'engrenage des Paramètres de Windows devient le logo de Windows, en carrés pleins (choix
-   de Funsaiki : il ressemblait à un soleil ; au trait, il se confondrait avec Applications).
-   Couleur du rond au survol. */
+/* Buttons to the right of the name. Funsaiki removed the mockup's row (screenshot,
+   File Explorer, lock); Funsaiki keeps these two, and Customize was added (2026-10-19),
+   replaced by Pastille's Settings (2026-10-21: a wrench, picked by Funsaiki out of
+   four; the first mockup's icon looked too much like a toggle switch).
+   The Windows Settings gear becomes the Windows logo, in solid squares (Funsaiki's
+   choice: it looked like a sun; as strokes, it would be confused with Apps).
+   Color of the circle on hover. */
 const WINDOWS = '|M3.5 3.5h8v8h-8zM12.5 3.5h8v8h-8zM3.5 12.5h8v8h-8zM12.5 12.5h8v8h-8z';
 const WRENCH = 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z';
-/* Titre des échecs d'un lancement (notifications, en-tête de la vue applications) */
+/* Title of launch failures (notifications, header of the apps view) */
 const LAUNCH = tr('Lancement', 'Launch');
 const POWER_LABEL = tr('Alimentation', 'Power');
 const ACTIONS: { id?: string; label: string; d: string; hover: string; run: () => void }[] = [
@@ -81,14 +81,14 @@ const ACTIONS: { id?: string; label: string; d: string; hover: string; run: () =
   { label: POWER_LABEL, d: POWER, hover: '#f6c6da', run: () => openPowerMenu() },
 ];
 
-/* Barre d'état, à gauche du débit (demandés par Funsaiki le 19/10/2026) : les panneaux de Windows,
-   affichés même sans adaptateur (Windows le dit alors lui-même). Couleur du rond au survol. */
+/* Status bar, left of the network speed (asked for by Funsaiki on 2026-10-19): the Windows panels,
+   shown even without an adapter (Windows then says so itself). Color of the circle on hover. */
 const LINKS = [
   { label: tr('Wi-Fi : réseaux disponibles', 'Wi-Fi: available networks'), d: 'M2.5 9a14 14 0 0119 0M5.5 12.5a9.5 9.5 0 0113 0M8.7 16a5 5 0 016.6 0M12 19.5h.01', hover: 'var(--fill)', tool: 'wifi' as const },
   { label: tr('Bluetooth et appareils', 'Bluetooth & devices'), d: 'M7 7l10 10-5 5V2l5 5L7 17', hover: '#c9d8ff', tool: 'bluetooth' as const },
 ];
 
-/* Menu d'alimentation, dans l'ordre de celui de Windows */
+/* Power menu, in the same order as the Windows one */
 const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string }[] = [
   { action: 'sleep', label: tr('Mettre en veille', 'Sleep'), d: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z', bg: 'var(--fill)' },
   { action: 'shutdown', label: tr('Arrêter', 'Shut down'), d: POWER, bg: '#f6c6da' },
@@ -96,15 +96,15 @@ const POWER_CHOICES: { action: PowerAction; label: string; d: string; bg: string
   { action: 'signout', label: tr('Se déconnecter', 'Sign out'), d: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9', bg: '#ffe08a' },
 ];
 
-/* Tuiles devant le bouton Applications. Performances remplace la sortie audio de la maquette
-   (Funsaiki ne change jamais de sortie) : le libellé « Performances » ne tiendrait pas, la tuile
-   affiche donc ses deux mesures. Pas de Bluetooth : le PC de Funsaiki n'en a pas (essai du
-   14/10/2026, le bouton Applications prend alors toute la largeur). */
+/* Tiles before the Apps button. Performance replaces the mockup's audio output
+   (Funsaiki never changes output): the label "Performance" would not fit, so the tile
+   shows its two readings. No Bluetooth tile: removed at Funsaiki's request (validated on
+   2026-10-14, the Apps button then takes the full width). */
 interface Tile {
   label: () => string;
   sub: () => string;
   d: () => string;
-  pressed?: () => boolean;   // bascule : fond accent quand elle est active
+  pressed?: () => boolean;   // toggle: accent background when it is on
   title?: string;
   click: () => void;
 }
@@ -128,15 +128,15 @@ const TILES: Tile[] = [
   },
 ];
 
-/* ── Profil : prénom du compte Windows et son initiale ── */
+/* ── Profile: first name of the Windows account and its initial ── */
 function renderProfile(p: Profile) {
   $('user-name').textContent = p.name;
   $('avatar').textContent = p.name.charAt(0).toUpperCase();
   $('user-os').textContent = p.system;
 }
 
-/* ── Débit réseau et performances : toutes les secondes, seulement quand la vue réglages
-   est affichée. Ko et Mo de 1024, comme le premier lanceur. ── */
+/* ── Network speed and performance: every second, only while the quick settings view
+   is shown. KB and MB of 1024, like the first launcher. ── */
 const KO = 1024;
 const MO = 1024 ** 2;
 const fmt0 = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });
@@ -152,7 +152,7 @@ function renderNetwork(s: Stats) {
   $('net-up').textContent = '↑ ' + rateText(s.up);
 }
 
-let statsRun = 0;     // change à chaque arrêt : une réponse en retard est ignorée
+let statsRun = 0;     // changes at each stop: a late answer is ignored
 let statsTimer = 0;
 let statsTicks = 0;
 
@@ -164,7 +164,7 @@ async function pollStats(run: number) {
     renderNetwork(s);
     updateTiles();
   }
-  refreshMedia();   // morceau suivant, pause depuis Spotify…
+  refreshMedia();   // next track, pause from Spotify…
   if (++statsTicks % 5 === 0) {
     refreshFeed();
     refreshTrayApps();
@@ -210,8 +210,8 @@ function renderActions() {
   }));
 }
 
-/* ── Menu d'alimentation : un clic sur le bouton l'ouvre, un second sur un choix agit
-   (la confirmation). Annuler, Échap ou un clic sur l'écran assombri le referme. ── */
+/* ── Power menu: a click on the button opens it, a second one on a choice acts
+   (the confirmation). Cancel, Esc or a click on the dimmed screen closes it. ── */
 const powerButton = () => $('actions').querySelector<HTMLElement>(`[aria-label="${POWER_LABEL}"]`);
 
 function renderPowerChoices() {
@@ -232,9 +232,9 @@ function openPowerMenu() {
   closeMixer();
   closeTrayMenu(false);
   $('power-error').hidden = true;
-  $('settings').inert = true;   // ni clic ni Tab derrière le menu
+  $('settings').inert = true;   // no click or Tab behind the menu
   $('power').classList.add('open');
-  $('power-cancel').focus({ preventScroll: true });   // Entrée annule, comme dans les boîtes de Windows
+  $('power-cancel').focus({ preventScroll: true });   // Enter cancels, as in Windows dialogs
 }
 
 function closePowerMenu(refocus = true) {
@@ -246,15 +246,15 @@ function closePowerMenu(refocus = true) {
 async function choosePower(action: PowerAction) {
   try {
     await host.power(action);
-    hideLauncher();   // le menu reste affiché pendant la descente
+    hideLauncher();   // the menu stays shown while the phone goes down
   } catch (e) {
     $('power-error').textContent = String(e);
     $('power-error').hidden = false;
   }
 }
 
-/* Flèches haut et bas entre les boutons d'un menu (alimentation : les choix et Annuler ;
-   clic droit sur une application) */
+/* Up and down arrows between the buttons of a menu (power: the choices and Cancel;
+   right-click on an app) */
 function moveFocus(menu: HTMLElement, dir: 1 | -1) {
   const buttons = Array.from(menu.querySelectorAll<HTMLElement>('button'));
   const i = buttons.indexOf(document.activeElement as HTMLElement);
@@ -262,8 +262,8 @@ function moveFocus(menu: HTMLElement, dir: 1 | -1) {
   buttons[next].focus();
 }
 
-/* Tuiles construites une fois (init) puis mises à jour sur place, toutes les secondes pour
-   Performances ; leur animation d'entrée repart quand la vue réglages réapparaît */
+/* Tiles built once (init) then updated in place, every second for
+   Performance; their entrance animation restarts when the quick settings view reappears */
 const tileUpdates: (() => void)[] = [];
 
 function updateTiles() {
@@ -299,9 +299,9 @@ function renderTiles() {
   updateTiles();
 }
 
-/* ── Son : sortie et micro par défaut des réglages Son de Windows, relus à chaque
-   affichage de la vue réglages ── */
-let audioRun = 0;   // change à chaque action sur le son : une lecture plus ancienne est ignorée
+/* ── Sound: default output and mic of the Windows Sound settings, read again each time
+   the quick settings view is shown ── */
+let audioRun = 0;   // changes at each sound action: an older read is ignored
 
 async function refreshAudio() {
   const run = ++audioRun;
@@ -327,17 +327,17 @@ const sendVolume = latestOnly((level) => host.setVolume(level).catch((e) => repo
 function setVolume(level: number) {
   level = Math.max(0, Math.min(100, Math.round(level)));
   sound.volume = level;
-  if (level > 0) sound.muted = false;   // Windows rétablit le son (audio.rs)
+  if (level > 0) sound.muted = false;   // Windows unmutes (audio.rs)
   audioRun++;
   renderVolume();
   sendVolume(level);
 }
 
-/* Un cran de molette : 2 %, vers le haut pour monter */
+/* One wheel notch: 2%, up to raise */
 const wheelStep = (e: WheelEvent) => (e.deltaY < 0 ? 2 : -2);
 
-/* ── Mélangeur (demandé par Funsaiki) : un curseur par application, relu à chaque ouverture.
-   Fermé par son bouton, Échap ou un clic à côté. ── */
+/* ── Mixer (asked for by Funsaiki): one slider per app, read again at each opening.
+   Closed by its button, Esc or a click outside. ── */
 const appSenders = new Map<string, (level: number) => void>();
 
 function sendAppVolume(key: string, level: number) {
@@ -349,8 +349,8 @@ function sendAppVolume(key: string, level: number) {
   send(level);
 }
 
-/* Une tranche par application, comme une console de mixage : pourcentage, curseur vertical
-   à la couleur de sa pastille, initiale, nom */
+/* One channel strip per app, like a mixing desk: percentage, vertical slider
+   in the color of its dot, initial, name */
 function renderMixer(apps: AppVolume[]) {
   if (!apps.length) {
     $('mixer-channels').replaceChildren(el('div', 'mixer-empty', tr('Aucune application ne joue de son', 'No app is playing sound')));
@@ -383,7 +383,7 @@ function renderMixer(apps: AppVolume[]) {
       sendAppVolume(app.key, level);
       followMixer(app.key, level);
     }, { passive: true });
-    // Icône du programme sur fond blanc ; à défaut, haut-parleur (sons système) ou initiale
+    // Program icon on a white background; otherwise, speaker (system sounds) or initial
     const badge = el('span', 'mixer-badge');
     badge.setAttribute('aria-hidden', 'true');
     if (app.icon) badge.append(iconCanvas(app.icon));
@@ -398,18 +398,18 @@ function renderMixer(apps: AppVolume[]) {
   }));
 }
 
-/* Ouvert dès le clic (le panneau s'affiche quand la liste arrive) : un second clic, Échap ou
-   un clic à côté referment même pendant la lecture de la liste */
+/* Open from the click (the panel shows when the list arrives): a second click, Esc or
+   a click outside close it even while the list is being read */
 const mixerOpen = () => $('mixer-toggle').getAttribute('aria-expanded') === 'true';
 
-let mixerRun = 0;   // change à chaque fermeture : une liste arrivée après est ignorée
+let mixerRun = 0;   // changes at each close: a list arriving after is ignored
 
 async function openMixer() {
   closeTrayMenu(false);
   const run = ++mixerRun;
   $('mixer-toggle').setAttribute('aria-expanded', 'true');
   const apps = await host.mixer().catch(() => []);
-  if (run !== mixerRun) return;   // fermé (ou rouvert) entre-temps
+  if (run !== mixerRun) return;   // closed (or reopened) in the meantime
   renderMixer(apps);
   $('mixer').classList.add('open');
 }
@@ -420,16 +420,16 @@ function closeMixer() {
   $('mixer-toggle').setAttribute('aria-expanded', 'false');
 }
 
-/* ── Page Paramètres de Pastille (prefs.ts) : le mélangeur et le menu du clic droit, cachés
-   derrière, se ferment ── */
+/* ── Pastille's Settings page (prefs.ts): the mixer and the right-click menu, hidden
+   behind it, close ── */
 function showPrefs(tab?: 'colors' | 'strap') {
   closeMixer();
   closeTrayMenu(false);
   openPrefs(tab);
 }
 
-/* Couleurs de la palette changées (l'accent a pris celle d'un pastel) : tuiles à l'initiale et
-   dossiers refaits ; le reste suit l'accent tout seul (var(--fill)) */
+/* Palette colors changed (the accent took a pastel's color): initial tiles and
+   folders rebuilt; the rest follows the accent on its own (var(--fill)) */
 function refreshPalette() {
   trayShown = '';
   renderTrayApps();
@@ -451,13 +451,13 @@ async function toggleMic() {
   }
 }
 
-/* ── Lecture en cours : Spotify seulement (choix de Funsaiki), relue à l'affichage de la vue
-   réglages puis toutes les secondes avec les relevés ── */
+/* ── Now playing: Spotify only (Funsaiki's choice), read when the quick settings view
+   is shown, then every second with the stats ── */
 function renderMedia() {
   const playing = media?.playing ?? false;
   const title = media?.title || tr('Rien en lecture', 'Nothing playing');
   $('media-title').textContent = title;
-  $('media-title').title = title;   // titre complet au survol s'il est coupé
+  $('media-title').title = title;   // full title on hover if it is cut
   $('media-artist').textContent = media ? media.artist || 'Spotify' : tr('Spotify est fermé', 'Spotify is closed');
   $('eq').classList.toggle('on', playing);
   $('play').classList.toggle('paused', !playing);
@@ -465,27 +465,27 @@ function renderMedia() {
   for (const id of ['previous', 'play', 'next']) ($(id) as HTMLButtonElement).disabled = !media;
 }
 
-let mediaRun = 0;    // une réponse plus ancienne que la dernière demande est ignorée
-let mediaHold = 0;   // juste après un clic, Spotify annonce encore l'ancien état
+let mediaRun = 0;    // an answer older than the last request is ignored
+let mediaHold = 0;   // right after a click, Spotify still reports the old state
 
 async function refreshMedia() {
   if (performance.now() < mediaHold) return;
   const run = ++mediaRun;
   const now = await host.media().catch(() => media);
   if (run !== mediaRun) return;
-  const opened = !!now !== !!media;   // Spotify ouvert ou fermé : son curseur de volume suit
+  const opened = !!now !== !!media;   // Spotify opened or closed: its volume slider follows
   media = now;
   renderMedia();
   refreshCover();
   if (opened) {
     refreshSpotifyVolume();
-    if (spotifyConnect) renderNotifs();   // « Connecter » suit l'ouverture de Spotify
+    if (spotifyConnect) renderNotifs();   // "Connect" follows Spotify opening
   }
 }
 
-/* Pochette : demandée au changement de morceau. Spotify annonce le titre un peu avant la
-   pochette : tant qu'il redonne celle du morceau précédent, on redemande au relevé suivant
-   (3 essais ; deux morceaux du même album ont la même). */
+/* Cover art: asked for when the track changes. Spotify reports the title a little before the
+   cover: while it still gives the previous track's, ask again at the next poll
+   (3 tries; two tracks of the same album share it). */
 let cover = { key: '', url: null as string | null, previous: null as string | null, tries: 0, loading: false };
 
 async function refreshCover() {
@@ -498,7 +498,7 @@ async function refreshCover() {
   cover.tries++;
   cover.loading = true;
   const url = await host.mediaCover().catch(() => null);
-  if (key !== cover.key) return;   // autre morceau entre-temps
+  if (key !== cover.key) return;   // another track in the meantime
   cover.loading = false;
   if (!url || (url === cover.previous && cover.tries < 3)) return;
   cover.url = url;
@@ -512,34 +512,34 @@ function renderCover() {
 
 async function controlMedia(action: MediaAction) {
   if (action === 'toggle' && media) {
-    media.playing = !media.playing;   // tout de suite, sans attendre Spotify
+    media.playing = !media.playing;   // right away, without waiting for Spotify
     renderMedia();
   }
-  mediaRun++;   // une lecture partie avant le clic montrerait l'ancien état
+  mediaRun++;   // a read started before the click would show the old state
   mediaHold = performance.now() + 450;
   try {
     await host.mediaControl(action);
   } catch (e) {
     report(tr('Lecture', 'Playback'), e);
   }
-  setTimeout(refreshMedia, 500);   // nouveau morceau : Spotify met un instant à l'annoncer
+  setTimeout(refreshMedia, 500);   // new track: Spotify takes a moment to report it
 }
 
-/* ── Volume de Spotify (demandé par Funsaiki), réglable depuis la carte de lecture (curseur,
-   molette) : celui de Spotify lui-même quand il est connecté (API web, page Paramètres), sinon
-   celui du mélangeur de Windows (ce curseur et la tranche de Spotify se suivent alors). Relu à
-   l'affichage de la vue réglages puis toutes les 5 s. ── */
+/* ── Spotify volume (asked for by Funsaiki), set from the now playing card (slider,
+   wheel): Spotify's own when it is connected (web API, Settings page), otherwise
+   the Windows mixer's (this slider and Spotify's channel strip then follow each other). Read
+   when the quick settings view is shown, then every 5 s. ── */
 let spotifyVolume: SpotifyVolume | null = null;
-// Aléatoire et répétition (demandés par Funsaiki) : Spotify connecté et appareil actif seulement
+// Shuffle and repeat (asked for by Funsaiki): Spotify connected and an active device only
 let spotifyModes: { shuffle: ShuffleMode; repeat: RepeatMode } | null = null;
-let spotifyProblem: string | null = null;   // échec de connexion, montré dans Notifs
-let spotifyReconnect = false;               // connexion d'avant les playlists, montrée dans Notifs
-let spotifyConnect = false;                 // pas connecté : « Connecter » dans Notifs, Spotify ouvert
-let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
-let spotifyHold = 0;          // juste après un réglage, l'API de Spotify annonce encore l'ancien volume
-let spotifyReading = false;   // une lecture à la fois (une requête lente ne s'empile pas)
+let spotifyProblem: string | null = null;   // connection failure, shown in Notifs
+let spotifyReconnect = false;               // connection from before playlists, shown in Notifs
+let spotifyConnect = false;                 // not connected: "Connect" in Notifs, Spotify open
+let spotifyRun = 0;           // changes at each adjustment: a read started before is ignored
+let spotifyHold = 0;          // right after an adjustment, the Spotify API still reports the old volume
+let spotifyReading = false;   // one read at a time (a slow request does not pile up)
 
-// Après chaque envoi, l'attente repart : Spotify met un instant à annoncer le nouveau volume
+// After each send, the wait starts again: Spotify takes a moment to report the new volume
 const sendSpotify = latestOnly((level) =>
   host.setSpotifyVolume(level).catch((e) => report('Spotify', e)).finally(() => (spotifyHold = performance.now() + 1000)));
 
@@ -561,13 +561,13 @@ async function refreshSpotifyVolume() {
   }
 }
 
-/* Marches d'égaliseur : dix barres de 10 %, celle qui contient le niveau remplie en partie */
+/* Equalizer steps: ten bars of 10%, the one holding the level partly filled */
 const STEPS = 10;
 
 function renderSpotifyVolume() {
   const meter = $('media-volume');
   const level = spotifyVolume?.volume ?? 0;
-  const off = !spotifyVolume;   // Spotify fermé, sans son ou sans appareil actif
+  const off = !spotifyVolume;   // Spotify closed, without sound or without an active device
   meter.setAttribute('aria-disabled', String(off));
   meter.tabIndex = off ? -1 : 0;
   meter.setAttribute('aria-valuenow', String(level));
@@ -593,9 +593,9 @@ function renderSpotifyVolume() {
   repeat.title = REPEAT_LABELS[spotifyModes.repeat];
 }
 
-/* Marche sous le pointeur → niveau (10 % par marche). Par le test d'atteinte de la page : le
-   téléphone est incliné en 3D, les coordonnées du rectangle ne correspondraient pas. Un clic sur
-   la première marche quand le niveau y est déjà coupe le son. */
+/* Step under the pointer → level (10% per step). Through the page's hit test: the
+   phone is tilted in 3D, the rectangle's coordinates would not match. A click on
+   the first step when the level is already there mutes. */
 function stepLevel(x: number, y: number, first: boolean): number | null {
   const bar = document.elementFromPoint(x, y)?.closest<HTMLElement>('#media-volume i');
   if (!bar) return null;
@@ -624,10 +624,10 @@ const REPEAT_LABELS: Record<RepeatMode, string> = tr({
   track: 'Repeat: this track',
 });
 
-/* Clic : change tout de suite, comme lecture/pause ; Spotify suit (un échec est signalé et
-   la relecture suivante rétablit l'état réel). Aléatoire : non ↔ oui ; l'aléatoire intelligent
-   ne peut que se couper (l'API de Spotify ne sait pas l'activer). Répétition : non → playlist
-   → titre → non. */
+/* Click: changes right away, like play/pause; Spotify follows (a failure is reported and
+   the next read restores the real state). Shuffle: off ↔ on; smart shuffle
+   can only be turned off (the Spotify API cannot turn it on). Repeat: off → playlist
+   → track → off. */
 async function toggleSpotifyMode(which: 'shuffle' | 'repeat') {
   if (!spotifyModes) return;
   spotifyRun++;
@@ -655,12 +655,12 @@ function setSpotifyVolume(level: number) {
   spotifyRun++;
   spotifyHold = performance.now() + 1500;
   renderSpotifyVolume();
-  if (spotifyVolume.source === 'windows') sendAppVolume(spotifyVolume.key, spotifyVolume.volume);   // partagé avec le mélangeur
+  if (spotifyVolume.source === 'windows') sendAppVolume(spotifyVolume.key, spotifyVolume.volume);   // shared with the mixer
   else sendSpotify(spotifyVolume.volume);
 }
 
-/* Tranche de Spotify bougée dans le mélangeur : le curseur de la carte suit (s'il règle le
-   même volume, celui de Windows) */
+/* Spotify's channel strip moved in the mixer: the card's slider follows (if it sets the
+   same volume, the Windows one) */
 function followMixer(key: string, level: number) {
   if (spotifyVolume?.source !== 'windows' || spotifyVolume.key !== key) return;
   spotifyVolume.volume = level;
@@ -668,7 +668,7 @@ function followMixer(key: string, level: number) {
   renderSpotifyVolume();
 }
 
-/* Applications lançables (feuilles de l'arbre, jeux Steam compris), sans les masquées */
+/* Launchable apps (leaves of the tree, Steam games included), without the hidden ones */
 function flattenApps(items: AppItem[]): AppItem[] {
   return items.flatMap((it) => (it.hidden ? [] : it.children ? flattenApps(it.children) : [it]));
 }
@@ -678,10 +678,10 @@ function renderAppCount() {
   $('app-count').textContent = tr(`${count} raccourcis`, `${count} shortcuts`);
 }
 
-/* ── Notifications (choix de Funsaiki) : problèmes du lanceur, alertes du PC (redémarrage,
-   disque presque plein), activité de Steam, téléchargements des dernières 24 h. Relues à
-   l'affichage de la vue réglages puis toutes les 5 s. « Tout effacer » masque celles qui
-   sont là ; une notification qui disparaît puis revient (disque de nouveau plein…) se remontre. ── */
+/* ── Notifications (Funsaiki's choice): launcher problems, PC alerts (restart,
+   disk almost full), Steam activity, downloads of the last 24 h. Read
+   when the quick settings view is shown, then every 5 s. "Clear all" hides the ones
+   there; a notification that goes away then comes back (disk full again…) shows again. ── */
 interface Notif {
   id: string;
   title: string;
@@ -689,20 +689,20 @@ interface Notif {
   body: string;
   d: string;
   bg: string;
-  open?: () => Promise<void>;   // clic : ouvre le fichier, Steam, Windows Update…
-  stay?: boolean;               // réglage fait sur place : le lanceur reste ouvert
+  open?: () => Promise<void>;   // click: opens the file, Steam, Windows Update…
+  stay?: boolean;               // setting changed in place: the launcher stays open
 }
 
 let configProblems: string[] = [];
-let actionError: { title: string; text: string } | null = null;   // dernière action ratée
+let actionError: { title: string; text: string } | null = null;   // last failed action
 let feed: FeedEvent[] = [];
-let welcome: Welcome | null = null;   // premier lancement
-let greeted = false;                  // bienvenue déjà montrée dans l'onglet Notifs
+let welcome: Welcome | null = null;   // first run
+let greeted = false;                  // welcome already shown in the Notifs tab
 
 const DOWNLOAD = 'M12 4v11M7 10l5 5 5-5M5 20h14';
 const DISK = 'M3 14h18v6H3zM5 14l2.5-9h9L19 14M7 17h.01';
 const GO = 1024 ** 3;
-const MAX_NOTIFS = 3;   // les suivantes tomberaient sous le bord de l'écran (la pastille compte tout)
+const MAX_NOTIFS = 3;   // the next ones would fall below the screen edge (the badge counts them all)
 
 function ago(seconds: number) {
   if (seconds < 60) return tr('à l’instant', 'just now');
@@ -713,7 +713,7 @@ function ago(seconds: number) {
 
 function feedNotif(e: FeedEvent): Notif {
   switch (e.kind) {
-    // Mise à jour de Pastille (demandée par Funsaiki) : un clic l'installe, Pastille redémarre
+    // Pastille update (asked for by Funsaiki): a click installs it, Pastille restarts
     case 'update': {
       const body = updating
         ? tr(`Téléchargement de la ${e.version}…`, `Downloading ${e.version}…`)
@@ -740,15 +740,15 @@ function allNotifs(): Notif[] {
   const problems: Notif[] = configProblems.map((p) => ({ id: 'config:' + p, title: 'Config', when: 'apps.json', body: p, d: ALERT, bg: '#ffe08a' }));
   if (actionError) problems.unshift({ id: 'action:' + actionError.text, title: actionError.title, when: ago(0), body: actionError.text, d: ALERT, bg: '#ffe08a' });
   if (spotifyProblem) problems.push({ id: 'spotify:' + spotifyProblem, title: 'Spotify', when: '', body: spotifyProblem, d: ALERT, bg: '#ffe08a' });
-  // Connexion d'avant les playlists (demandé par Funsaiki) : un clic la refait dans le navigateur
+  // Connection from before playlists (asked for by Funsaiki): a click redoes it in the browser
   if (spotifyReconnect) {
     problems.push({ id: 'spotify:reconnect', title: 'Spotify', when: '', body: tr('Reconnecter pour voir les playlists', 'Reconnect to see the playlists'), d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
-  // Pas connecté, Spotify ouvert (pour les amis de Funsaiki) : un clic ouvre la page de connexion
+  // Not connected, Spotify open (other PCs): a click opens the connection page
   if (spotifyConnect && media) {
     problems.push({ id: 'spotify:connect', title: 'Spotify', when: '', body: tr('Connecter pour le volume et les playlists', 'Connect for the volume and playlists'), d: ICONS.musique, bg: '#ffe08a', open: () => host.spotifyReconnect() });
   }
-  // Premier lancement (pour les amis de Funsaiki) : le raccourci, et démarrer avec Windows d'un clic
+  // First run (other PCs): the shortcut, and Start with Windows in one click
   if (welcome) {
     const key = welcome.shortcut && keyLabel(welcome.shortcut);
     const how = key
@@ -768,10 +768,10 @@ async function enableAutostart() {
   renderNotifs();
 }
 
-let updating = false;   // mise à jour en cours de téléchargement : la notification le dit
+let updating = false;   // update being downloaded: the notification says so
 
-/* En production, Pastille quitte pendant l'appel (l'installateur la relance) ; un échec est
-   signalé par le clic de la notification */
+/* In production, Pastille quits during the call (the installer restarts it); a failure is
+   reported by the notification's click */
 async function installUpdate() {
   if (updating) return;
   updating = true;
@@ -784,7 +784,7 @@ async function installUpdate() {
   }
 }
 
-/* Notifications effacées : gardées d'une ouverture à l'autre (stockage de la fenêtre) */
+/* Cleared notifications: kept from one opening to the next (the window's storage) */
 const DISMISSED_KEY = 'notifs-effacees';
 let dismissed = new Set<string>(loadDismissed());
 
@@ -800,7 +800,7 @@ function saveDismissed() {
   try {
     localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed]));
   } catch {
-    /* sans stockage, elles reviendront au prochain démarrage */
+    /* without storage, they come back at the next start */
   }
 }
 
@@ -816,14 +816,14 @@ function notifRow(n: Notif) {
   const title = el('span', 'notif-title', n.title + ' ');
   if (n.when) title.append(el('span', 'notif-when', '· ' + n.when));
   const body = el('span', 'notif-body', n.body);
-  body.title = n.body;   // texte complet au survol s'il est coupé
+  body.title = n.body;   // full text on hover if it is cut
   const text = el('span', 'notif-text');
   text.append(title, body);
   row.append(badge, text);
   return row;
 }
 
-let notifsShown = '';   // ce qui est affiché : on ne refait la liste que si ça change
+let notifsShown = '';   // what is shown: the list is rebuilt only if it changes
 
 function renderNotifs() {
   const all = allNotifs();
@@ -838,7 +838,7 @@ function renderNotifs() {
   $('notif-list').hidden = !items.length;
   $('notif-clear').hidden = !items.length || pane !== 'notifs';
   $('notif-empty').hidden = items.length > 0;
-  $('notif-restore').hidden = items.length === all.length;   // rien d'effacé
+  $('notif-restore').hidden = items.length === all.length;   // nothing cleared
 }
 
 let feedRun = 0;
@@ -848,7 +848,7 @@ async function refreshFeed() {
   const events = await host.feed().catch(() => null);
   if (run !== feedRun || !events) return;
   feed = events;
-  // Oublie les notifications effacées qui ont disparu : si elles reviennent, on les remontre
+  // Forget cleared notifications that went away: if they come back, they show again
   const ids = new Set(allNotifs().map((n) => n.id));
   const kept = [...dismissed].filter((id) => ids.has(id));
   if (kept.length !== dismissed.size) {
@@ -858,8 +858,8 @@ async function refreshFeed() {
   renderNotifs();
 }
 
-/* ── Onglets de la carte du bas (demandés par Funsaiki) : Apps (zone de notification) ou
-   Notifs. Le dernier choisi revient à chaque ouverture ; une erreur montre Notifs pour cette fois. ── */
+/* ── Tabs of the bottom card (asked for by Funsaiki): Apps (notification area) or
+   Notifs. The last one chosen comes back at each opening; an error shows Notifs this time. ── */
 type Pane = 'apps' | 'notifs';
 const PANE_KEY = 'onglet-carte';
 let pane: Pane = savedPane();
@@ -872,14 +872,14 @@ function savedPane(): Pane {
   }
 }
 
-/* `chosen` : clic sur l'onglet, gardé pour les prochaines ouvertures et animé (le curseur de
-   la pastille glisse dans tous les cas, en CSS) */
+/* `chosen`: click on the tab, kept for the next openings and animated (the slider under
+   the tabs slides in any case, in CSS) */
 function showPane(next: Pane, chosen = false) {
   if (chosen) {
     try {
       localStorage.setItem(PANE_KEY, next);
     } catch {
-      /* sans stockage, l'onglet Apps revient à chaque ouverture */
+      /* without storage, the Apps tab comes back at each opening */
     }
   }
   const changed = next !== pane;
@@ -889,36 +889,36 @@ function showPane(next: Pane, chosen = false) {
   const shown = $(pane === 'apps' ? 'tray-pane' : 'notifs-pane');
   const hidden = $(pane === 'apps' ? 'notifs-pane' : 'tray-pane');
   const tab = $(pane === 'apps' ? 'tab-apps' : 'tab-notifs');
-  // Le focus était dans le contenu qui disparaît : il passe à l'onglet (sinon il tomberait sur
-  // la page, où Entrée ouvre les applications)
+  // Focus was in the content going away: it moves to the tab (otherwise it would fall on
+  // the page, where Enter opens the apps view)
   if (hidden.contains(document.activeElement)) tab.focus({ preventScroll: true });
   $('tabs').dataset.pane = pane;
   for (const t of [$('tab-apps'), $('tab-notifs')]) {
     t.setAttribute('aria-selected', String(t === tab));
-    t.tabIndex = t === tab ? 0 : -1;   // Tab va à l'onglet ouvert, les flèches à l'autre
+    t.tabIndex = t === tab ? 0 : -1;   // Tab goes to the open tab, the arrows to the other
   }
   shown.hidden = false;
   hidden.hidden = true;
-  renderNotifs();   // « Tout effacer » n'apparaît qu'avec Notifs
+  renderNotifs();   // "Clear all" only appears with Notifs
   if (changed && chosen) {
-    // Le contenu arrive du côté de l'onglet, comme les pages de la vue applications
+    // The content comes in from the tab's side, like the pages of the apps view
     playOnce(shown, pane === 'apps' ? 'tp-in-l' : 'tp-in-r');
     playOnce(tab.querySelector<HTMLElement>('.notifs-count')!, 'tab-pop');
   }
 }
 
-/* Animations d'onglet en cours retirées : un contenu masqué avant la fin la rejouerait au
-   prochain affichage */
+/* Running tab animations removed: content hidden before the end would replay it the
+   next time it is shown */
 function stopPaneAnimations() {
   for (const id of ['tray-pane', 'notifs-pane']) $(id).classList.remove('tp-in-l', 'tp-in-r');
   for (const id of ['tray-count', 'notif-count']) $(id).classList.remove('tab-pop');
 }
 
-/* ── Applications de la zone de notification (onglet Apps) : relues à l'affichage de la vue
-   réglages puis toutes les 5 s. Clic : ouvrir ; clic droit : le menu du lanceur (ceux des
-   icônes ne sont pas accessibles, voir tray_apps.rs). Barre pastel cochée, Pastille tient la
-   zone de notification (tray_host.rs) : clics et clic droit vont à l'application, comme sur son
-   icône ; Maj+clic droit ou touche Menu : le menu du lanceur. ── */
+/* ── Notification area apps (Apps tab): read when the quick settings view is shown,
+   then every 5 s. Click: open; right-click: the launcher's menu (the icons' own
+   menus are not reachable, see tray_apps.rs). With the pastel bar on, Pastille holds the
+   notification area (tray_host.rs): clicks and right-click go to the app, as on its
+   icon; Shift+right-click or the Menu key: the launcher's menu. ── */
 const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
 const CLOSE = 'M6 6l12 12M18 6L6 18';
 
@@ -930,10 +930,10 @@ const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[]
   { action: 'quit', label: tr('Forcer à quitter', 'Force quit'), d: CLOSE, bg: '#f6c6da' },
 ];
 
-let trayApps: TrayApp[] | null = null;   // null : pas encore lue (rien d'affiché, pas « 0 »)
-let trayShown = '';         // ce qui est affiché : on ne refait la grille que si la liste change
-let trayLoading = false;    // une lecture à la fois…
-let trayAgain = false;      // …et une autre juste après si on en a redemandé une entre-temps
+let trayApps: TrayApp[] | null = null;   // null: not read yet (nothing shown, not "0")
+let trayShown = '';         // what is shown: the grid is rebuilt only if the list changes
+let trayLoading = false;    // one read at a time…
+let trayAgain = false;      // …and another right after if one was asked for in the meantime
 
 async function refreshTrayApps() {
   if (trayLoading) {
@@ -957,11 +957,11 @@ function renderTrayApps() {
   $('tray-count').textContent = trayApps ? String(trayApps.length) : '';
   $('tray-empty').hidden = !trayApps || trayApps.length > 0;
   const shown = (trayApps ?? []).map((app) => `${app.key}\n${app.name}`).join('\n');
-  // Pas pendant que le menu est ouvert : il est accroché à son icône (refaite à sa fermeture)
+  // Not while the menu is open: it is attached to its icon (rebuilt when it closes)
   if (trayMenu || shown === trayShown) return;
   trayShown = shown;
-  // Le focus reste sur la même app, ou à la même place si elle a disparu (sinon il tomberait
-  // sur la page, où Entrée ouvre les applications)
+  // Focus stays on the same app, or at the same place if it went away (otherwise it would fall
+  // on the page, where Enter opens the apps view)
   const grid = $('tray-grid');
   const focused = Array.from(grid.children).indexOf(document.activeElement as Element);
   const key = (document.activeElement as HTMLElement | null)?.dataset.key;
@@ -977,7 +977,7 @@ function trayTile(app: TrayApp, i: number) {
   b.dataset.key = app.key;
   b.title = app.tip ?? app.name;
   b.setAttribute('aria-label', app.name);
-  // Icône du programme ; à défaut, son initiale sur une couleur de la palette
+  // Program icon; otherwise, its initial on a palette color
   if (app.icon) {
     b.append(iconCanvas(app.icon));
   } else {
@@ -987,17 +987,17 @@ function trayTile(app: TrayApp, i: number) {
   if (!app.clicks) {
     b.addEventListener('click', () => runAction(LAUNCH, () => host.trayAppAction(app.key, 'open')));
     b.addEventListener('contextmenu', (e) => {
-      e.preventDefault();   // pas le menu de WebView2
+      e.preventDefault();   // not the WebView2 menu
       openTrayMenu(app, b);
     });
     return b;
   }
-  // Le lanceur se masque quand l'application passe au premier plan (sa fenêtre, son menu) ;
-  // il reste ouvert pour le second clic d'une application qui attend un double clic
+  // The launcher hides when the app comes to the foreground (its window, its menu);
+  // it stays open for the second click of an app that waits for a double click
   const send = (kind: TrayClick) => host.trayClick(app.key, kind).catch((e) => report(LAUNCH, e));
   b.addEventListener('click', (e) => send(e.detail === 0 ? 'key' : e.detail > 1 ? 'double' : 'left'));
   b.addEventListener('mousedown', (e) => {
-    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+    if (e.button === 1) e.preventDefault();   // no autoscroll
   });
   b.addEventListener('auxclick', (e) => {
     if (e.button !== 1) return;
@@ -1005,7 +1005,7 @@ function trayTile(app: TrayApp, i: number) {
     send('middle');
   });
   b.addEventListener('contextmenu', (e) => {
-    e.preventDefault();   // pas le menu de WebView2
+    e.preventDefault();   // not the WebView2 menu
     if (e.shiftKey || e.button !== 2) {
       openTrayMenu(app, b);
     } else {
@@ -1023,7 +1023,7 @@ function openTrayMenu(app: TrayApp, tile: HTMLElement) {
   trayMenu = { app, tile };
   tile.classList.add('menu-open');
   $('tray-menu-name').textContent = app.name;
-  // Pas d'emplacement pour une app du Store : son dossier est fermé
+  // No file location for a Store app: its folder is locked
   const items = TRAY_ITEMS.filter((it) => !(it.action === 'location' && app.packaged));
   $('tray-menu-items').replaceChildren(...items.map((it) => trayMenuItem(app, it)));
   placeTrayMenu(tile);
@@ -1033,7 +1033,7 @@ function openTrayMenu(app: TrayApp, tile: HTMLElement) {
 
 function trayMenuItem(app: TrayApp, item: (typeof TRAY_ITEMS)[number]) {
   const b = menuItem(item.label, item.d, item.bg, () => {
-    // Arrêt forcé : le premier clic demande confirmation
+    // Force quit: the first click asks for confirmation
     if (item.action === 'quit' && !b.classList.contains('confirm')) {
       b.classList.add('confirm');
       b.lastElementChild!.textContent = tr('Vraiment quitter ?', 'Really quit?');
@@ -1044,8 +1044,8 @@ function trayMenuItem(app: TrayApp, item: (typeof TRAY_ITEMS)[number]) {
   return b;
 }
 
-/* Élément d'un menu du clic droit (onglet Apps, vue applications) : pastille de couleur avec
-   l'icône, puis le libellé */
+/* Item of a right-click menu (Apps tab, apps view): colored dot with
+   the icon, then the label */
 function menuItem(label: string, d: string, bg: string, onClick: () => void) {
   const b = el('button', 'tray-item');
   b.setAttribute('role', 'menuitem');
@@ -1057,8 +1057,8 @@ function menuItem(label: string, d: string, bg: string, onClick: () => void) {
   return b;
 }
 
-/* Au-dessus de l'icône (le bas de la carte sort de l'écran), pointe vers elle, sans sortir
-   de la carte. Positions de mise en page (offset…) : le téléphone est incliné en 3D. */
+/* Above the icon (the bottom of the card goes off screen), arrow pointing at it, without leaving
+   the card. Layout positions (offset…): the phone is tilted in 3D. */
 function placeTrayMenu(tile: HTMLElement) {
   const menu = $('tray-menu');
   const card = menu.offsetParent as HTMLElement;
@@ -1070,8 +1070,8 @@ function placeTrayMenu(tile: HTMLElement) {
   menu.style.setProperty('--arrow', center - left + 'px');
 }
 
-/* Position de mise en page de `node` dans `ancestor`. Pendant le glissement de l'onglet, son
-   contenu (transformé) devient le parent de position de l'icône : on additionne les étages. */
+/* Layout position of `node` inside `ancestor`. While the tab slides, its
+   (transformed) content becomes the icon's offset parent: the levels are added up. */
 function offsetIn(node: HTMLElement, ancestor: HTMLElement) {
   let x = 0;
   let y = 0;
@@ -1089,11 +1089,11 @@ function closeTrayMenu(refocus = true) {
   $('tray-menu').classList.remove('open');
   tile.classList.remove('menu-open');
   if (refocus && tile.isConnected) tile.focus({ preventScroll: true });
-  renderTrayApps();   // une liste arrivée pendant que le menu était ouvert
+  renderTrayApps();   // a list that arrived while the menu was open
 }
 
-/* Ouvrir et Emplacement masquent le lanceur, comme un lancement ; après un arrêt forcé, il
-   reste ouvert et l'application disparaît de la liste */
+/* Open and Open file location hide the launcher, like a launch; after a force quit, it
+   stays open and the app goes away from the list */
 async function trayAction(app: TrayApp, action: TrayAction) {
   closeTrayMenu(action === 'quit');
   if (action !== 'quit') {
@@ -1117,23 +1117,23 @@ function renderSettings() {
   renderTrayApps();
 }
 
-/* ══ Vue applications ══ */
+/* ══ Apps view ══ */
 function showFolders() {
   return !state.stack.length && !state.query && CONFIG.favorites.length > 0;
 }
 
-/* Recherche dans toutes les applications, groupes compris : libellé n'importe où,
-   mots-clés en début de mot (comme le premier lanceur) ; les plus lancées d'abord (à égalité,
-   l'ordre de apps.json) ; 16 au plus, comme la maquette */
+/* Search in all apps, groups included: label anywhere,
+   keywords at the start of a word (like the first launcher); the most launched first (when tied,
+   the apps.json order); 16 at most, like the mockup */
 function currentList(): AppItem[] {
   if (state.query) {
     const q = norm(state.query);
     const match = (it: AppItem) => norm(it.label).includes(q) || norm(' ' + (it.keywords ?? '')).includes(' ' + q);
-    // Puis (demandés par Funsaiki) : le résultat d'un calcul en tête, les pages des Paramètres
-    // et les fenêtres ouvertes (titre ou programme) après les applications
+    // Then (asked for by Funsaiki): a calculation's result first, Settings pages
+    // and open windows (title or program) after the apps
     const calc = calcResult(state.query);
-    // Un même nom une fois : un jeu Steam ou une app de apps.json est aussi dans le menu Démarrer ;
-    // de même une tuile `app` et son application dans « Toutes » (`same`), sous deux noms
+    // A given name once: a Steam game or an apps.json app is also in the Start menu;
+    // likewise an `app` tile and its app in "All apps" (`same`), under two names
     const names = new Set<string>();
     const found = flattenApps(CONFIG.apps).filter(match);
     const ids = new Set(found.map((it) => it.id));
@@ -1151,8 +1151,8 @@ function currentList(): AppItem[] {
   return state.stack[state.stack.length - 1]?.children ?? CONFIG.apps;
 }
 
-/* ── Fenêtres ouvertes (demandé par Funsaiki), pour la recherche : relues quand une recherche
-   commence ; les résultats se complètent quand elles arrivent ── */
+/* ── Open windows (asked for by Funsaiki), for the search: read when a search
+   starts; the results fill in when they arrive ── */
 let openWindows: AppItem[] = [];
 let windowsRun = 0;
 
@@ -1164,7 +1164,7 @@ async function refreshWindows() {
   if (state.view === 'apps' && state.query) renderApps();
 }
 
-/* Pages : une rangée de 8 au-dessus des dossiers, deux rangées dans un groupe */
+/* Pages: one row of 8 above the folders, two rows in a group */
 const COLUMNS = 8;
 const pageSize = () => (showFolders() || showRecents() ? COLUMNS : 2 * COLUMNS);
 const pageCount = () => Math.max(1, Math.ceil(currentList().length / pageSize()));
@@ -1175,7 +1175,7 @@ function renderHead(count: number) {
   const group = state.stack[state.stack.length - 1];
   const parent = state.stack[state.stack.length - 2];
   const sup = state.query ? tr('Recherche', 'Search') : group ? parent?.label ?? APPS : tr('Lanceur', 'Launcher');
-  // Échec d'un lancement : signalé à la place du sur-titre, message complet au survol
+  // Launch failure: reported in place of the overline, full message on hover
   $('head-sup').textContent = actionError ? tr(`${actionError.title} impossible`, `${actionError.title} failed`) : sup;
   $('head-sup').title = actionError?.text ?? '';
   $('head-title').textContent = state.query ? tr('Résultats', 'Results') : group ? group.label : APPS;
@@ -1187,12 +1187,12 @@ function appButton(item: AppItem, index: number) {
   b.setAttribute('aria-label', item.children ? tr(`${item.label}, groupe de ${item.children.length}`, `${item.label}, group of ${item.children.length}`) : item.label);
   const ic = el('span', 'tp-app-ic app-icon');
   if (item.picture) {
-    // Fenêtre ouverte : vraie icône de son programme sur fond blanc, comme l'onglet Apps
+    // Open window: real icon of its program on a white background, like the Apps tab
     ic.classList.add('app-picture');
     ic.append(iconCanvas(item.picture));
     b.title = `${item.label} — ${item.keywords}`;
   } else if (item.start) {
-    // Application du menu Démarrer : sa vraie icône aussi ; à défaut, comme une tuile sans icône
+    // Start menu app: its real icon too; otherwise, like a tile without an icon
     ic.classList.add('app-picture');
     startIconSlot(ic, item, () => {
       ic.style.background = palette()[index % 4];
@@ -1210,20 +1210,20 @@ function appButton(item: AppItem, index: number) {
   b.append(ic, el('span', 'app-label', item.label));
   b.addEventListener('click', (e) => activate(item, e.ctrlKey));
   b.addEventListener('contextmenu', (e) => {
-    e.preventDefault();   // pas le menu de WebView2
+    e.preventDefault();   // not the WebView2 menu
     if (hasAppMenu(item)) openAppMenu(item, b);
   });
   return b;
 }
 
 function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
-  closeAppMenu(false);   // accroché à une tuile qui va être refaite
+  closeAppMenu(false);   // attached to a tile about to be rebuilt
   const list = currentList();
   const size = pageSize();
   state.page = Math.min(state.page, pageCount() - 1);
   const grid = $('grid');
   grid.replaceChildren(...list.slice(state.page * size, (state.page + 1) * size).map((it, i) => appButton(it, state.page * size + i)));
-  // Nom coupé par « … » : nom complet au survol
+  // Name cut with "…": full name on hover
   grid.querySelectorAll<HTMLElement>('.app-label').forEach((n) => {
     if (n.scrollWidth > n.clientWidth) n.parentElement!.title = n.textContent ?? '';
   });
@@ -1235,22 +1235,22 @@ function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
     $('web-search').title = label.textContent!;
   }
   grid.classList.remove('tp-in-r', 'tp-in-l');
-  if (transition) playOnce(grid, transition);   // retirée une fois jouée (voir showApps)
+  if (transition) playOnce(grid, transition);   // removed once played (see showApps)
   $('folders').hidden = !showFolders();
   renderRecents();
   renderHead(list.length);
   loadStartIcons(list.slice((state.page + 1) * size, (state.page + 2) * size));
 }
 
-/* ── Icônes des applications du menu Démarrer (groupe auto « start », demandé par Funsaiki) :
-   demandées à Rust pour les tuiles affichées (~15 ms chacune la première fois), puis pour la
-   page suivante ; gardées jusqu'au prochain chargement de la config (les ids changent) ── */
+/* ── Icons of Start menu apps (auto group "start", asked for by Funsaiki):
+   asked from Rust for the tiles shown (~15 ms each the first time), then for the
+   next page; kept until the next config load (the ids change) ── */
 const startIcons = new Map<string, AppIcon | null>();
 const startAsked = new Set<string>();
 let startSlots: { id: string; slot: HTMLElement; paint: () => void }[] = [];
 let startRun = 0;
 
-/* Icône dessinée tout de suite si elle est connue, sinon à son arrivée ; `fallback` : pas d'icône */
+/* Icon drawn right away if it is known, otherwise when it arrives; `fallback`: no icon */
 function startIconSlot(slot: HTMLElement, item: AppItem, fallback: () => void) {
   const paint = () => {
     const picture = startIcons.get(item.id!);
@@ -1271,7 +1271,7 @@ async function loadStartIcons(next: AppItem[]) {
     if (run !== startRun) return;
     ids.forEach((id, i) => {
       startAsked.delete(id);
-      if (icons) startIcons.set(id, icons[i] ?? null);   // échec : redemandée au prochain affichage
+      if (icons) startIcons.set(id, icons[i] ?? null);   // failure: asked again next time it is shown
     });
     startSlots = startSlots.filter((s) => {
       if (!s.slot.isConnected) return false;
@@ -1285,8 +1285,8 @@ async function loadStartIcons(next: AppItem[]) {
   await ask(next.filter((it) => it.start).map((it) => it.id!));
 }
 
-/* Récents (demandé par Funsaiki) : les dernières applications lancées, à la racine sans
-   recherche, au-dessus des dossiers */
+/* Recent (asked for by Funsaiki): the last apps launched, at the root without
+   a search, above the folders */
 const MAX_RECENTS = 4;
 
 function recentItems(): AppItem[] {
@@ -1312,7 +1312,7 @@ function renderRecents() {
       dot.style.background = palette()[i % 4];
       dot.append(icon(ICONS[it.icon ?? ''] ?? ICONS.fichiers, 13, 2.4));
     };
-    // Application du menu Démarrer : sa vraie icône sur une pastille blanche, comme le mélangeur
+    // Start menu app: its real icon on a white dot, like the mixer
     if (it.start) {
       dot.style.background = '#ffffff';
       startIconSlot(dot, it, glyph);
@@ -1334,12 +1334,12 @@ function renderFolders() {
   }));
 }
 
-/* ── Clic droit sur une application (demandé par Funsaiki) : Ouvrir, Exécuter en admin,
-   Emplacement du fichier, Épingler à la pilule (sans l'ouvrir d'abord) et, pour celles du menu
-   Démarrer, Masquer ou Réafficher. Rust dit ce que chacune permet (app_menu.rs). Pas pour un
-   groupe, un calcul, une page des Paramètres ni une fenêtre ouverte. ── */
+/* ── Right-click on an app (asked for by Funsaiki): Open, Run as admin,
+   Open file location, Pin to the pill (without opening it first) and, for Start menu
+   apps, Hide or Show. Rust says what each one allows (app_menu.rs). Not for a
+   group, a calculation, a Settings page or an open window. ── */
 let appMenu: { item: AppItem; tile: HTMLElement } | null = null;
-let appMenuRun = 0;   // une réponse de Rust arrivée après une fermeture ou un autre clic droit est ignorée
+let appMenuRun = 0;   // a Rust answer arriving after a close or another right-click is ignored
 
 const APP_ACTION_TITLES: Record<AppAction, string> = tr({
   admin: 'Lancement', location: 'Emplacement', pin: 'Épingler', unpin: 'Détacher', hide: 'Masquer', show: 'Réafficher',
@@ -1385,14 +1385,14 @@ async function openAppMenu(item: AppItem, tile: HTMLElement) {
   entries[0].focus({ preventScroll: true });
 }
 
-/* À droite de l'icône, ou à gauche s'il n'y a pas la place ; au-dessus, il sortirait de la vue.
-   Pointe vers l'icône, sans sortir de la vue. Positions de mise en page : le téléphone est couché. */
+/* Right of the icon, or left if there is no room; above, it would leave the view.
+   Arrow pointing at the icon, without leaving the view. Layout positions: the phone is laid flat. */
 function placeAppMenu(tile: HTMLElement) {
   const menu = $('app-menu');
   const view = $('apps');
   const ic = tile.querySelector<HTMLElement>('.app-icon')!;
   const at = offsetIn(ic, view);
-  const gap = 12;   // comme le menu de l'onglet Apps au-dessus de son icône
+  const gap = 12;   // like the Apps tab menu above its icon
   const flip = at.x + ic.offsetWidth + gap + menu.offsetWidth > view.clientWidth - 6;
   const left = flip ? at.x - gap - menu.offsetWidth : at.x + ic.offsetWidth + gap;
   const center = at.y + ic.offsetHeight / 2;
@@ -1413,8 +1413,8 @@ function closeAppMenu(refocus = true) {
   if (refocus && tile.isConnected) tile.focus({ preventScroll: true });
 }
 
-/* Admin et Emplacement masquent le lanceur, comme un lancement ; épingler et masquer le laissent
-   ouvert (une application masquée disparaît : Rust renvoie la config) */
+/* Admin and Open file location hide the launcher, like a launch; pin and hide leave it
+   open (a hidden app goes away: Rust sends the config back) */
 async function appAction(item: AppItem, action: AppAction) {
   closeAppMenu();
   const title = APP_ACTION_TITLES[action];
@@ -1432,10 +1432,10 @@ async function appAction(item: AppItem, action: AppAction) {
   }
 }
 
-/* Ctrl+clic (ou Ctrl+Entrée) : nouvelle fenêtre même si l'application est déjà ouverte */
+/* Ctrl+click (or Ctrl+Enter): new window even if the app is already open */
 function activate(item: AppItem, fresh = false) {
   if (item.copy != null) {
-    runAction(tr('Calcul', 'Calculation'), () => host.copy(item.copy!));   // Entrée copie le résultat
+    runAction(tr('Calcul', 'Calculation'), () => host.copy(item.copy!));   // Enter copies the result
   } else if (item.window) {
     runAction(tr('Fenêtre', 'Window'), () => host.focusWindow(item.window!));
   } else if (item.children) {
@@ -1450,7 +1450,7 @@ function activate(item: AppItem, fresh = false) {
   }
 }
 
-/* Bouton retour et Échap : efface la recherche, remonte d'un groupe, ou revient aux réglages */
+/* Back button and Esc: clear the search, go up one group, or back to quick settings */
 function goBack() {
   if (state.query) {
     state.query = '';
@@ -1481,9 +1481,9 @@ function turnPage(dir: 1 | -1): boolean {
   return true;
 }
 
-/* ── Passage d'une vue à l'autre : le téléphone se couche (ou se relève) en 0,7 s,
-   la nouvelle vue apparaît ensuite (délais des animations tp-land et tp-fade-late) ── */
-const TURN_MS = 700;   // rotation du téléphone (--turn, styles.css)
+/* ── Switching views: the phone lies down (or stands back up) in 0.7 s,
+   the new view appears after (delays of the tp-land and tp-fade-late animations) ── */
+const TURN_MS = 700;   // phone rotation (--turn, styles.css)
 let settleTimer = 0;
 
 function showApps(query = '') {
@@ -1493,7 +1493,7 @@ function showApps(query = '') {
   state.query = query;
   $q().value = query;
   $('stage').classList.add('landscape');
-  // Couché : rendu à plat une fois la rotation finie, pour un texte net (styles.css)
+  // Laid flat: flat rendering once the rotation ends, for sharp text (styles.css)
   clearTimeout(settleTimer);
   settleTimer = setTimeout(() => setSettled(true), TURN_MS + 50);
   $('settings').hidden = true;
@@ -1502,9 +1502,9 @@ function showApps(query = '') {
   closeTrayMenu(false);
   stopStats();
   $('apps').hidden = false;
-  // Apparition après la rotation, retirée une fois jouée : une animation qui garde son état
-  // final garde aussi la vue dans un calque à part, dessiné avant l'agrandissement de 10 % puis
-  // étiré (texte flou, remarqué par Funsaiki)
+  // Appears after the rotation, removed once played: an animation that keeps its final
+  // state also keeps the view in a separate layer, drawn before the 10% enlargement then
+  // stretched (blurry text, noticed by Funsaiki)
   playOnce($('apps'), 'tp-land');
   renderApps();
   $q().focus({ preventScroll: true });
@@ -1515,23 +1515,23 @@ function showSettings() {
   enterSettings(true);
 }
 
-/* Rendu à plat du téléphone couché (texte net, styles.css) : appliqué ou retiré sans transition,
-   les deux rendus étant identiques à l'œil */
+/* Flat rendering of the laid flat phone (sharp text, styles.css): applied or removed without
+   a transition, both renderings looking the same */
 function setSettled(on: boolean) {
   const stage = $('stage');
   if (stage.classList.contains('settled') === on) return;
   stage.classList.add('settling');
   stage.classList.toggle('settled', on);
-  void stage.offsetWidth;   // style appliqué tant que les transitions sont coupées
+  void stage.offsetWidth;   // style applied while transitions are off
   stage.classList.remove('settling');
 }
 
-/* Vue réglages affichée (à l'ouverture, ou au retour des applications : elle apparaît alors
-   après la rotation, tp-fade-late) ; ses animations repartent */
+/* Quick settings view shown (on opening, or back from the apps view: it then appears
+   after the rotation, tp-fade-late); its animations restart */
 function enterSettings(afterTurn: boolean) {
   state.view = 'settings';
   clearTimeout(settleTimer);
-  setSettled(false);   // la 3D revient, sans transition, avant de se relever
+  setSettled(false);   // 3D comes back, without a transition, before standing up
   $('stage').classList.remove('landscape');
   closeAppMenu(false);
   $('apps').hidden = true;
@@ -1546,7 +1546,7 @@ function enterSettings(afterTurn: boolean) {
   refreshTrayApps();
 }
 
-/* ── Lancement (et boutons du haut) : masquer après un succès, signaler un échec ── */
+/* ── Launch (and top buttons): hide after a success, report a failure ── */
 async function launch(item: AppItem | Favorite, fresh = false) {
   await runAction(LAUNCH, async () => {
     await host.launch(item, fresh);
@@ -1554,8 +1554,8 @@ async function launch(item: AppItem | Favorite, fresh = false) {
   });
 }
 
-/* Rust a compté le lancement (usage.json) ; la copie du front suit sans recharger la config,
-   boutons de même cible compris (`same`) */
+/* Rust counted the launch (usage.json); the front's copy follows without reloading the config,
+   buttons with the same target included (`same`) */
 function countLaunch(item: AppItem | Favorite) {
   const it = item as AppItem;
   const first = it.same ?? it.id;
@@ -1576,12 +1576,12 @@ async function runAction(title: string, action: () => Promise<void>) {
   }
 }
 
-/* Rien ne correspond : la recherche part sur le web (navigateur par défaut) */
+/* Nothing matches: the search goes to the web (default browser) */
 function webSearch() {
   runAction(tr('Recherche web', 'Web search'), () => host.webSearch(state.query));
 }
 
-/* Échec signalé dans les notifications, onglet ouvert (et dans l'en-tête de la vue applications) */
+/* Failure reported in the notifications, tab opened (and in the header of the apps view) */
 function report(title: string, e: unknown) {
   actionError = { title, text: String(e) };
   renderNotifs();
@@ -1589,7 +1589,7 @@ function report(title: string, e: unknown) {
   if (state.view === 'apps') renderHead(currentList().length);
 }
 
-/* ── Heure et date ── */
+/* ── Time and date ── */
 const fmtTime = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' });
 const fmtDay = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
 const fmtMonth = new Intl.DateTimeFormat(LOCALE, { month: 'short' });
@@ -1598,11 +1598,11 @@ function tickClock() {
   const now = new Date();
   const time = fmtTime.format(now);
   document.querySelectorAll('.clock').forEach((n) => (n.textContent = time));
-  const day = fmtDay.format(now);   // « mer. », « Wed »
+  const day = fmtDay.format(now);   // "mer.", "Wed"
   $('date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
 }
 
-/* Seulement quand le lanceur est affiché, mise à jour à chaque minute pile */
+/* Only while the launcher is shown, updated on each exact minute */
 let clockTimer = 0;
 
 function startClock() {
@@ -1611,34 +1611,34 @@ function startClock() {
   clockTimer = setTimeout(startClock, 60_000 - (Date.now() % 60_000) + 20);
 }
 
-/* ── Événements ── */
+/* ── Events ── */
 function bindEvents() {
   $('open-apps').addEventListener('click', () => showApps());
   $('back').addEventListener('click', goBack);
   $('power-cancel').addEventListener('click', () => closePowerMenu());
   $('power').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closePowerMenu();   // clic sur l'écran assombri, hors des boutons
+    if (e.target === e.currentTarget) closePowerMenu();   // click on the dimmed screen, outside the buttons
   });
 
   $('volume').addEventListener('input', () => setVolume(Number(($('volume') as HTMLInputElement).value)));
-  /* Molette sur la carte du volume (demande de Funsaiki) : 2 % par cran, comme Windows ; les
-     tranches du mélangeur ont la leur */
+  /* Wheel on the volume card (asked for by Funsaiki): 2% per notch, like Windows; the
+     mixer's channel strips have their own */
   $('volume').closest<HTMLElement>('.sliders')!.addEventListener('wheel', (e) => {
     if ((e.target as Element).closest('#mixer') || sound.volume === null || Math.abs(e.deltaY) < 4) return;
     setVolume(sound.volume + wheelStep(e));
   }, { passive: true });
   $('strap').addEventListener('pointerenter', swingStrap);
-  // Clic sur le strap : la page Paramètres, à son onglet de la section Apparence
+  // Click on the strap: the Settings page, at its tab of the Appearance section
   $('strap').addEventListener('click', () => {
     if (state.view === 'settings' && !leaving && !powerOpen()) showPrefs('strap');
   });
-  // Balancement fini (il revient à 0°) : retiré, sinon il garde le strap dans un calque à part
-  // qui oblige ses voisins (le corps du téléphone) à en être aussi ; playEntrance le remet
+  // Swing over (it is back at 0°): removed, otherwise it keeps the strap in a separate layer
+  // that forces its neighbors (the phone body) into one too; playEntrance puts it back
   $('strap-swing').addEventListener('animationend', (e) => {
     if (e.target === e.currentTarget) $('strap-swing').style.animation = 'none';
   });
   $('mixer-toggle').addEventListener('click', () => (mixerOpen() ? closeMixer() : openMixer()));
-  // Marches du volume de Spotify : clic ou glisser, flèches (5 %), Début et Fin
+  // Spotify volume steps: click or drag, arrows (5%), Home and End
   const meter = $('media-volume');
   meter.addEventListener('pointerdown', (e) => {
     if (!spotifyVolume || e.button !== 0) return;
@@ -1659,7 +1659,7 @@ function bindEvents() {
     else return;
     e.preventDefault();
   });
-  // Molette sur la carte de lecture : volume de Spotify, 2 % par cran comme celui du volume
+  // Wheel on the now playing card: Spotify volume, 2% per notch like the volume card's
   $('media-volume').closest<HTMLElement>('.media')!.addEventListener('wheel', (e) => {
     if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;
     setSpotifyVolume(spotifyVolume.volume + wheelStep(e));
@@ -1681,7 +1681,7 @@ function bindEvents() {
   });
   $('tab-apps').addEventListener('click', () => showPane('apps', true));
   $('tab-notifs').addEventListener('click', () => showPane('notifs', true));
-  // Menu du clic droit fermé quand le focus le quitte (Tab) ou que la grille défile
+  // Right-click menu closed when focus leaves it (Tab) or the grid scrolls
   $('tray-menu').addEventListener('focusout', (e) => {
     if (!$('tray-menu').contains(e.relatedTarget as Node | null)) closeTrayMenu(false);
   });
@@ -1689,7 +1689,7 @@ function bindEvents() {
   $('app-menu').addEventListener('focusout', (e) => {
     if (!$('app-menu').contains(e.relatedTarget as Node | null)) closeAppMenu(false);
   });
-  // Flèches gauche et droite entre les onglets
+  // Left and right arrows between the tabs
   $('tabs').addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
@@ -1702,23 +1702,23 @@ function bindEvents() {
     state.query = $q().value.trim();
     state.page = 0;
     renderApps();
-    if (started && state.query) refreshWindows();   // fenêtres ouvertes à jour pour cette recherche
+    if (started && state.query) refreshWindows();   // open windows up to date for this search
   });
   $('web-search').addEventListener('click', webSearch);
   $q().addEventListener('keydown', (e) => {
-    if (leaving) return;   // en train de se fermer
+    if (leaving) return;   // closing
     if (e.key === 'Enter') {
       const first = $('grid').querySelector<HTMLElement>('.app');
       if (first) first.dispatchEvent(new MouseEvent('click', { ctrlKey: e.ctrlKey }));
       else if (state.query) webSearch();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      e.stopPropagation();   // le document déplacerait encore le focus d'une rangée
+      e.stopPropagation();   // the document would move focus one more row
       focusApp(0);
     }
   });
 
-  /* Molette : une page par cran (les pavés tactiles envoient des rafales, d'où le délai) */
+  /* Wheel: one page per notch (touchpads send bursts, hence the delay) */
   let wheelUntil = 0;
   $('apps').addEventListener('wheel', (e) => {
     const now = performance.now();
@@ -1726,17 +1726,17 @@ function bindEvents() {
     if (turnPage(e.deltaY > 0 ? 1 : -1)) wheelUntil = now + 450;
   }, { passive: true });
 
-  /* Clic à côté du téléphone : la fenêtre couvre tout l'écran, c'est le « clic ailleurs » */
+  /* Click beside the phone: the window covers the whole screen, this is the "click elsewhere" */
   document.addEventListener('pointerdown', (e) => {
     const target = e.target as Element;
     if (mixerOpen() && !target.closest('#mixer, #mixer-toggle')) closeMixer();
     if (trayMenu && !target.closest('#tray-menu')) closeTrayMenu(false);
-    if (!target.closest('#app-menu')) closeAppMenu(false);   // aussi un menu encore attendu
+    if (!target.closest('#app-menu')) closeAppMenu(false);   // also a menu still being waited for
     if (!target.closest('.phone-body, .strap')) hideLauncher();
   });
 
   document.addEventListener('keydown', (e) => {
-    if (leaving) return;   // pendant la descente, plus de recherche ni de rotation
+    if (leaving) return;   // while going down, no more search or rotation
     if (powerOpen()) {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -1745,7 +1745,7 @@ function bindEvents() {
         e.preventDefault();
         moveFocus($('power'), e.key === 'ArrowDown' ? 1 : -1);
       }
-      return;   // pas de recherche ni de fermeture derrière le menu
+      return;   // no search or closing behind the menu
     }
     if (trayMenu) {
       if (e.key === 'Escape') {
@@ -1755,7 +1755,7 @@ function bindEvents() {
         e.preventDefault();
         moveFocus($('tray-menu'), e.key === 'ArrowDown' ? 1 : -1);
       }
-      return;   // Entrée active l'élément ; pas de recherche derrière le menu
+      return;   // Enter activates the item; no search behind the menu
     }
     if (appMenu) {
       if (e.key === 'Escape') {
@@ -1765,14 +1765,14 @@ function bindEvents() {
         e.preventDefault();
         moveFocus($('app-menu'), e.key === 'ArrowDown' ? 1 : -1);
       }
-      return;   // ni recherche ni flèches de la grille derrière le menu
+      return;   // no search or grid arrows behind the menu
     }
     if (prefsOpen()) {
       if (e.key === 'Escape') {
         e.preventDefault();
         closePrefs(true);
       }
-      return;   // pas de recherche en tapant un code de couleur
+      return;   // no search while typing a color code
     }
     if (e.key === 'Escape' && mixerOpen()) {
       e.preventDefault();
@@ -1787,7 +1787,7 @@ function bindEvents() {
       return;
     }
     if (state.view === 'settings') {
-      // Taper un nom depuis les réglages ouvre directement la recherche
+      // Typing a name from quick settings opens the search directly
       if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         showApps(e.key);
@@ -1796,7 +1796,7 @@ function bindEvents() {
       }
       return;
     }
-    /* Flèches dans la grille ; au bord, page suivante ou précédente sur la même rangée */
+    /* Arrows in the grid; at the edge, next or previous page on the same row */
     const apps = Array.from($('grid').querySelectorAll<HTMLElement>('.app'));
     const i = apps.indexOf(document.activeElement as HTMLElement);
     if (i === -1) return;
@@ -1821,7 +1821,7 @@ function bindEvents() {
   });
 }
 
-/* ── Strap : se balance de nouveau au survol (sans le délai de l'ouverture) ── */
+/* ── Strap: swings again on hover (without the opening's delay) ── */
 function swingStrap() {
   const swing = $('strap-swing');
   swing.style.animation = 'none';
@@ -1829,7 +1829,7 @@ function swingStrap() {
   swing.style.animation = 'strap-swing 1.6s both';
 }
 
-/* ── Scène de 1440 × 900 (la maquette) agrandie ou réduite à la taille de l'écran ── */
+/* ── 1440 × 900 stage (the mockup) scaled up or down to the screen size ── */
 const STAGE_WIDTH = 1440;
 const STAGE_HEIGHT = 900;
 
@@ -1837,26 +1837,26 @@ function fitStage() {
   $('stage').style.setProperty('zoom', String(Math.min(innerWidth / STAGE_WIDTH, innerHeight / STAGE_HEIGHT)));
 }
 
-/* ── Ouverture : à rappeler à chaque affichage de la fenêtre. La scène passe par
-   display: none, ce qui relance toutes les animations d'entrée (montée du téléphone,
-   tuiles) et évite que la rotation ne se rejoue si on l'avait laissé couché. ── */
+/* ── Opening: to call each time the window is shown. The stage goes through
+   display: none, which restarts all entrance animations (phone rising,
+   tiles) and keeps the rotation from replaying if it was left laid flat. ── */
 function playEntrance() {
   const stage = $('stage');
   stage.hidden = true;
   void stage.offsetWidth;
-  // Rouvert pendant la fermeture : on l'abandonne
+  // Reopened while closing: the closing is dropped
   clearTimeout(leaving);
   leaving = 0;
   $('phone').classList.remove('leaving');
   closePowerMenu(false);
   closeMixer();
   closePrefs();
-  // Un problème de config se voit tout de suite, la bienvenue à la première ouverture ; ferme
-  // aussi le menu du clic droit
+  // A config problem shows right away, the welcome at the first opening; also closes
+  // the right-click menu
   const greet = welcome !== null && !greeted;
   greeted ||= greet;
   showPane(greet || configProblems.some((p) => !dismissed.has('config:' + p)) ? 'notifs' : savedPane());
-  $('strap-swing').style.removeProperty('animation');   // balancement de l'ouverture, pas celui du survol
+  $('strap-swing').style.removeProperty('animation');   // the opening swing, not the hover one
   state.stack = [];
   state.page = 0;
   state.query = '';
@@ -1866,16 +1866,16 @@ function playEntrance() {
   startClock();
   fitStage();
   stage.hidden = false;
-  // Montée du téléphone, retirée une fois jouée : elle garderait sinon le téléphone dans un
-  // calque à part (texte flou en vue applications, voir showApps)
+  // Phone rising, removed once played: otherwise it would keep the phone in a
+  // separate layer (blurry text in the apps view, see showApps)
   playOnce($('phone'), 'tp-rise');
 }
 
-/* ── Masquage : le téléphone redescend (.leaving), puis on vide la scène avant de masquer
-   la fenêtre, sinon sa dernière image réapparaît un instant au prochain affichage, et ses
-   animations en boucle tourneraient derrière la fenêtre masquée (voir « Image figée »). ── */
-const LEAVE_MS = 500;   // durée de .leaving dans styles.css
-let leaving = 0;        // minuterie de la fermeture en cours
+/* ── Hiding: the phone goes back down (.leaving), then the stage is emptied before hiding
+   the window, otherwise its last frame reappears for a moment the next time it is shown, and its
+   looping animations would run behind the hidden window (see "Frozen image"). ── */
+const LEAVE_MS = 500;   // duration of .leaving in styles.css
+let leaving = 0;        // timer of the closing in progress
 let shownCount = 0;
 
 function afterNextPaint(fn: () => void) {
@@ -1884,29 +1884,29 @@ function afterNextPaint(fn: () => void) {
     if (!done) { done = true; fn(); }
   };
   requestAnimationFrame(() => requestAnimationFrame(run));
-  setTimeout(run, 100);   // filet de sécurité si la page ne peint plus
+  setTimeout(run, 100);   // safety net if the page no longer paints
 }
 
 function hideLauncher() {
-  if (leaving || $('stage').hidden) return;   // déjà en train de se fermer
+  if (leaving || $('stage').hidden) return;   // already closing
   stopStats();
   clearTimeout(clockTimer);
   $('phone').classList.add('leaving');
   const n = shownCount;
   leaving = setTimeout(() => {
     leaving = 0;
-    // Aperçu navigateur : rien à masquer, on rejoue l'ouverture pour revoir les deux animations
+    // Browser preview: nothing to hide, the opening is replayed to see both animations again
     if (PREVIEW) { host.hide(); playEntrance(); return; }
     $('stage').hidden = true;
     afterNextPaint(() => {
-      if (n === shownCount) host.hide();   // sauf si on a rouvert entre-temps
+      if (n === shownCount) host.hide();   // unless reopened in the meantime
     });
   }, LEAVE_MS);
 }
 
-/* ── Langue changée dans la page Paramètres : la page se recharge (ses textes sont écrits au
-   chargement). Le téléphone redescend, le temps de voir la pastille glisser, puis remonte dans
-   la nouvelle langue, sur la page Paramètres. ── */
+/* ── Language changed in the Settings page: the page reloads (its texts are written on
+   load). The phone goes down, after enough time to see the tab slider slide, then comes back up in
+   the new language, on the Settings page. ── */
 const REOPEN_KEY = 'rouvrir-parametres';
 
 function changeLanguage(language: Language) {
@@ -1916,13 +1916,13 @@ function changeLanguage(language: Language) {
     return;
   }
   if (leaving) {
-    setTimeout(() => location.reload(), LEAVE_MS + 300);   // le lanceur finit de se masquer
+    setTimeout(() => location.reload(), LEAVE_MS + 300);   // the launcher finishes hiding
     return;
   }
   try {
     sessionStorage.setItem(REOPEN_KEY, '1');
   } catch {
-    /* sans stockage, il remonte sur la vue réglages */
+    /* without storage, it comes back up on the quick settings view */
   }
   stopStats();
   clearTimeout(clockTimer);
@@ -1932,7 +1932,7 @@ function changeLanguage(language: Language) {
   }, 300);
 }
 
-/* Après le rechargement d'un changement de langue : la page Paramètres, une fois */
+/* After the reload of a language change: the Settings page, once */
 function reopenPrefs() {
   try {
     const asked = sessionStorage.getItem(REOPEN_KEY) !== null;
@@ -1943,8 +1943,8 @@ function reopenPrefs() {
   }
 }
 
-/* ── Configuration : au démarrage, puis quand Rust la recharge
-   (« Recharger la config », ou apps.json modifié avant une ouverture) ── */
+/* ── Configuration: at startup, then when Rust reloads it
+   ("Reload the config", or apps.json changed before an opening) ── */
 let configLoading: Promise<void> = Promise.resolve();
 
 async function loadConfig() {
@@ -1955,7 +1955,7 @@ async function loadConfig() {
   startAsked.clear();
   startRun++;
   configProblems = problems;
-  applyColors();   // l'accent de apps.json, sauf s'il est choisi dans la carte Personnaliser
+  applyColors();   // the apps.json accent, unless one is chosen in the Customize card
   renderFolders();
   renderNotifs();
   renderAppCount();
@@ -1964,14 +1964,14 @@ async function loadConfig() {
   state.stack = stack;
   if (state.view === 'apps') {
     const focused = Array.from($('grid').querySelectorAll('.app')).indexOf(document.activeElement as HTMLElement);
-    renderApps();   // garde la page si elle existe encore
+    renderApps();   // keeps the page if it still exists
     if (focused !== -1) focusApp(focused);
   }
 }
 
-/* Groupes ouverts retrouvés dans la nouvelle config : même id et même libellé, sinon même libellé
-   (les ids sont des chemins d'index, « a3.1 » : le groupe « Masquées » change d'id quand une
-   application est masquée ou réaffichée). Un groupe disparu : on reste dans son parent. */
+/* Open groups found again in the new config: same id and same label, otherwise same label
+   (ids are index paths, "a3.1": the "Hidden" group changes id when an
+   app is hidden or shown again). A group that went away: stay in its parent. */
 function reopenStack(): AppItem[] {
   const stack: AppItem[] = [];
   let items = CONFIG.apps;
@@ -1987,7 +1987,7 @@ function reopenStack(): AppItem[] {
 
 export async function init() {
   translatePage();
-  // Rust a une autre langue (premier lancement, ou changée pendant le chargement) : rechargée
+  // Rust has another language (first run, or changed during the load): reloaded
   if (rememberLanguage(await host.language().catch(() => LANGUAGE))) {
     location.reload();
     return;
@@ -2002,7 +2002,7 @@ export async function init() {
   bindEvents();
   await loadAppearance();
   host.profile().then(renderProfile).catch(console.error);
-  addEventListener('resize', fitStage);   // Rust agrandit la fenêtre à l'écran à chaque ouverture
+  addEventListener('resize', fitStage);   // Rust sizes the window to the screen at each opening
   await loadConfig();
   host.onConfigChanged(() => {
     configLoading = loadConfig().catch(console.error);
@@ -2010,16 +2010,16 @@ export async function init() {
 
   host.onShown(async (page) => {
     shownCount++;
-    await configLoading;   // si apps.json a changé, Rust a envoyé la nouvelle config juste avant
+    await configLoading;   // if apps.json changed, Rust sent the new config just before
     playEntrance();
-    if (page === 'prefs') showPrefs();   // « Paramètres » du menu de l'icône
+    if (page === 'prefs') showPrefs();   // "Settings" in the tray icon menu
   });
   host.onHideRequest(hideLauncher);
   host.onLanguageChanged(changeLanguage);
   if (await host.isVisible()) {
     playEntrance();
-    if (reopenPrefs()) showPrefs();   // rechargée dans une nouvelle langue
+    if (reopenPrefs()) showPrefs();   // reloaded in a new language
   } else if (welcome) {
-    host.firstShow().catch(console.error);   // premier lancement, page prête
+    host.firstShow().catch(console.error);   // first run, page ready
   }
 }

@@ -1,6 +1,6 @@
-//! Mélangeur (demandé par Funsaiki) : volume de chaque application qui utilise la sortie par
-//! défaut, comme le mélangeur de volume de Windows. Une session audio par processus,
-//! regroupées par programme (Chrome ou Discord en ont plusieurs).
+//! Mixer (requested by Funsaiki): volume of each app using the default
+//! output, like the Windows volume mixer. One audio session per process,
+//! grouped by program (Chrome or Discord have several).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -22,24 +22,24 @@ use crate::com::com_task;
 
 #[derive(Serialize)]
 pub struct AppVolume {
-    /// Chemin du programme, ou « system » pour les sons système
+    /// Program path, or "system" for system sounds
     key: String,
     name: String,
-    /// 0 à 100, relatif au volume principal comme dans Windows
+    /// 0 to 100, relative to the master volume as in Windows
     volume: u8,
-    /// Icône du programme (demande de Funsaiki) ; None pour les sons système
+    /// Program icon (requested by Funsaiki); None for system sounds
     icon: Option<crate::icon::Icon>,
 }
 
 const SYSTEM: &str = "system";
 
-/// Applications qui jouent du son d'abord, puis par nom ; sons système à la fin
+/// Apps playing sound first, then by name; system sounds last
 #[tauri::command]
 pub async fn mixer() -> Vec<AppVolume> {
     com_task(list).await.unwrap_or_default()
 }
 
-/// Comme dans Windows : bouger le curseur rétablit le son de l'application s'il était coupé
+/// As in Windows: moving the slider unmutes the app if it was muted
 #[tauri::command]
 pub async fn set_app_volume(key: String, level: u8) -> Result<(), String> {
     com_task(move || {
@@ -56,9 +56,9 @@ pub async fn set_app_volume(key: String, level: u8) -> Result<(), String> {
     .await
 }
 
-/// Volume de Spotify dans le mélangeur : (programme, niveau), pour la carte de lecture quand
-/// Spotify n'est pas connecté (spotify.rs) ; None tant que Spotify n'a pas de session audio
-/// (fermé, ou rien joué encore). À appeler avec COM.
+/// Spotify's volume in the mixer: (program, level), for the now playing card when
+/// Spotify isn't connected (spotify.rs); None while Spotify has no audio session
+/// (closed, or nothing played yet). To be called with COM.
 pub fn spotify_session() -> windows::core::Result<Option<(String, u8)>> {
     match sessions()?.into_iter().find(|s| is_spotify(&s.key)) {
         Some(session) => {
@@ -74,7 +74,7 @@ fn is_spotify(key: &str) -> bool {
 }
 
 fn list() -> windows::core::Result<Vec<AppVolume>> {
-    // Programme -> (volume de sa première session, l'une de ses sessions joue du son)
+    // Program -> (volume of its first session, one of its sessions is playing sound)
     let mut apps: HashMap<String, (u8, bool)> = HashMap::new();
     for session in sessions()? {
         let level = session.level()?;
@@ -92,21 +92,21 @@ fn list() -> windows::core::Result<Vec<AppVolume>> {
 }
 
 struct Session {
-    /// Programme, ou « system »
+    /// Program, or "system"
     key: String,
     volume: ISimpleAudioVolume,
-    /// Joue du son en ce moment
+    /// Playing sound right now
     playing: bool,
 }
 
 impl Session {
-    /// 0 à 100
+    /// 0 to 100
     fn level(&self) -> windows::core::Result<u8> {
         Ok((unsafe { self.volume.GetMasterVolume()? } * 100.0).round() as u8)
     }
 }
 
-/// Sessions de la sortie par défaut, sauf celles des applications fermées
+/// Sessions of the default output, except those of closed apps
 fn sessions() -> windows::core::Result<Vec<Session>> {
     let manager: IAudioSessionManager2 = default_device(eRender)?;
     let list = unsafe { manager.GetSessionEnumerator()? };
@@ -130,7 +130,7 @@ fn sessions() -> windows::core::Result<Vec<Session>> {
     Ok(out)
 }
 
-/// Chemin du programme d'un processus (aussi pour switch.rs et tray_apps.rs)
+/// Program path of a process (also for switch.rs and tray_apps.rs)
 pub fn exe_path(pid: u32) -> Option<String> {
     if pid == 0 {
         return None;
@@ -143,7 +143,7 @@ pub fn exe_path(pid: u32) -> Option<String> {
     }
 }
 
-/// Chemin du programme d'un processus déjà ouvert (avec PROCESS_QUERY_LIMITED_INFORMATION)
+/// Program path of an already opened process (with PROCESS_QUERY_LIMITED_INFORMATION)
 pub fn process_path(process: HANDLE) -> Option<String> {
     let mut buf = [0u16; 1024];
     let mut len = buf.len() as u32;
@@ -151,7 +151,7 @@ pub fn process_path(process: HANDLE) -> Option<String> {
     Some(String::from_utf16_lossy(&buf[..len as usize]))
 }
 
-/// Nom de l'application : description du programme (« Google Chrome »), sinon nom du fichier
+/// App name: program description ("Google Chrome"), otherwise file name
 fn name_of(key: &str) -> String {
     if key == SYSTEM {
         return crate::i18n::tr("Sons système", "System sounds").into();
@@ -161,7 +161,7 @@ fn name_of(key: &str) -> String {
     })
 }
 
-/// FileDescription des informations de version du programme (aussi pour tray_apps.rs)
+/// FileDescription from the program's version information (also for tray_apps.rs)
 pub fn description(path: &str) -> Option<String> {
     let path = HSTRING::from(path);
     unsafe {
@@ -173,7 +173,7 @@ pub fn description(path: &str) -> Option<String> {
         GetFileVersionInfoW(&path, None, size, data.as_mut_ptr().cast()).ok()?;
         let mut ptr = std::ptr::null_mut();
         let mut len = 0u32;
-        // Première langue déclarée : (langue, page de code)
+        // First declared language: (language, code page)
         if !VerQueryValueW(data.as_ptr().cast(), w!("\\VarFileInfo\\Translation"), &mut ptr, &mut len).as_bool() || len < 4 {
             return None;
         }
@@ -182,8 +182,8 @@ pub fn description(path: &str) -> Option<String> {
         if !VerQueryValueW(data.as_ptr().cast(), &entry, &mut ptr, &mut len).as_bool() || len == 0 {
             return None;
         }
-        // Certains programmes donnent la longueur en octets et non en caractères (Spotify) :
-        // on s'arrête au premier caractère nul, sans sortir du bloc lu
+        // Some programs give the length in bytes rather than characters (Spotify):
+        // stop at the first null character, without leaving the block read
         let available = (data.as_ptr_range().end as usize).saturating_sub(ptr as usize) / 2;
         let chars = std::slice::from_raw_parts(ptr as *const u16, (len as usize).min(available));
         let end = chars.iter().position(|&c| c == 0).unwrap_or(chars.len());
@@ -193,7 +193,7 @@ pub fn description(path: &str) -> Option<String> {
     }
 }
 
-// Lecture seule : ne jamais changer le volume d'une application de Funsaiki dans un test.
+// Read-only: never change the volume of one of Funsaiki's apps in a test.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,7 +214,7 @@ mod tests {
         assert!(!is_spotify(SYSTEM));
     }
 
-    /// Diagnostic : cargo test real_mixer -- --ignored --nocapture
+    /// Diagnostic: cargo test real_mixer -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_mixer() {
@@ -224,7 +224,7 @@ mod tests {
             for app in &apps {
                 eprintln!("{:>3} %  {}  ({}) icône : {}", app.volume, app.name, app.key, app.icon.is_some());
             }
-            // Pour voir les icônes : MIXER_JSON=chemin cargo test real_mixer -- --ignored
+            // To see the icons: MIXER_JSON=path cargo test real_mixer -- --ignored
             if let Ok(path) = std::env::var("MIXER_JSON") {
                 std::fs::write(path, serde_json::to_string(&apps).unwrap()).unwrap();
             }

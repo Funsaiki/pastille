@@ -1,16 +1,16 @@
-//! COM (et WinRT) pour les commandes qui en ont besoin : son, mélangeur, lecture en cours.
+//! COM (and WinRT) for the commands that need it: sound, mixer, now playing.
 
 use windows::Win32::System::Com::{CoIncrementMTAUsage, CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
 
-/// Au démarrage : garde l'appartement multithread (MTA) en vie jusqu'à la fin du processus.
-/// Sinon chaque commande le créerait puis le détruirait, et le gestionnaire des lecteurs gardé
-/// d'un relevé à l'autre (media.rs) survivrait à son appartement.
+/// At startup: keeps the multithreaded apartment (MTA) alive until the process ends.
+/// Otherwise each command would create then destroy it, and the media session manager kept
+/// from one stats reading to the next (media.rs) would outlive its apartment.
 pub fn keep_mta() {
-    // Le jeton n'est jamais rendu
+    // The cookie is never released
     let _ = unsafe { CoIncrementMTAUsage() };
 }
 
-/// COM sur le fil courant le temps de `f` (les objets COM doivent être libérés dans `f`)
+/// COM on the current thread for the duration of `f` (COM objects must be released in `f`)
 pub fn with_com<T>(f: impl FnOnce() -> T) -> T {
     let com = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
     let result = f();
@@ -20,8 +20,8 @@ pub fn with_com<T>(f: impl FnOnce() -> T) -> T {
     result
 }
 
-/// Hors du fil principal, avec COM. Une erreur devient un message avant CoUninitialize :
-/// une erreur COM peut garder un objet (les détails de l'erreur) qui doit être libéré avant.
+/// Off the main thread, with COM. An error becomes a message before CoUninitialize:
+/// a COM error may hold an object (the error details) that must be released before.
 pub async fn com_task<T: Send + 'static>(
     f: impl FnOnce() -> windows::core::Result<T> + Send + 'static,
 ) -> Result<T, String> {

@@ -1,12 +1,12 @@
 /* ══════════════════════════════════════════════════════════
-   Barre pastel (demandée par Funsaiki le 16/10/2026) : à la place de la barre des tâches de
-   Windows, une pilule flottante centrée en bas de chaque écran, en masquage automatique.
-   Applications (fait monter le téléphone), applications épinglées puis fenêtres ouvertes de
-   tous les écrans (une tuile par programme), Spotify, son, applications de la zone de
-   notification derrière ^ (écran principal), heure.
-   Une fenêtre transparente par écran (bar.rs) : Rust la montre quand la souris touche le bord
-   bas, dit quand la souris est sur la pilule ou clique ailleurs, et ne prend la souris que sur
-   les rectangles envoyés par `reportRects`. Aperçu navigateur : barre.html (?ecran=2).
+   Pastel bar (requested by Funsaiki on 2026-10-16): in place of the Windows taskbar,
+   a floating pill centered at the bottom of each screen, auto-hiding.
+   Apps (brings up the phone), pinned apps then open windows of
+   all screens (one tile per program), Spotify, sound, notification area apps
+   behind ^ (main screen), clock.
+   One transparent window per screen (bar.rs): Rust shows it when the mouse touches the bottom
+   edge, says when the mouse is on the pill or clicks elsewhere, and only takes the mouse on
+   the rectangles sent by `reportRects`. Browser preview: barre.html (?ecran=2).
    ══════════════════════════════════════════════════════════ */
 import { ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
@@ -20,7 +20,7 @@ import {
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
-/* Écran de la barre, 0 pour le principal */
+/* The bar's screen, 0 for the main one */
 const SCREEN = host.barScreen();
 const MAIN = SCREEN === 0;
 
@@ -31,8 +31,8 @@ const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 01
 const CLOSE = 'M6 6l12 12M18 6L6 18';
 const SCREEN_NEXT = 'M3 5h12v9H3zM6.5 18h5M9 14v4M17 9.5h5M19.5 7l2.5 2.5-2.5 2.5';
 
-/* Vraie icône du programme ; dans l'aperçu, une icône à trait ; à défaut, son initiale sur
-   une couleur de la palette */
+/* The program's real icon; in the preview, a line icon; failing that, its initial on
+   a palette color */
 function fillTile(tile: HTMLElement, name: string, picture: AppIcon | null, glyph: string | undefined, i: number, size: number) {
   if (picture) {
     tile.append(iconCanvas(picture));
@@ -44,13 +44,13 @@ function fillTile(tile: HTMLElement, name: string, picture: AppIcon | null, glyp
   }
 }
 
-/* Animation jouée une fois puis retirée (une animation finie garde un calque à part) */
+/* Animation played once then removed (a finished animation keeps a separate layer) */
 function popIn(node: HTMLElement) {
   node.classList.add('tp-pop');
   node.addEventListener('animationend', () => node.classList.remove('tp-pop'), { once: true });
 }
 
-/* Erreurs : dans les notifications du téléphone quand la barre sera branchée ; aperçu : console */
+/* Errors: in the phone's notifications once the bar is wired up; preview: console */
 async function act(run: () => Promise<unknown>) {
   closeMenu(false);
   try {
@@ -62,34 +62,34 @@ async function act(run: () => Promise<unknown>) {
   refreshTray();
 }
 
-/* ══ Fenêtres ouvertes, tous écrans confondus (demande de Funsaiki), regroupées par programme ;
-   les applications épinglées d'abord, ouvertes ou non ══ */
+/* ══ Open windows, from all screens (Funsaiki's request), grouped by program;
+   pinned apps first, open or not ══ */
 interface Group {
   key: string;
   app: string;
   windows: BarWindow[];
-  pin?: PinnedApp;    // application épinglée : sa tuile reste, même fermée
+  pin?: PinnedApp;    // pinned app: its tile stays, even when closed
 }
 
 let windows: BarWindow[] = [];
-let screens = 1;                 // plus d'un : « Envoyer sur l'autre écran » dans le menu d'une fenêtre
-let order: string[] = [];        // programmes dans leur ordre d'arrivée : les tuiles ne bougent pas
-let windowsShown = '';           // ce qui est affiché : on ne refait les tuiles que si ça change
-const seen = new Set<string>();  // programmes déjà affichés : seuls les nouveaux apparaissent en sautant
-let alerted = new Set<string>(); // programmes qui demandent l'attention : seuls les nouveaux sonnent
-const icons = new Map<string, AppIcon | null>();  // par programme : Rust ne la renvoie pas chaque seconde
-let windowsRun = 0;   // une réponse plus ancienne que la dernière demande est ignorée
+let screens = 1;                 // more than one: "Move to the other screen" in a window's menu
+let order: string[] = [];        // programs in their order of arrival: the tiles do not move
+let windowsShown = '';           // what is shown: the tiles are only rebuilt if it changes
+const seen = new Set<string>();  // programs already shown: only new ones pop in
+let alerted = new Set<string>(); // programs asking for attention: only new ones ring
+const icons = new Map<string, AppIcon | null>();  // per program: Rust does not resend it every second
+let windowsRun = 0;   // a response older than the last request is ignored
 
 async function refreshWindows() {
   const run = ++windowsRun;
   const known = [...icons.keys()];
   const list = await host.barWindows(known).catch(() => null);
-  // Icônes gardées même d'une réponse dépassée (une première icône prend 80 à 100 ms) : Rust ne
-  // les renverra pas
+  // Icons kept even from an outdated response (a first icon takes 80 to 100 ms): Rust will not
+  // resend them
   if (list) for (const w of list) if (!known.includes(w.key)) icons.set(w.key, w.icon);
   if (run !== windowsRun) return;
   if (list) {
-    // Programmes fermés oubliés ; une icône oubliée entre-temps est redemandée au relevé suivant
+    // Closed programs forgotten; an icon forgotten in the meantime is asked again on the next read
     for (const key of icons.keys()) if (!list.some((w) => w.key === key)) icons.delete(key);
     windows = list.map((w) => ({ ...w, icon: icons.get(w.key) ?? null }));
   }
@@ -98,10 +98,10 @@ async function refreshWindows() {
   updateWindowMenu();
 }
 
-/* Tuile d'une fenêtre : celle de son application épinglée, sinon celle de son programme */
+/* A window's tile: that of its pinned app, otherwise that of its program */
 const groupKey = (w: BarWindow) => (pins.some((p) => p.exe === w.exe) ? `pin:${w.exe}` : w.key);
 
-/* Épinglées dans leur ordre, puis les autres programmes dans leur ordre d'arrivée */
+/* Pinned ones in their order, then the other programs in their order of arrival */
 function groups(): Group[] {
   const pinned = pins.map((pin) => ({ key: `pin:${pin.exe}`, app: pin.name, windows: windows.filter((w) => w.exe === pin.exe), pin }));
   const keys = new Set(windows.map(groupKey).filter((k) => !k.startsWith('pin:')));
@@ -116,8 +116,8 @@ function groups(): Group[] {
 function renderWindows() {
   const list = groups();
   const shown = JSON.stringify(list.map((g) => [g.key, g.windows.map((w) => [w.id, w.title, w.active, w.attention])]));
-  // Pas pendant qu'un menu ou un aperçu est ouvert : il est accroché à sa tuile (refaite à sa
-  // fermeture)
+  // Not while a menu or a hover preview is open: it is attached to its tile (rebuilt when it
+  // closes)
   if (menu || preview || shown === windowsShown) return;
   windowsShown = shown;
   const first = seen.size === 0;
@@ -133,26 +133,26 @@ function renderWindows() {
   alerted = calling;
 }
 
-/* La tuile d'une fenêtre qui demande l'attention sonne une fois (comme le clignotement de la
-   barre de Windows, sans animation en boucle) */
+/* The tile of a window asking for attention rings once (like the flashing of the
+   Windows taskbar, without a looping animation) */
 function ring(node: HTMLElement) {
   node.classList.add('tp-ring');
   node.addEventListener('animationend', () => node.classList.remove('tp-ring'), { once: true });
 }
 
-/* Titre de la fenêtre, avec le programme s'il n'y est pas déjà */
+/* Window title, with the program if it is not already in it */
 const windowLabel = (w: BarWindow) => (w.title.includes(w.app) ? w.title : `${w.title} — ${w.app}`);
 
-/* Fenêtres du programme d'après la dernière liste : la tuile a pu être faite avant (pas refaite
-   pendant un aperçu ou un menu) */
+/* The program's windows from the latest list: the tile may have been built before (not rebuilt
+   during a hover preview or a menu) */
 function latest(g: Group): BarWindow[] {
   const now = windows.filter((w) => groupKey(w) === g.key);
   return now.length ? now : g.windows;
 }
 
-/* Clic : ramène la fenêtre, ou la réduit si elle est déjà au premier plan ; plusieurs fenêtres :
-   leur liste (chacune avec son ×). Clic du milieu : nouvelle fenêtre. Clic droit : nouvelle fenêtre, fermer. Survol :
-   aperçu des fenêtres (il remplace l'infobulle). */
+/* Click: brings the window back, or minimizes it if it is already in the foreground; several windows:
+   their list (each with its ×). Middle click: new window. Right-click: new window, close. Hover:
+   preview of the windows (it replaces the tooltip). */
 function groupTile(g: Group, i: number) {
   if (!g.windows.length) return pinTile(g, i);
   const b = el('button', 'bar-tile tp-press');
@@ -177,9 +177,9 @@ function groupTile(g: Group, i: number) {
       act(() => (list[0].active ? host.minimizeWindow(list[0].id) : host.focusWindow(list[0].id)));
     }
   });
-  // Clic du milieu : nouvelle fenêtre, comme dans la barre de Windows
+  // Middle click: new window, like in the Windows taskbar
   b.addEventListener('mousedown', (e) => {
-    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+    if (e.button === 1) e.preventDefault();   // no autoscroll
   });
   b.addEventListener('auxclick', (e) => {
     if (e.button !== 1) return;
@@ -188,17 +188,17 @@ function groupTile(g: Group, i: number) {
     act(() => host.newWindow(latest(g)[0].id));
   });
   b.addEventListener('contextmenu', (e) => {
-    e.preventDefault();   // pas le menu de WebView2
+    e.preventDefault();   // not the WebView2 menu
     const list = latest(g);
     const items = [menuItem(tr('Nouvelle fenêtre', 'New window'), actionDot(PLUS, 'var(--fill)'), () => act(() => host.newWindow(list[0].id)))];
-    // Une seule fenêtre : avec plusieurs, on ne saurait pas laquelle envoyer
+    // A single window: with several, we would not know which one to move
     if (screens > 1 && list.length === 1) {
       const label = screens === 2
         ? tr('Envoyer sur l’autre écran', 'Move to the other screen')
         : tr('Envoyer sur l’écran suivant', 'Move to the next screen');
       items.push(menuItem(label, actionDot(SCREEN_NEXT, '#ffe08a'), () => act(() => host.moveWindow(list[0].id))));
     }
-    // Pas les apps hébergées (Paramètres, Calculatrice) : elles partagent leur programme
+    // Not hosted apps (Settings, Calculator): they share their program
     if (g.pin) items.push(unpinItem(g.pin));
     else if (list[0].exe) items.push(menuItem(tr('Épingler à la pilule', 'Pin to the pill'), actionDot(PIN, '#c9d8ff'), () => act(() => pinWindow(list[0].id))));
     const close = list.length > 1
@@ -211,12 +211,12 @@ function groupTile(g: Group, i: number) {
   return b;
 }
 
-/* ══ Applications épinglées (bar_pins.rs, demande de Funsaiki) : épinglées par le clic droit d'une
-   tuile de fenêtre, gardées dans barre.json. Fermée, sa tuile est à plat (sans ombre) et se
-   soulève au survol ; clic ou clic du milieu : la lancer. Ouverte, ses fenêtres prennent sa
-   tuile. ══ */
+/* ══ Pinned apps (bar_pins.rs, Funsaiki's request): pinned from the right-click menu of a
+   window tile, saved in barre.json. Closed, its tile is flat (no shadow) and
+   lifts on hover; click or middle click: launch it. Open, its windows take its
+   tile. ══ */
 let pins: PinnedApp[] = [];
-const pinIcons = new Map<string, AppIcon | null>();   // par programme : Rust ne la renvoie pas à chaque fois
+const pinIcons = new Map<string, AppIcon | null>();   // per program: Rust does not resend it every time
 
 async function refreshPins() {
   const known = [...pinIcons.keys()];
@@ -250,11 +250,11 @@ function pinTile(g: Group, i: number) {
     closePreview();
     act(() => host.barOpenPin(pin.exe));
   };
-  // L'aperçu d'une autre tuile se ferme (une tuile fermée n'en a pas)
+  // The hover preview of another tile closes (a closed tile has none)
   b.addEventListener('pointerenter', leavePreview);
   b.addEventListener('click', launch);
   b.addEventListener('mousedown', (e) => {
-    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+    if (e.button === 1) e.preventDefault();   // no autoscroll
   });
   b.addEventListener('auxclick', (e) => {
     if (e.button !== 1) return;
@@ -268,25 +268,25 @@ function pinTile(g: Group, i: number) {
   return b;
 }
 
-/* ══ Aperçus au survol (bar_preview.rs) : une carte au-dessus de la tuile, une vignette en
-   direct par fenêtre (cinq au plus), que Windows dessine dans son cadre. Elles ne suivent pas
-   les animations : posées une fois la carte arrivée. ══ */
-const PREVIEW_DELAY = 450;   // survol avant la première carte ; d'une tuile à l'autre, tout de suite
-const PREVIEW_LEAVE = 250;   // le temps d'aller de la tuile à la carte
-const PREVIEW_SETTLE = 200;  // arrivée de la carte (.bar-preview)
+/* ══ Hover previews (bar_preview.rs): a card above the tile, one live thumbnail
+   per window (five at most), which Windows draws in its frame. They do not follow
+   animations: placed once the card has arrived. ══ */
+const PREVIEW_DELAY = 450;   // hover before the first card; from one tile to another, right away
+const PREVIEW_LEAVE = 250;   // the time to go from the tile to the card
+const PREVIEW_SETTLE = 200;  // the card's arrival (.bar-preview)
 const PREVIEW_MAX = 5;
 const THUMB_H = 112;
-const THUMB_INSET = 6;       // la vignette de Windows est rectangulaire : dans le cadre arrondi
-const CLOSING_MS = 1500;     // fenêtre qui ne se ferme pas (elle demande d'enregistrer) : plus grisée
+const THUMB_INSET = 6;       // the Windows thumbnail is rectangular: inside the rounded frame
+const CLOSING_MS = 1500;     // window that does not close (it asks to save): no longer grayed out
 
 let preview: { tile: HTMLElement; group: Group } | null = null;
-let previewAsked = false;    // vignettes demandées à Rust, à libérer
+let previewAsked = false;    // thumbnails requested from Rust, to be released
 let previewRun = 0;
 let previewTimer = 0;
 
 function hoverTile(g: Group, tile: HTMLElement) {
   clearTimeout(previewTimer);
-  // Une carte à la fois : pas par-dessus la zone de notification, le calendrier ou le lecteur
+  // One card at a time: not over the notification area, the calendar or the player
   if (menu || cardOpen() || preview?.tile === tile) return;
   previewTimer = window.setTimeout(() => openPreview(g, tile), preview ? 0 : PREVIEW_DELAY);
 }
@@ -301,7 +301,7 @@ async function openPreview(g: Group, tile: HTMLElement) {
   const list = g.windows.slice(0, PREVIEW_MAX);
   previewAsked = true;
   const sizes = await host.barPreview(list.map((w) => w.id)).catch(() => null);
-  // Autre tuile survolée, souris partie, menu ou carte ouverts, pilule rentrée entre-temps
+  // Another tile hovered, mouse gone, menu or card open, pill hidden in the meantime
   if (run !== previewRun) return;
   const card = $('bar-preview');
   const hovered = tile.matches(':hover') || card.matches(':hover');
@@ -309,7 +309,7 @@ async function openPreview(g: Group, tile: HTMLElement) {
     closePreview();
     return;
   }
-  // Refaite carte ouverte (fenêtre fermée depuis l'aperçu) : vignettes posées tout de suite
+  // Rebuilt with the card open (window closed from the preview): thumbnails placed right away
   const settled = card.classList.contains('open');
   card.replaceChildren(...list.map((w, i) => previewItem(w, sizes[i], i)));
   preview = { tile, group: g };
@@ -319,8 +319,8 @@ async function openPreview(g: Group, tile: HTMLElement) {
   window.setTimeout(() => run === previewRun && placeThumbs(), settled ? 0 : PREVIEW_SETTLE);
 }
 
-/* Fenêtres du programme de l'aperçu changées (une fermée depuis l'aperçu, une nouvelle) :
-   l'aperçu est refait, ou fermé s'il n'en reste plus */
+/* Windows of the previewed program changed (one closed from the preview, a new one):
+   the preview is rebuilt, or closed if none are left */
 function updatePreview() {
   if (!preview) return;
   const { tile, group } = preview;
@@ -330,8 +330,8 @@ function updatePreview() {
   else closePreview();
 }
 
-/* `render` : listes arrivées pendant l'aperçu, sauf quand un menu s'ouvre (il s'accroche à sa
-   tuile, qui doit rester en place) */
+/* `render`: lists that arrived during the preview, except when a menu opens (it attaches to its
+   tile, which must stay in place) */
 function closePreview(render = true) {
   clearTimeout(previewTimer);
   previewRun++;
@@ -344,7 +344,7 @@ function closePreview(render = true) {
   reportRects();
 }
 
-/* Cadres en position finale (sans l'animation de la carte), dans la fenêtre */
+/* Frames in their final position (without the card's animation), in the window */
 function placeThumbs() {
   const card = $('bar-preview');
   const rects = Array.from(card.querySelectorAll<HTMLElement>('.bar-thumb')).map((box) => {
@@ -359,15 +359,15 @@ function placeThumbs() {
   host.barPreviewPlace(rects);
 }
 
-/* Titre, puis le cadre à la proportion de la fenêtre ; réduite : son icône (Windows n'en garde
-   pas d'image). Clic : la ramener. */
+/* Title, then the frame at the window's aspect ratio; minimized: its icon (Windows keeps no
+   image of it). Click: bring it back. */
 function previewItem(w: BarWindow, size: [number, number] | null, i: number) {
   const item = el('button', 'bar-shot');
   item.classList.toggle('current', w.active);
   item.setAttribute('aria-label', windowLabel(w));
   const badge = el('span', 'bar-shot-icon');
   fillTile(badge, w.app, w.icon, w.glyph, i, 14);
-  // Pas de bouton dans un bouton : le × est un rond cliquable (la barre ne prend pas le clavier)
+  // No button inside a button: the × is a clickable circle (the bar does not take the keyboard)
   const close = el('span', 'bar-shot-close');
   close.title = tr('Fermer la fenêtre', 'Close window');
   close.append(icon(CLOSE, 11, 2.8));
@@ -395,10 +395,10 @@ function previewItem(w: BarWindow, size: [number, number] | null, i: number) {
   return item;
 }
 
-/* Une fenêtre dans la liste d'un programme ; celle du premier plan est surlignée. Son ×
-   (demande de Funsaiki, 20/10/2026) la ferme sans refermer la liste : comme le bouton de
-   fermeture, l'app peut demander d'enregistrer ; la ligne reste grisée le temps qu'elle se
-   ferme, puis disparaît (updateWindowMenu). */
+/* A window in a program's list; the foreground one is highlighted. Its ×
+   (Funsaiki's request, 2026-10-20) closes it without closing the list: like the close
+   button, the app may ask to save; the line stays grayed out while it
+   closes, then disappears (updateWindowMenu). */
 function windowItem(w: BarWindow, i: number) {
   const dot = el('span', 'bar-dot');
   fillTile(dot, w.app, w.icon, w.glyph, i, 16);
@@ -406,7 +406,7 @@ function windowItem(w: BarWindow, i: number) {
   item.dataset.id = w.id;
   item.classList.toggle('current', w.active);
   item.classList.toggle('alert', w.attention);
-  // Pas de bouton dans un bouton, comme le × de l'aperçu
+  // No button inside a button, like the × of the hover preview
   const close = el('span', 'bar-item-close');
   close.title = tr('Fermer la fenêtre', 'Close window');
   close.append(icon(CLOSE, 12, 2.8));
@@ -420,8 +420,8 @@ function windowItem(w: BarWindow, i: number) {
   return item;
 }
 
-/* Fenêtres relues, liste d'un programme ouverte : les fermées en disparaissent ; plus aucune :
-   la liste se referme */
+/* Windows reread, a program's list open: the closed ones disappear from it; none left:
+   the list closes */
 function updateWindowMenu() {
   const group = menu?.group;
   if (!group) return;
@@ -432,21 +432,21 @@ function updateWindowMenu() {
   }
   const rows = Array.from($('bar-menu-items').querySelectorAll<HTMLElement>('.bar-item'));
   for (const row of rows.filter((r) => !ids.has(r.dataset.id!))) {
-    // Le focus ne part pas avec elle : la liste se refermerait (focusout)
+    // The focus does not leave with it: the list would close (focusout)
     if (row.contains(document.activeElement)) rows.find((r) => ids.has(r.dataset.id!))?.focus({ preventScroll: true });
     row.remove();
   }
   reportRects();
 }
 
-/* ══ Zone de notification (écran principal) : l'onglet Apps du téléphone, mêmes actions ══ */
+/* ══ Notification area (main screen): the phone's Apps tab, same actions ══ */
 const TRAY_ITEMS: { action: TrayAction; label: string; d: string; bg: string }[] = [
   { action: 'open', label: tr('Ouvrir', 'Open'), d: OPEN, bg: 'var(--fill)' },
   { action: 'location', label: tr('Emplacement du fichier', 'Open file location'), d: ICONS.fichiers, bg: '#c9d8ff' },
   { action: 'quit', label: tr('Forcer à quitter', 'Force quit'), d: CLOSE, bg: '#f6c6da' },
 ];
 
-let trayApps: TrayApp[] | null = null;   // null : pas encore lue
+let trayApps: TrayApp[] | null = null;   // null: not read yet
 let trayShown = '';
 
 async function refreshTray() {
@@ -470,7 +470,7 @@ function trayTile(app: TrayApp, i: number) {
   b.title = app.tip ?? app.name;
   b.setAttribute('aria-label', app.name);
   fillTile(b, app.name, app.icon, undefined, i, 24);
-  // Pas d'emplacement pour une app du Store : son dossier est fermé
+  // No file location for a Store app: its folder is locked
   const pastilleMenu = () => {
     const items = TRAY_ITEMS.filter((it) => !(it.action === 'location' && app.packaged));
     openMenu(b, app.name, items.map((it) => trayItem(app, it)));
@@ -486,23 +486,23 @@ function trayTile(app: TrayApp, i: number) {
     });
     return b;
   }
-  // Clics envoyés à l'application, comme sur son icône dans la barre de Windows (tray_host.rs).
-  // La zone se referme après le temps d'un double clic : certaines ne s'ouvrent qu'ainsi.
+  // Clicks sent to the app, as on its icon in the Windows taskbar (tray_host.rs).
+  // The area closes after the time of a double click: some only open that way.
   b.addEventListener('click', (e) => {
     act(() => host.trayClick(app.key, e.detail === 0 ? 'key' : e.detail > 1 ? 'double' : 'left'));
     closePopSoon();
   });
   b.addEventListener('mousedown', (e) => {
-    if (e.button === 1) e.preventDefault();   // pas le défilement automatique
+    if (e.button === 1) e.preventDefault();   // no autoscroll
   });
   b.addEventListener('auxclick', (e) => {
     if (e.button !== 1) return;
     e.preventDefault();
     act(() => host.trayClick(app.key, 'middle'));
   });
-  // Clic droit : le menu de l'application, par-dessus la zone restée ouverte, à la souris
-  // (tray_host.rs lui dit que son icône est là) ; Maj+clic droit (ou touche Menu) : celui de
-  // Pastille, comme Maj+clic droit sur un bouton de la barre de Windows
+  // Right-click: the app's menu, over the area that stays open, at the mouse
+  // (tray_host.rs tells it its icon is there); Shift+right-click (or Menu key): Pastille's
+  // menu, like Shift+right-click on a Windows taskbar button
   b.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     if (e.shiftKey || e.button !== 2) {
@@ -524,8 +524,8 @@ function closePopSoon() {
   }, 500);
 }
 
-/* Forcer à quitter : le premier clic demande confirmation ; la zone reste ouverte et l'app
-   disparaît de la liste. Ouvrir et Emplacement la referment. */
+/* Force quit: the first click asks for confirmation; the area stays open and the app
+   disappears from the list. Open and Open file location close it. */
 function trayItem(app: TrayApp, it: (typeof TRAY_ITEMS)[number]) {
   return menuItem(it.label, actionDot(it.d, it.bg), (b, text) => {
     if (it.action === 'quit' && !b.classList.contains('confirm')) {
@@ -557,8 +557,8 @@ function togglePop(open = !popOpen()) {
   reportRects();
 }
 
-/* ══ Menus : fond encre, au-dessus de leur tuile, pointe vers elle ══ */
-let menu: { tile: HTMLElement; group?: Group } | null = null;   // group : liste des fenêtres d'un programme
+/* ══ Menus: ink background, above their tile, arrow toward it ══ */
+let menu: { tile: HTMLElement; group?: Group } | null = null;   // group: list of a program's windows
 
 function actionDot(d: string, bg: string) {
   const dot = el('span', 'bar-dot');
@@ -576,8 +576,8 @@ function menuItem(label: string, dot: HTMLElement, run: (item: HTMLButtonElement
   return b;
 }
 
-/* Un second clic sur la même tuile referme son menu. Les tuiles ne sont pas refaites avant
-   l'ouverture : le menu se place au-dessus de celle-ci (refaites à sa fermeture). */
+/* A second click on the same tile closes its menu. The tiles are not rebuilt before
+   opening: the menu is placed above this one (rebuilt when it closes). */
 function openMenu(tile: HTMLElement, name: string, items: HTMLElement[], group?: Group) {
   const again = menu?.tile === tile;
   closePreview(false);
@@ -587,7 +587,7 @@ function openMenu(tile: HTMLElement, name: string, items: HTMLElement[], group?:
     renderTray();
     return;
   }
-  // Une carte à la fois ; le menu d'une app de la zone de notification s'ouvre sur sa carte
+  // One card at a time; the menu of a notification area app opens over its card
   if (!$('bar-pop').contains(tile)) closeCards();
   $('bar-menu-name').textContent = name;
   $('bar-menu-items').replaceChildren(...items);
@@ -606,7 +606,7 @@ function closeMenu(refocus = true, render = true) {
   $('bar-menu').classList.remove('open');
   tile.classList.remove('menu-open');
   if (refocus && tile.isConnected) tile.focus({ preventScroll: true });
-  // Listes arrivées pendant que le menu était ouvert
+  // Lists that arrived while the menu was open
   if (render) {
     renderWindows();
     renderTray();
@@ -615,8 +615,8 @@ function closeMenu(refocus = true, render = true) {
   reportRects();
 }
 
-/* Au-dessus de `anchor` (ou de `over`, la pilule pour la zone de notification), centré sur lui
-   sans sortir de l'écran, la pointe vers lui */
+/* Above `anchor` (or above `over`, the pill for the notification area), centered on it
+   without leaving the screen, the arrow toward it */
 function place(node: HTMLElement, anchor: HTMLElement, over: HTMLElement = anchor) {
   const at = anchor.getBoundingClientRect();
   const center = at.left + at.width / 2;
@@ -626,8 +626,8 @@ function place(node: HTMLElement, anchor: HTMLElement, over: HTMLElement = ancho
   node.style.setProperty('--arrow', center - left + 'px');
 }
 
-/* Carte au-dessus de la pilule, placée avant d'être ouverte : sa bulle part de sa pointe à sa
-   nouvelle place, pas de l'ancienne */
+/* Card above the pill, placed before being opened: its bubble starts from its arrow at its
+   new place, not the old one */
 function placeCard(card: HTMLElement, button: HTMLElement) {
   place(card, button, $('bar'));
   void card.offsetWidth;
@@ -642,18 +642,18 @@ function closeCards() {
   if (soundOpen()) toggleSound(false);
 }
 
-/* ══ Masquage automatique : la pilule sort quand la souris touche le bas de l'écran et rentre
-   0,7 s après l'avoir quittée (elle et ses cartes), pas tant qu'un menu est ouvert. Les cartes
-   (zone de notification, calendrier, lecteur) rentrent avec elle (demande de Funsaiki : un clic
-   « dans le vide » tombe sur la fenêtre en dessous) ══ */
+/* ══ Auto-hide: the pill comes up when the mouse touches the bottom of the screen and goes back
+   0.7 s after leaving it (it and its cards), not while a menu is open. The cards
+   (notification area, calendar, player) go back with it (Funsaiki's request: a click
+   "in the void" lands on the window below) ══ */
 const HIDE_MS = 700;
-const SINK_MS = 280;      // rentrée de la pilule (.bar.hidden), avant que Rust masque la fenêtre
-const PEEK_MS = 2500;     // sortie pour une fenêtre qui demande l'attention
-// Fenêtres relues aux signaux de Windows (ouverte, fermée, activée, titre) ; et, au cas où un
-// signal manquerait, toutes les 5 s tant que la pilule est sortie
+const SINK_MS = 280;      // the pill going down (.bar.hidden), before Rust hides the window
+const PEEK_MS = 2500;     // shown for a window asking for attention
+// Windows reread on Windows signals (opened, closed, activated, title); and, in case a
+// signal is missed, every 5 s while the pill is up
 const REFRESH_MS = 5000;
 let shown = false;
-let inside = false;       // souris sur la pilule, une carte ou un menu
+let inside = false;       // mouse on the pill, a card or a menu
 let hideTimer = 0;
 let sinkTimer = 0;
 let refreshTimer = 0;
@@ -664,7 +664,7 @@ function show(peek = false) {
   if (!peek) clearTimeout(hideTimer);
   if (!shown) {
     shown = true;
-    // La souris a pu toucher le bord pendant la rentrée ; Rust redit aussitôt si elle est dessus
+    // The mouse may have touched the edge while it went down; Rust says again right away if it is on it
     inside = false;
     $('bar').classList.remove('hidden');
     refreshWindows();
@@ -675,14 +675,14 @@ function show(peek = false) {
     mediaTimer = window.setInterval(refreshMedia, MEDIA_MS);
     reportRects();
   }
-  // Un instant seulement, sauf si la souris vient dessus
+  // Only for a moment, unless the mouse comes onto it
   if (peek && !inside && !menu) {
     clearTimeout(hideTimer);
     hideTimer = window.setTimeout(hide, PEEK_MS);
   }
 }
 
-/* Plusieurs signaux arrivent souvent ensemble : une seule lecture */
+/* Several signals often arrive together: a single read */
 function windowsChanged() {
   if (!shown) return;
   clearTimeout(signalTimer);
@@ -710,9 +710,9 @@ function autoHide() {
   if (shown && !inside) hideTimer = window.setTimeout(hide, HIDE_MS);
 }
 
-/* Rust ne donne la souris à la fenêtre que sur ces rectangles (marge de 8 px) : la pilule
-   jusqu'au bas de la fenêtre (la souris y descend vers le bord de l'écran), la zone de
-   notification et le menu ouverts. Positions de mise en page : sans les animations. */
+/* Rust only gives the mouse to the window on these rectangles (8 px margin): the pill
+   down to the bottom of the window (the mouse goes down there toward the screen edge), the
+   notification area and the menu when open. Layout positions: without the animations. */
 let rectsFrame = 0;
 
 function reportRects() {
@@ -737,7 +737,7 @@ function setInside(on: boolean) {
   else autoHide();
 }
 
-/* Clic ailleurs : menus et zone de notification se referment, la pilule rentre */
+/* Click elsewhere: menus and notification area close, the pill goes back down */
 function clickedOutside() {
   closePreview();
   closeMenu(false);
@@ -745,7 +745,7 @@ function clickedOutside() {
   autoHide();
 }
 
-/* ── Heure et date, comme le téléphone ── */
+/* ── Time and date, like the phone ── */
 const fmtTime = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' });
 const fmtDay = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
 const fmtMonth = new Intl.DateTimeFormat(LOCALE, { month: 'short' });
@@ -753,24 +753,24 @@ const fmtFull = new Intl.DateTimeFormat(LOCALE, { dateStyle: 'full' });
 
 function tickClock() {
   const now = new Date();
-  const day = fmtDay.format(now);   // « jeu. », "Thu"
+  const day = fmtDay.format(now);   // "jeu.", "Thu"
   const full = fmtFull.format(now);
   $('bar-time').textContent = fmtTime.format(now);
   $('bar-date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
   const date = `${full.charAt(0).toUpperCase()}${full.slice(1)}, ${fmtTime.format(now)}`;
   $('bar-clock').setAttribute('aria-label', tr(`${date} : calendrier`, `${date}: calendar`));
-  if (calOpen()) renderCal();   // minuit
+  if (calOpen()) renderCal();   // midnight
   setTimeout(tickClock, 60_000 - (Date.now() % 60_000) + 20);
 }
 
-/* ══ Spotify (media.rs, comme la carte de lecture du téléphone) : une tuile avec la pochette
-   tant que Spotify a un morceau, en lecture ou en pause ; clic : le lecteur, molette : morceau
-   suivant (vers le bas) ou précédent. Relu à la sortie de la pilule puis toutes les 2 s. ══ */
+/* ══ Spotify (media.rs, like the phone's now playing card): a tile with the cover
+   while Spotify has a track, playing or paused; click: the player, wheel: next
+   (down) or previous track. Reread when the pill comes up, then every 2 s. ══ */
 const MEDIA_MS = 2000;
-const WHEEL_MS = 400;     // un cran de molette à la fois
+const WHEEL_MS = 400;     // one wheel notch at a time
 let media: NowPlaying | null = null;
-let mediaRun = 0;         // une réponse plus ancienne que la dernière demande est ignorée
-let mediaHold = 0;        // après un clic, Spotify annonce encore l'ancien état
+let mediaRun = 0;         // a response older than the last request is ignored
+let mediaHold = 0;        // after a click, Spotify still reports the old state
 let mediaTimer = 0;
 let wheelAt = 0;
 let cover = { key: '', url: null as string | null, previous: null as string | null, tries: 0, loading: false };
@@ -789,7 +789,7 @@ function renderMedia() {
   const b = $('bar-music');
   b.hidden = !media?.title;
   if (!media?.title) {
-    if (playerOpen()) togglePlayer(false);   // Spotify fermé : la tuile du lecteur est partie
+    if (playerOpen()) togglePlayer(false);   // Spotify closed: the player's tile is gone
     return;
   }
   const text = media.artist ? `${media.title} — ${media.artist}` : media.title;
@@ -799,16 +799,16 @@ function renderMedia() {
     ? tr(`${text}, en lecture : lecteur`, `${text}, playing: player`)
     : tr(`${text}, en pause : lecteur`, `${text}, paused: player`));
   $('bar-player-title').textContent = media.title;
-  $('bar-player-title').title = media.title;   // titre complet au survol s'il est coupé
+  $('bar-player-title').title = media.title;   // full title on hover if it is cut off
   $('bar-player-artist').textContent = media.artist || 'Spotify';
-  // Égaliseur animé carte ouverte seulement (une animation en boucle tourne même cachée)
+  // Equalizer animated only with the card open (a looping animation runs even when hidden)
   $('bar-player-eq').classList.toggle('on', media.playing && playerOpen());
   $('bar-play').classList.toggle('paused', !media.playing);
   $('bar-play').setAttribute('aria-label', media.playing ? 'Pause' : tr('Lecture', 'Play'));
 }
 
-/* Pochette demandée au changement de morceau ; Spotify annonce le titre avant la pochette :
-   nouvel essai tant qu'il redonne la précédente (3 au plus), comme le téléphone */
+/* Cover requested when the track changes; Spotify reports the title before the cover:
+   new try as long as it gives the previous one again (3 at most), like the phone */
 async function refreshCover() {
   const key = media?.title ? `${media.title}\n${media.artist}` : '';
   if (key !== cover.key) {
@@ -819,7 +819,7 @@ async function refreshCover() {
   cover.tries++;
   cover.loading = true;
   const url = await host.mediaCover().catch(() => null);
-  if (key !== cover.key) return;   // autre morceau entre-temps
+  if (key !== cover.key) return;   // another track in the meantime
   cover.loading = false;
   if (!url || (url === cover.previous && cover.tries < 3)) return;
   cover.url = url;
@@ -835,10 +835,10 @@ function renderCover() {
 
 async function controlMedia(action: 'toggle' | 'next' | 'previous') {
   if (action === 'toggle' && media) {
-    media.playing = !media.playing;   // tout de suite, sans attendre Spotify
+    media.playing = !media.playing;   // right away, without waiting for Spotify
     renderMedia();
   }
-  mediaRun++;   // une lecture partie avant le clic montrerait l'ancien état
+  mediaRun++;   // a read started before the click would show the old state
   mediaHold = performance.now() + 450;
   try {
     await host.mediaControl(action);
@@ -848,19 +848,19 @@ async function controlMedia(action: 'toggle' | 'next' | 'previous') {
   window.setTimeout(refreshMedia, action === 'toggle' ? 500 : 600);
 }
 
-/* ══ Lecteur (demandé par Funsaiki) : clic sur la tuile de Spotify, la carte de lecture du
-   téléphone au-dessus d'elle, mêmes gestes : précédent, lecture/pause, suivant ; volume de
-   Spotify en marches d'égaliseur (clic ou glisser, 10 % par marche ; molette sur la carte 2 % ;
-   flèches 5 %, Début et Fin), celui de Spotify connecté sinon celui du mélangeur de Windows ;
-   aléatoire et répétition (connecté). Volume et modes relus à l'ouverture puis toutes les 5 s
-   tant qu'elle est ouverte. ══ */
+/* ══ Player (requested by Funsaiki): click on the Spotify tile, the phone's now playing
+   card above it, same gestures: previous, play/pause, next; Spotify volume as
+   equalizer steps (click or drag, 10% per step; wheel on the card 2%;
+   arrows 5%, Home and End), Spotify's own when connected, otherwise the Windows mixer's;
+   shuffle and repeat (connected). Volume and modes reread on opening, then every 5 s
+   while it is open. ══ */
 const SPOTIFY_MS = 5000;
-const STEPS = 10;             // marches de 10 %
-let spotifyVolume: SpotifyVolume | null = null;   // null : pas d'appareil actif ou pas de session audio
+const STEPS = 10;             // 10% steps
+let spotifyVolume: SpotifyVolume | null = null;   // null: no active device or no audio session
 let spotifyModes: { shuffle: ShuffleMode; repeat: RepeatMode } | null = null;
-let spotifyRun = 0;           // change à chaque réglage : une lecture partie avant est ignorée
-let spotifyHold = 0;          // juste après un réglage, Spotify annonce encore l'ancien état
-let spotifyReading = false;   // une lecture à la fois
+let spotifyRun = 0;           // changes with each setting: a read started before is ignored
+let spotifyHold = 0;          // right after a setting, Spotify still reports the old state
+let spotifyReading = false;   // one read at a time
 let spotifyTimer = 0;
 
 const playerOpen = () => $('bar-player').classList.contains('open');
@@ -910,7 +910,7 @@ const REPEAT_LABELS: Record<RepeatMode, string> = {
   track: tr('Répétition : ce titre', 'Repeat: this track'),
 };
 
-/* Dix barres de 10 %, celle qui contient le niveau remplie en partie */
+/* Ten 10% bars, the one holding the level partly filled */
 function renderSpotify() {
   const meter = $('bar-player-volume');
   const level = spotifyVolume?.volume ?? 0;
@@ -940,8 +940,8 @@ function renderSpotify() {
   repeat.title = REPEAT_LABELS[spotifyModes.repeat];
 }
 
-/* Marche sous le pointeur → niveau ; un clic sur la première quand le niveau y est déjà coupe
-   le son */
+/* Step under the pointer → level; a click on the first one when the level is already there mutes
+   the sound */
 function stepLevel(x: number, y: number, first: boolean): number | null {
   const bar = document.elementFromPoint(x, y)?.closest<HTMLElement>('#bar-player-volume i');
   if (!bar) return null;
@@ -951,8 +951,8 @@ function stepLevel(x: number, y: number, first: boolean): number | null {
   return first && index === 0 && now > 0 && now <= level ? 0 : level;
 }
 
-/* Un envoi à la fois, le dernier niveau gagne (comme le téléphone) ; après chaque envoi,
-   l'attente repart : Spotify met un instant à annoncer le nouveau volume */
+/* One send at a time, the last level wins (like the phone); after each send,
+   the wait starts again: Spotify takes a moment to report the new volume */
 const sendSpotify = latestOnly(async (level) => {
   const target = spotifyVolume;
   await (target?.source === 'windows' ? host.setAppVolume(target.key, level) : host.setSpotifyVolume(level))
@@ -969,8 +969,8 @@ function setSpotifyVolume(level: number) {
   sendSpotify(spotifyVolume.volume);
 }
 
-/* Change tout de suite ; aléatoire : non ↔ oui, l'aléatoire intelligent ne peut que se couper ;
-   répétition : non → playlist → titre → non */
+/* Changes right away; shuffle: off ↔ on, smart shuffle can only be turned off;
+   repeat: off → playlist → track → off */
 async function toggleSpotifyMode(which: 'shuffle' | 'repeat') {
   if (!spotifyModes) return;
   spotifyRun++;
@@ -992,13 +992,13 @@ async function toggleSpotifyMode(which: 'shuffle' | 'repeat') {
   spotifyHold = performance.now() + 1000;
 }
 
-/* ══ Son (demandé par Funsaiki) : un rond haut-parleur à côté du ^, sur chaque écran (audio.rs,
-   comme le téléphone). Molette : 2 % par cran, le niveau en pastille un instant ; clic : carte
-   en bulle avec le curseur du volume et la tuile Micro du téléphone. Relu à la sortie de la
-   pilule et à l'ouverture de la carte. ══ */
-const LEVEL_MS = 1200;    // pastille du niveau après le dernier cran de molette
+/* ══ Sound (requested by Funsaiki): a round speaker button next to the ^, on each screen (audio.rs,
+   like the phone). Wheel: 2% per notch, the level in a badge for a moment; click: bubble
+   card with the phone's volume slider and Mic tile. Reread when the
+   pill comes up and when the card opens. ══ */
+const LEVEL_MS = 1200;    // level badge after the last wheel notch
 let sound: AudioState = { volume: null, muted: false, mic_muted: null };
-let audioRun = 0;         // change à chaque réglage : une lecture plus ancienne est ignorée
+let audioRun = 0;         // changes with each setting: an older read is ignored
 let levelTimer = 0;
 
 const soundOpen = () => $('bar-volume').classList.contains('open');
@@ -1051,14 +1051,14 @@ function setVolume(level: number) {
   if (sound.volume === null) return;
   level = Math.max(0, Math.min(100, Math.round(level)));
   sound.volume = level;
-  if (level > 0) sound.muted = false;   // Windows rétablit le son (audio.rs)
+  if (level > 0) sound.muted = false;   // Windows unmutes (audio.rs)
   audioRun++;
   renderSound();
   sendVolume(level);
 }
 
-/* Un cran de molette : 2 %, vers le haut pour monter ; sur le haut-parleur, le niveau s'affiche
-   en pastille le temps de la molette */
+/* One wheel notch: 2%, up to raise; on the speaker, the level shows
+   in a badge while the wheel turns */
 function wheelVolume(e: WheelEvent, badge: boolean) {
   if (sound.volume === null || Math.abs(e.deltaY) < 4) return;
   setVolume(sound.volume + (e.deltaY < 0 ? 2 : -2));
@@ -1083,15 +1083,15 @@ async function toggleMic() {
   }
 }
 
-/* ══ Calendrier : clic sur l'heure. Mois précédent ou suivant (flèches, molette), clic sur le
-   mois : aujourd'hui ; Notifications : le centre de notifications de Windows ══ */
+/* ══ Calendar: click on the clock. Previous or next month (arrows, wheel), click on the
+   month: today; Notifications: the Windows notification center ══ */
 const fmtMonthYear = new Intl.DateTimeFormat(LOCALE, { month: 'long', year: 'numeric' });
 const fmtToday = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
 const WEEKDAYS = tr(['L', 'M', 'M', 'J', 'V', 'S', 'D'], ['M', 'T', 'W', 'T', 'F', 'S', 'S']);
 const LEFT = 'M15 6l-6 6 6 6';
 const RIGHT = 'M9 6l6 6-6 6';
-const CAL_WHEEL_MS = 450;    // un mois par geste, comme les pages du téléphone
-let calMonth = new Date();   // premier jour du mois affiché
+const CAL_WHEEL_MS = 450;    // one month per gesture, like the phone's pages
+let calMonth = new Date();   // first day of the month shown
 let calWheelAt = 0;
 
 const calOpen = () => $('bar-cal').classList.contains('open');
@@ -1115,7 +1115,7 @@ function toggleCal(open = !calOpen()) {
   reportRects();
 }
 
-/* Six semaines, du lundi au dimanche : la carte garde sa hauteur d'un mois à l'autre */
+/* Six weeks, Monday to Sunday: the card keeps its height from one month to the next */
 function renderCal() {
   const now = new Date();
   $('bar-cal-month').textContent = capital(fmtMonthYear.format(calMonth));
@@ -1137,15 +1137,15 @@ function moveCal(step: number) {
   renderCal();
 }
 
-/* ── Couleurs : accent (apps.json, ou celui choisi dans le téléphone) et encre de la carte
-   Personnaliser du téléphone (appearance.ts) ── */
+/* ── Colors: accent (apps.json, or the one chosen in the phone) and ink from the phone's
+   Customize card (appearance.ts) ── */
 let shownPalette = palette().join();
 
 function paint() {
   applyColors();
   const next = palette().join();
   if (next === shownPalette) return;
-  // Tuiles à l'initiale refaites avec les nouvelles couleurs
+  // Initial-letter tiles rebuilt with the new colors
   shownPalette = next;
   windowsShown = '';
   trayShown = '';
@@ -1163,7 +1163,7 @@ function loadColors() {
     .catch(() => {});
 }
 
-/* ── Événements ── */
+/* ── Events ── */
 function init() {
   if (PREVIEW) {
     document.body.classList.add('preview');
@@ -1183,12 +1183,12 @@ function init() {
   });
 
   $('bar-apps').append(icon(GRID, 22, 2.4));
-  // Le téléphone monte, la pilule rentre aussitôt
+  // The phone comes up, the pill goes down at once
   $('bar-apps').addEventListener('click', () => {
     hide(true);
     host.showLauncher();
   });
-  // Clic droit : le menu de l'icône du lanceur (Afficher, Paramètres, Quitter)
+  // Right-click: the launcher's tray icon menu (Show, Settings, Quit)
   $('bar-apps').addEventListener('contextmenu', (e) => {
     e.preventDefault();
     host.barMenu();
@@ -1229,7 +1229,7 @@ function init() {
     else return;
     e.preventDefault();
   });
-  // Molette sur la carte : volume de Spotify, 2 % par cran comme sur le téléphone
+  // Wheel on the card: Spotify volume, 2% per notch like on the phone
   $('bar-player').addEventListener('wheel', (e) => {
     if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;
     setSpotifyVolume(spotifyVolume.volume + (e.deltaY < 0 ? 2 : -2));
@@ -1255,7 +1255,7 @@ function init() {
     calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     renderCal();
   });
-  // Un pavé tactile envoie des dizaines d'événements par geste
+  // A touchpad sends dozens of events per gesture
   $('bar-cal-grid').addEventListener('wheel', (e) => {
     e.preventDefault();
     if (Math.abs(e.deltaY) < 4 || performance.now() - calWheelAt < CAL_WHEEL_MS) return;
@@ -1266,11 +1266,11 @@ function init() {
     toggleCal(false);
     act(() => host.openTool('notifications'));
   });
-  // Aperçu : la souris peut aller de la tuile à la carte
+  // Hover preview: the mouse can go from the tile to the card
   $('bar-preview').addEventListener('pointerenter', () => clearTimeout(previewTimer));
   $('bar-preview').addEventListener('pointerleave', leavePreview);
-  // La pilule change de largeur (fenêtre ouverte ou fermée) : les cartes suivent leur bouton ;
-  // une carte change de taille (zone de notification qui grandit) : Rust reçoit son rectangle
+  // The pill changes width (window opened or closed): the cards follow their button;
+  // a card changes size (notification area growing): Rust receives its rectangle
   const resized = new ResizeObserver(() => {
     if (popOpen()) place($('bar-pop'), $('bar-tray'), $('bar'));
     if (calOpen()) place($('bar-cal'), $('bar-clock'), $('bar'));
@@ -1280,8 +1280,8 @@ function init() {
   });
   for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) resized.observe($(id));
 
-  // Rust a pu faire sortir la pilule avant que la page écoute (fenêtre juste créée) : sans
-  // réponse, elle ne serait plus jamais ressortie sur cet écran. Son état est remis à zéro.
+  // Rust may have brought the pill up before the page listened (window just created): with no
+  // answer, it would never come up again on this screen. Its state is reset.
   Promise.all([
     host.onBarReveal(show),
     host.onBarWindows(windowsChanged),
@@ -1292,7 +1292,7 @@ function init() {
   ]).then(() => {
     if (!shown) host.barHidden();
   });
-  // Aperçu : le bas de la page tient lieu de bord de l'écran, la page entière de fenêtre
+  // Preview: the bottom of the page stands in for the screen edge, the whole page for the window
   if (PREVIEW) {
     for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) {
       $(id).addEventListener('pointerenter', () => setInside(true));
@@ -1324,7 +1324,7 @@ function init() {
       $('bar-sound').focus({ preventScroll: true });
     }
   });
-  // Flèches haut et bas dans les menus, comme le menu d'alimentation
+  // Up and down arrows in the menus, like the power menu
   $('bar-menu').addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
@@ -1332,24 +1332,24 @@ function init() {
     const at = items.indexOf(document.activeElement as HTMLElement);
     items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
   });
-  // Focus parti ailleurs : menu refermé (sauf vers sa tuile, dont le clic le referme)
+  // Focus gone elsewhere: menu closed (except to its tile, whose click closes it)
   $('bar-menu').addEventListener('focusout', (e) => {
     const to = e.relatedTarget as Node | null;
     if (!$('bar-menu').contains(to) && to !== menu?.tile) closeMenu(false);
   });
 
   tickClock();
-  renderSound();    // icône du haut-parleur avant la première lecture
+  renderSound();    // speaker icon before the first read
   refreshPins();
   refreshTray();
-  refreshMedia();   // la tuile est là avant la première sortie : la pilule ne change pas de taille en sortant
-  // Rentrée jusqu'à ce que la souris touche le bas de l'écran ; dans l'aperçu, elle sort tout de suite
+  refreshMedia();   // the tile is there before the first rise: the pill keeps its size as it comes up
+  // Down until the mouse touches the bottom of the screen; in the preview, it comes up right away
   $('bar').classList.add('hidden');
   if (PREVIEW) requestAnimationFrame(() => requestAnimationFrame(() => show()));
 }
 
-/* Textes du HTML d'abord ; puis la langue de Rust : différente de celle de la page (premier
-   chargement, changée dans les Paramètres), la page se recharge avant d'afficher quoi que ce soit */
+/* HTML texts first; then Rust's language: if it differs from the page's (first
+   load, changed in the Settings), the page reloads before showing anything */
 async function start() {
   translatePage();
   if (rememberLanguage(await host.language().catch(() => LANGUAGE))) {

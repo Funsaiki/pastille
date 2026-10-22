@@ -1,4 +1,4 @@
-//! Volume de la sortie par défaut et micro par défaut, ceux des réglages Son de Windows
+//! Volume of the default output and default microphone, those of the Windows Sound settings
 //! (IAudioEndpointVolume).
 
 use serde::Serialize;
@@ -11,10 +11,10 @@ use crate::com::com_task;
 
 #[derive(Serialize, Default)]
 pub struct AudioState {
-    /// 0 à 100 ; None sans sortie audio
+    /// 0 to 100; None without an audio output
     volume: Option<u8>,
     muted: bool,
-    /// None sans micro
+    /// None without a microphone
     mic_muted: Option<bool>,
 }
 
@@ -34,7 +34,7 @@ pub async fn audio() -> AudioState {
     .unwrap_or_default()
 }
 
-/// Comme le curseur de Windows : bouger le volume rétablit le son s'il était coupé.
+/// Like the Windows slider: moving the volume unmutes the sound if it was muted.
 #[tauri::command]
 pub async fn set_volume(level: u8) -> Result<(), String> {
     com_task(move || {
@@ -55,12 +55,12 @@ pub async fn set_mic_muted(muted: bool) -> Result<(), String> {
     com_task(move || unsafe { endpoint(eCapture)?.SetMute(muted, std::ptr::null()) }).await
 }
 
-/// Volume de la sortie ou du micro par défaut
+/// Volume of the default output or microphone
 fn endpoint(flow: EDataFlow) -> windows::core::Result<IAudioEndpointVolume> {
     default_device(flow)
 }
 
-/// Interface `T` de l'appareil par défaut (sortie ou micro) des réglages Son
+/// Interface `T` of the default device (output or microphone) in the Sound settings
 pub fn default_device<T: Interface>(flow: EDataFlow) -> windows::core::Result<T> {
     unsafe {
         let devices: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
@@ -68,12 +68,12 @@ pub fn default_device<T: Interface>(flow: EDataFlow) -> windows::core::Result<T>
     }
 }
 
-// Lecture seule : ne jamais changer le volume ni le micro de Funsaiki dans un test.
+// Read-only: never change Funsaiki's volume or microphone in a test.
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Diagnostic : cargo test real_audio -- --ignored --nocapture
+    /// Diagnostic: cargo test real_audio -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_audio() {

@@ -33,22 +33,22 @@ mod usage;
 use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_plugin_global_shortcut::ShortcutState;
 
-/// Hors du fil principal : appels qui peuvent attendre (disque, COM, invite UAC…)
+/// Off the main thread: calls that may wait (disk, COM, UAC prompt…)
 pub(crate) async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Processus de garde de la barre pastel (taskbar.rs) : rien d'autre
+    // Pastel bar watchdog process (taskbar.rs): nothing else
     if taskbar::guard() {
         return;
     }
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
-    // Instance unique (doit être le premier plugin), en production seulement : en développement,
-    // l'app installée empêcherait `npm run tauri dev` de démarrer (même identifiant).
-    // Relancer l'app déjà ouverte affiche le lanceur.
+    // Single instance (must be the first plugin), in production only: in development,
+    // the installed app would keep `npm run tauri dev` from starting (same identifier).
+    // Relaunching the app already open shows the launcher.
     #[cfg(not(debug_assertions))]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| launcher::show(app)));
@@ -57,22 +57,22 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
-                    // Appelé à l'appui et au relâchement : ne basculer qu'une fois
+                    // Called on press and on release: toggle only once
                     if event.state() == ShortcutState::Pressed {
                         launcher::toggle(app);
                     }
                 })
                 .build(),
         )
-        // N'écrit rien tant que Funsaiki ne coche pas « Démarrer avec Windows »
+        // Writes nothing until Funsaiki turns on "Start with Windows"
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        // Mises à jour depuis les releases GitHub (update.rs)
+        // Updates from the GitHub releases (update.rs)
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            // Lit apps.json et enregistre le raccourci ; s'il est déjà pris, l'app démarre
-            // quand même et le lanceur le signale (on l'ouvre par la zone de notification)
+            // Reads apps.json and registers the shortcut; if it's already taken, the app starts
+            // anyway and the launcher reports it (it is opened from the notification area)
             com::keep_mta();
-            prefs::init(app.handle());   // langue, avant tout texte
+            prefs::init(app.handle());   // language, before any text
             app.manage(usage::load(app.handle()));
             app.manage(spotify::load(app.handle()));
             config::init(app.handle());
@@ -81,7 +81,7 @@ pub fn run() {
             tray::create(app.handle(), &tooltip)?;
             launcher::disable_key_menu(app.handle());
             if let Some(w) = app.get_webview_window("main") {
-                launcher::set_memory_low(&w, true);   // la fenêtre démarre masquée
+                launcher::set_memory_low(&w, true);   // the window starts hidden
             }
             bar::init(app.handle());
             update::init(app.handle());
@@ -149,10 +149,10 @@ pub fn run() {
             bar_preview::bar_preview_place,
             bar_preview::bar_preview_close
         ])
-        // Fenêtre du lanceur seulement (pas celles de la barre pastel)
+        // Launcher window only (not the pastel bar ones)
         .on_window_event(|window, event| match event {
             _ if window.label() != "main" => {}
-            // Alt+F4 : masquer au lieu de quitter (on quitte depuis la zone de notification)
+            // Alt+F4: hide instead of quitting (quitting is done from the notification area)
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 launcher::hide(window.app_handle());
@@ -163,7 +163,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|_app, event| {
-            // La barre des tâches de Windows revient quand le lanceur quitte
+            // The Windows taskbar comes back when the launcher quits
             if let RunEvent::Exit = event {
                 bar::shutdown();
             }

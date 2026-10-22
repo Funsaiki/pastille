@@ -1,6 +1,6 @@
-//! Configuration utilisateur : %APPDATA%\dev.lanceur.pastel\apps.json, créée à partir de
-//! apps.example.json au premier lancement. En cas d'erreur, la dernière config valide est
-//! conservée et le problème s'affiche dans les notifications du lanceur.
+//! User configuration: %APPDATA%\dev.lanceur.pastel\apps.json, created from
+//! apps.example.json at first launch. On error, the last valid config is
+//! kept and the problem shows in the launcher's notifications.
 
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -21,14 +21,14 @@ use crate::steam::normalize;
 use crate::{epic, shell, spotify, start_menu, steam, tray, usage};
 
 const EXAMPLE: &str = include_str!("../../apps.example.json");
-/// Le même en anglais : apps.json d'un nouvel utilisateur quand Pastille est en anglais
+/// The same in English: a new user's apps.json when Pastille is in English
 const EXAMPLE_EN: &str = include_str!("../../apps.example.en.json");
 
 fn example() -> &'static str {
     tr(EXAMPLE, EXAMPLE_EN)
 }
 
-/// Bouton du lanceur. `target` et `args` restent côté Rust : le front ne renvoie que l'`id`.
+/// Launcher button. `target` and `args` stay on the Rust side: the front only sends back the `id`.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppItem {
@@ -41,13 +41,13 @@ pub struct AppItem {
     pub target: Option<String>,
     #[serde(default, skip_serializing)]
     pub args: Vec<String>,
-    /// À la place de `target` (pour les amis de Funsaiki, dont les chemins diffèrent) : le nom
-    /// d'une application du menu Démarrer (« Visual Studio Code »), retrouvée sur chaque PC ;
-    /// tuile absente si elle n'y est pas
+    /// Instead of `target` (for other PCs, whose paths differ): the name
+    /// of a Start menu app ("Visual Studio Code"), found again on each PC;
+    /// no tile if it isn't there
     #[serde(default, skip_serializing)]
     pub app: Option<String>,
-    /// Ou le programme par défaut de Windows pour un protocole (« https » : le navigateur) ou
-    /// une extension (« .pdf ») ; tuile absente s'il n'y en a pas
+    /// Or the Windows default program for a protocol ("https": the browser) or
+    /// an extension (".pdf"); no tile if there is none
     #[serde(default, rename = "default", skip_serializing)]
     pub default_for: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -56,29 +56,29 @@ pub struct AppItem {
     pub auto: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<AppItem>>,
-    /// Mots cherchés en plus du libellé (ex. le titre complet d'un jeu au nom raccourci)
+    /// Words searched besides the label (e.g. the full title of a game with a shortened name)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keywords: Option<String>,
-    /// Lancements (usage.json) et date du dernier, envoyés au front ; jamais lus dans apps.json
+    /// Launches (usage.json) and date of the last one, sent to the front; never read from apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub uses: u32,
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub last: u64,
-    /// Application du menu Démarrer (groupe `auto: "start"`, tuile `app` sans icône) : le front
-    /// demande sa vraie icône (start_menu::start_icons) ; jamais lu dans apps.json
+    /// Start menu app (`auto: "start"` group, `app` tile without an icon): the front
+    /// asks for its real icon (start_menu::start_icons); never read from apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub start: bool,
-    /// Application du menu Démarrer masquée par Funsaiki, et le groupe « Masquées » qui les
-    /// rassemble : ni recherche, ni Récents, ni compte ; jamais lu dans apps.json
+    /// Start menu app hidden by Funsaiki, and the "Hidden" group that gathers
+    /// them: no search, no Recent, no count; never read from apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
     pub hidden: bool,
-    /// Même cible qu'un bouton précédent, dont c'est l'id (une tuile `app` et la même
-    /// application dans le groupe du menu Démarrer) : une seule fois dans Récents, la recherche
-    /// et le compte ; jamais lu dans apps.json
+    /// Same target as an earlier button, whose id this is (an `app` tile and the same
+    /// app in the Start menu group): only once in Recent, the search
+    /// and the count; never read from apps.json
     #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub same: Option<String>,
-    /// Ajouté à un groupe `auto` (jeu, playlist, application du menu Démarrer), pas écrit par
-    /// Funsaiki dans apps.json
+    /// Added to an `auto` group (game, playlist, Start menu app), not written by
+    /// Funsaiki in apps.json
     #[serde(skip)]
     pub added: bool,
 }
@@ -118,43 +118,43 @@ fn default_shortcut() -> String {
 }
 
 pub struct ConfigState {
-    /// Config affichée : apps.json + jeux Steam et Epic détectés, avec les identifiants
+    /// Displayed config: apps.json + detected Steam and Epic games, with the ids
     pub config: Config,
-    /// apps.json tel que Funsaiki l'a écrit
+    /// apps.json as Funsaiki wrote it
     base: Config,
     games: Detected,
     games_scanned: Instant,
     scanning: bool,
-    /// Affichés dans le lanceur (config invalide, raccourci indisponible…)
+    /// Shown in the launcher (invalid config, shortcut unavailable…)
     pub problems: Vec<String>,
-    /// Raccourci actuellement enregistré
+    /// Shortcut currently registered
     registered: Option<String>,
-    /// Date de modification de apps.json à la dernière lecture
+    /// Modification date of apps.json at the last read
     modified: Option<SystemTime>,
-    /// apps.json créé à ce démarrage : premier lancement (bienvenue dans les notifications)
+    /// apps.json created at this startup: first launch (welcome in the notifications)
     first_run: bool,
 }
 
 pub type SharedConfig = Mutex<ConfigState>;
 
-/// Jeux détectés, ajoutés aux groupes `auto: "steam"` et `auto: "epic"`, playlists de
-/// Spotify, ajoutées aux groupes `auto: "spotify"`, et applications du menu Démarrer, ajoutées
-/// aux groupes `auto: "start"` (demandes de Funsaiki) ; cibles des tuiles `app` et `default`
+/// Detected games, added to the `auto: "steam"` and `auto: "epic"` groups, Spotify
+/// playlists, added to the `auto: "spotify"` groups, and Start menu apps, added
+/// to the `auto: "start"` groups (Funsaiki's requests); targets of the `app` and `default` tiles
 #[derive(Clone, Default, PartialEq)]
 struct Detected {
     steam: Vec<steam::Game>,
     epic: Vec<epic::Game>,
     playlists: Vec<spotify::Playlist>,
     start: Vec<start_menu::StartApp>,
-    /// Applications du menu Démarrer masquées (demarrer.json, start_menu.rs) : relues sous le
-    /// verrou de la config, comme elles sont changées (set_start_hidden)
+    /// Hidden Start menu apps (demarrer.json, start_menu.rs): read again under the
+    /// config lock, as they are changed (set_start_hidden)
     hidden: Vec<String>,
-    /// (valeur de `default`, programme) : (« https », « C:\…\brave.exe »)
+    /// (value of `default`, program): ("https", "C:\…\brave.exe")
     defaults: Vec<(String, String)>,
 }
 
-/// `previous` : Spotify injoignable, les playlists déjà connues restent. Le menu Démarrer
-/// (~1 s) n'est lu que si apps.json en a besoin (`items`).
+/// `previous`: Spotify unreachable, the playlists already known stay. The Start menu
+/// (~1 s) is only read if apps.json needs it (`items`).
 fn detect(app: &AppHandle, previous: &Detected, items: &[AppItem]) -> Detected {
     Detected {
         steam: steam::installed_games(),
@@ -169,14 +169,14 @@ fn detect(app: &AppHandle, previous: &Detected, items: &[AppItem]) -> Detected {
     }
 }
 
-/// Un groupe `auto: "start"` ou une tuile `app`, à n'importe quelle profondeur
+/// An `auto: "start"` group or an `app` tile, at any depth
 fn needs_start_menu(items: &[AppItem]) -> bool {
     items.iter().any(|it| {
         it.auto.as_deref() == Some("start") || it.app.is_some() || it.children.as_deref().is_some_and(needs_start_menu)
     })
 }
 
-/// Valeurs des tuiles `default` (« https »), une fois chacune
+/// Values of the `default` tiles ("https"), once each
 fn wanted_defaults(items: &[AppItem]) -> Vec<String> {
     fn walk(items: &[AppItem], found: &mut Vec<String>) {
         for it in items {
@@ -193,20 +193,20 @@ fn wanted_defaults(items: &[AppItem]) -> Vec<String> {
     found
 }
 
-/// apps.json demande ce que la dernière recherche n'a pas lu (groupe `auto: "start"`, tuile
-/// `app` ou `default` ajoutés depuis)
+/// apps.json asks for what the last scan didn't read (`auto: "start"` group, `app`
+/// or `default` tile added since)
 fn scan_needed(items: &[AppItem], games: &Detected) -> bool {
     needs_start_menu(items) && games.start.is_empty()
         || wanted_defaults(items).iter().any(|kind| !games.defaults.iter().any(|(k, _)| k == kind))
 }
 
-/* ── Lecture et validation ── */
+/* ── Reading and validation ── */
 
-/// Délai avant de chercher à nouveau les jeux Steam et Epic à l'ouverture du lanceur
+/// Delay before looking for Steam and Epic games again when the launcher opens
 const GAMES_MAX_AGE: Duration = Duration::from_secs(120);
 
 fn parse(text: &str) -> Result<Config, String> {
-    // Le Bloc-notes peut enregistrer un BOM UTF-8 en tête, que serde_json refuse
+    // Notepad can save a UTF-8 BOM at the start, which serde_json refuses
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut config: Config = serde_json::from_str(text).map_err(|e| describe(&e))?;
     validate(&mut config.apps)?;
@@ -226,7 +226,7 @@ fn parse(text: &str) -> Result<Config, String> {
     Ok(config)
 }
 
-/// Message court ; serde_json donne la position et un détail en anglais (traduit en français).
+/// Short message; serde_json gives the position and a detail in English (translated for French).
 fn describe(e: &serde_json::Error) -> String {
     use serde_json::error::Category;
     let what = match e.classify() {
@@ -247,8 +247,8 @@ fn describe(e: &serde_json::Error) -> String {
     tr(format!("Ligne {}, col. {} : {what}.", e.line(), e.column()), format!("Line {}, col. {}: {what}.", e.line(), e.column()))
 }
 
-/// Chaque bouton lance quelque chose (`target`, `app` ou `default`, un seul) ou ouvre un
-/// groupe (`children` ou `auto`).
+/// Each button launches something (`target`, `app` or `default`, only one) or opens a
+/// group (`children` or `auto`).
 fn validate(items: &mut [AppItem]) -> Result<(), String> {
     for it in items {
         if let Some(auto) = &it.auto {
@@ -267,7 +267,7 @@ fn validate(items: &mut [AppItem]) -> Result<(), String> {
                 format!("\"{}\": only one of target, app or default.", it.label),
             ));
         }
-        // Une application du menu Démarrer se lance par son raccourci, qui a ses propres arguments
+        // A Start menu app is launched through its shortcut, which has its own arguments
         if !it.args.is_empty() && it.target.is_none() {
             return Err(tr(format!("« {} » : args seulement avec target.", it.label), format!("\"{}\": args only with target.", it.label)));
         }
@@ -291,12 +291,12 @@ fn is_hex_color(s: &str) -> bool {
     })
 }
 
-/// Complète les groupes `auto` avec les jeux détectés (sauf ceux déjà présents à la main),
-/// trouve les cibles des tuiles `app` et `default`, attribue les identifiants, puis retire les
-/// tuiles introuvables sur ce PC et les groupes restés vides (Epic pas installé…). Les
-/// identifiants sont attribués avant : ils ne changent pas quand une application apparaît.
-/// Un groupe `auto` auquel rien n'a été ajouté et qui n'a plus qu'un lanceur (Spotify pas
-/// connecté, Steam sans jeux) devient ce lanceur, sous le libellé et l'icône du groupe.
+/// Fills the `auto` groups with the detected games (except those already added by hand),
+/// finds the targets of the `app` and `default` tiles, assigns the ids, then removes the
+/// tiles not found on this PC and the groups left empty (Epic not installed…). The
+/// ids are assigned before: they don't change when an app appears.
+/// An `auto` group to which nothing was added and that has only one launcher left (Spotify not
+/// connected, Steam without games) becomes that launcher, under the group's label and icon.
 fn merge(base: &Config, games: &Detected) -> Config {
     fn add(children: &mut Vec<AppItem>, label: &str, target: String, source: &str, icon: &str) {
         add_item(children, AppItem { icon: Some(icon.into()), ..found(label, target, source) });
@@ -328,8 +328,8 @@ fn merge(base: &Config, games: &Detected) -> Config {
                         add(children, &p.name, p.uri.clone(), "SPOTIFY", "musique");
                     }
                 }
-                // Sans clé d'icône : le front montre la vraie (start_icons). Les masquées dans un
-                // groupe à la fin, d'où Funsaiki peut les réafficher.
+                // No icon key: the front shows the real one (start_icons). Hidden ones in a
+                // group at the end, from which Funsaiki can show them again.
                 Some("start") => {
                     let mut hidden = Vec::new();
                     for a in &games.start {
@@ -362,7 +362,7 @@ fn merge(base: &Config, games: &Detected) -> Config {
                 let wanted = normalize(app);
                 if let Some(found) = names.iter().position(|name| *name == wanted) {
                     it.target = Some(games.start[found].target.clone());
-                    // Sans clé d'icône : sa vraie icône, comme dans le groupe du menu Démarrer
+                    // No icon key: its real icon, as in the Start menu group
                     it.start = it.icon.is_none();
                 }
             }
@@ -393,7 +393,7 @@ fn merge(base: &Config, games: &Detected) -> Config {
         *it = AppItem {
             id: std::mem::take(&mut it.id),
             label: std::mem::take(&mut it.label),
-            start: only.start && icon.is_none(), // vraie icône seulement sans clé d'icône
+            start: only.start && icon.is_none(), // real icon only without an icon key
             icon,
             keywords: (!keywords.is_empty()).then(|| keywords.join(" ")),
             ..only
@@ -408,7 +408,7 @@ fn merge(base: &Config, games: &Detected) -> Config {
     config
 }
 
-/// Identifiant = chemin dans l'arbre : « a3 » (4ᵉ bouton), « a3.0 » (son 1er enfant).
+/// Id = path in the tree: "a3" (4th button), "a3.0" (its 1st child).
 fn assign_ids(items: &mut [AppItem], prefix: &str) {
     for (i, it) in items.iter_mut().enumerate() {
         it.id = format!("{prefix}{i}");
@@ -418,7 +418,7 @@ fn assign_ids(items: &mut [AppItem], prefix: &str) {
     }
 }
 
-/* ── Fichier ── */
+/* ── File ── */
 
 pub fn path(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
@@ -427,7 +427,7 @@ pub fn path(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| tr(format!("Dossier de config introuvable : {e}."), format!("Config folder not found: {e}.")))
 }
 
-/// Crée apps.json à partir de l'exemple, dans la langue de Pastille, s'il n'existe pas encore.
+/// Creates apps.json from the example, in Pastille's language, if it doesn't exist yet.
 fn ensure_file(app: &AppHandle) -> Result<PathBuf, String> {
     let path = path(app)?;
     if !path.exists() {
@@ -440,9 +440,9 @@ fn ensure_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-/// Développement seulement : le premier lancement d'un nouvel utilisateur (l'exemple, la
-/// bienvenue, Spotify à brancher), sans toucher à apps.json ni à spotify.json
-/// ($env:PASTILLE_EXEMPLE = 1 avant npm run tauri dev)
+/// Development only: a new user's first launch (the example, the
+/// welcome, Spotify to connect), without touching apps.json or spotify.json
+/// ($env:PASTILLE_EXEMPLE = 1 before npm run tauri dev)
 pub(crate) fn example_mode() -> bool {
     cfg!(debug_assertions) && std::env::var_os("PASTILLE_EXEMPLE").is_some()
 }
@@ -460,7 +460,7 @@ fn modified(app: &AppHandle) -> Option<SystemTime> {
     fs::metadata(path(app).ok()?).ok()?.modified().ok()
 }
 
-/// Cible et arguments de l'élément `id` (bouton ou favori), pour le lancer.
+/// Target and arguments of the `id` item (button or favorite), to launch it.
 pub fn target_of(app: &AppHandle, id: &str) -> Option<(String, Vec<String>)> {
     let state = app.state::<SharedConfig>();
     let s = state.lock().unwrap();
@@ -471,16 +471,16 @@ pub fn target_of(app: &AppHandle, id: &str) -> Option<(String, Vec<String>)> {
     Some((item.target.clone()?, item.args.clone()))
 }
 
-/// Application de la vue applications, pour son clic droit (app_menu.rs)
+/// App of the apps view, for its right click (app_menu.rs)
 pub struct MenuItem {
     pub target: String,
     pub args: Vec<String>,
-    /// Du groupe du menu Démarrer (`auto: "start"`) : elle peut être masquée
+    /// From the Start menu group (`auto: "start"`): it can be hidden
     pub hideable: bool,
     pub hidden: bool,
 }
 
-/// Pas pour un groupe ni un dossier
+/// Not for a group or a folder
 pub fn menu_item(app: &AppHandle, id: &str) -> Option<MenuItem> {
     let state = app.state::<SharedConfig>();
     let s = state.lock().unwrap();
@@ -488,14 +488,14 @@ pub fn menu_item(app: &AppHandle, id: &str) -> Option<MenuItem> {
     Some(MenuItem {
         target: item.target.clone()?,
         args: item.args.clone(),
-        // Une tuile `app` sans icône a aussi `start` (sa vraie icône) ; elle reste à sa place
+        // An `app` tile without an icon also has `start` (its real icon); it stays in its place
         hideable: item.start && item.app.is_none(),
         hidden: item.hidden,
     })
 }
 
-/// Masque ou réaffiche une application du menu Démarrer (demarrer.json) ; le front reçoit la
-/// config refaite. Sous le verrou : une recherche des jeux en cours la relira (scan_games).
+/// Hides or shows again a Start menu app (demarrer.json); the front receives the
+/// rebuilt config. Under the lock: a game scan in progress will read it again (scan_games).
 pub fn set_start_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
     let state = app.state::<SharedConfig>();
     let mut s = state.lock().unwrap();
@@ -517,9 +517,9 @@ fn find_item<'a>(items: &'a [AppItem], id: &str) -> Option<&'a AppItem> {
     })
 }
 
-/* ── Raccourci ── */
+/* ── Shortcut ── */
 
-/// Enregistre le raccourci de la config s'il a changé. S'il est déjà pris, on garde l'ancien.
+/// Registers the config's shortcut if it changed. If it is already taken, the old one is kept.
 fn apply_shortcut(app: &AppHandle, s: &mut ConfigState) {
     let wanted = s.config.shortcut.clone();
     if s.registered.as_deref() == Some(wanted.as_str()) {
@@ -556,11 +556,11 @@ pub fn tooltip(s: &ConfigState) -> String {
     }
 }
 
-/* ── Cycle de vie ── */
+/* ── Lifecycle ── */
 
-/// Au démarrage : lit apps.json (ou retombe sur l'exemple) et enregistre le raccourci. Les
-/// jeux Steam et Epic sont cherchés en arrière-plan : les bibliothèques peuvent être sur des disques
-/// en veille, le démarrage ne les attend pas.
+/// At startup: reads apps.json (or falls back on the example) and registers the shortcut. The
+/// Steam and Epic games are looked for in the background: the libraries can be on sleeping
+/// drives, startup doesn't wait for them.
 pub fn init(app: &AppHandle) {
     let mut problems = Vec::new();
     let first_run = example_mode() || path(app).is_ok_and(|path| !path.exists());
@@ -584,24 +584,24 @@ pub fn init(app: &AppHandle) {
     scan_games(app);
 }
 
-/// Raccourci de apps.json (« Alt+Space »), pour la page Paramètres
+/// Shortcut of apps.json ("Alt+Space"), for the Settings page
 pub fn shortcut(app: &AppHandle) -> String {
     app.state::<SharedConfig>().lock().unwrap().config.shortcut.clone()
 }
 
-/// Premier lancement (apps.json créé à ce démarrage) : le lanceur s'affiche de lui-même
+/// First launch (apps.json created at this startup): the launcher shows itself
 pub fn first_run(app: &AppHandle) -> bool {
     app.state::<SharedConfig>().lock().unwrap().first_run
 }
 
-/// « Recharger la config » (ou fichier modifié) : en cas d'erreur, la config précédente reste en place.
-/// À appeler depuis le fil principal : apply_shortcut y attend l'enregistrement du raccourci
-/// en gardant le verrou de la config (depuis un autre fil, get_config attendrait ce verrou).
+/// "Reload the config" (or file modified): on error, the previous config stays in place.
+/// To be called from the main thread: apply_shortcut waits there for the shortcut to register
+/// while holding the config lock (from another thread, get_config would wait for that lock).
 pub fn reload(app: &AppHandle) {
     let state = app.state::<SharedConfig>();
     let mut s = state.lock().unwrap();
     s.problems.clear();
-    // Relevée avant la lecture : une modification pendant la lecture sera vue la prochaine fois
+    // Taken before the read: a change during the read will be seen next time
     s.modified = modified(app);
     match load(app) {
         Ok(base) => {
@@ -612,7 +612,7 @@ pub fn reload(app: &AppHandle) {
     }
     apply_shortcut(app, &mut s);
     let tooltip = tooltip(&s);
-    // Groupe « start », tuile `app` ou `default` ajoutés à apps.json : lus tout de suite
+    // "start" group, `app` or `default` tile added to apps.json: read right away
     let missing = scan_needed(&s.base.apps, &s.games);
     drop(s);
     tray::set_tooltip(app, &tooltip);
@@ -622,7 +622,7 @@ pub fn reload(app: &AppHandle) {
     }
 }
 
-/// À chaque ouverture du lanceur : recharge si apps.json a changé depuis la dernière lecture.
+/// Each time the launcher opens: reloads if apps.json changed since the last read.
 pub fn reload_if_changed(app: &AppHandle) {
     let changed = app.state::<SharedConfig>().lock().unwrap().modified != modified(app);
     if changed {
@@ -630,8 +630,8 @@ pub fn reload_if_changed(app: &AppHandle) {
     }
 }
 
-/// À l'ouverture du lanceur : cherche les jeux Steam et Epic installés ou désinstallés depuis, en arrière-plan
-/// (les bibliothèques peuvent être sur des disques en veille). Le front n'est prévenu qu'en cas de changement.
+/// When the launcher opens: looks for Steam and Epic games installed or uninstalled since, in the background
+/// (the libraries can be on sleeping drives). The front is only notified if something changed.
 pub fn refresh_games_if_stale(app: &AppHandle) {
     {
         let state = app.state::<SharedConfig>();
@@ -644,8 +644,8 @@ pub fn refresh_games_if_stale(app: &AppHandle) {
     scan_games(app);
 }
 
-/// Juste après la connexion à Spotify (ses playlists peuvent maintenant être lues), ou un
-/// groupe `auto: "start"`, une tuile `app` ou `default` ajoutés à apps.json
+/// Right after connecting to Spotify (its playlists can now be read), or an
+/// `auto: "start"` group, an `app` or `default` tile added to apps.json
 pub fn rescan(app: &AppHandle) {
     {
         let state = app.state::<SharedConfig>();
@@ -658,8 +658,8 @@ pub fn rescan(app: &AppHandle) {
     scan_games(app);
 }
 
-/// Cherche les jeux Steam et Epic (et les playlists de Spotify, les applications du menu
-/// Démarrer) sur un autre fil ; le front n'est prévenu qu'en cas de changement
+/// Looks for Steam and Epic games (and Spotify playlists, Start menu
+/// apps) on another thread; the front is only notified if something changed
 fn scan_games(app: &AppHandle) {
     let app = app.clone();
     thread::spawn(move || {
@@ -687,15 +687,15 @@ fn scan_games(app: &AppHandle) {
 pub struct ConfigPayload {
     config: Config,
     problems: Vec<String>,
-    /// Premier lancement seulement (pour les amis de Funsaiki) : notifications de bienvenue
+    /// First launch only (other PCs): welcome notifications
     welcome: Option<Welcome>,
 }
 
 #[derive(Serialize)]
 struct Welcome {
-    /// Raccourci enregistré (« Alt+Space ») ; absent s'il était déjà pris
+    /// Registered shortcut ("Alt+Space"); absent if it was already taken
     shortcut: Option<String>,
-    /// « Démarrer avec Windows » déjà coché
+    /// "Start with Windows" already checked
     autostart: bool,
 }
 
@@ -708,8 +708,8 @@ pub fn get_config(app: AppHandle, state: tauri::State<'_, SharedConfig>) -> Conf
     ConfigPayload { config, problems: s.problems.clone(), welcome }
 }
 
-/// Lancements de chaque bouton (usage.json), pour classer la recherche et la rangée Récents ;
-/// `same` pour une cible déjà vue (`seen` : clé d'usage → id du premier bouton, pas masqué)
+/// Launches of each button (usage.json), to rank the search and the Recent row;
+/// `same` for a target already seen (`seen`: usage key → id of the first button, not hidden)
 fn annotate(app: &AppHandle, items: &mut [AppItem], seen: &mut HashMap<String, String>) {
     for it in items {
         if let Some(target) = &it.target {
@@ -745,16 +745,16 @@ mod tests {
         assert_eq!(jeux[0].auto.as_deref(), Some("steam"), "dossier Steam dans Jeux");
         assert_eq!(jeux[1].id, "a3.1");
         assert_eq!(config.favorites[2].id, "f2");
-        // Chez un ami sans rien d'installé (rien trouvé) : ce qui ne dépend pas du PC
+        // On a PC with nothing installed (nothing found): what doesn't depend on the PC
         let bare = merge(&config, &Detected::default());
         let labels: Vec<&str> = bare.apps.iter().map(|it| it.label.as_str()).collect();
         assert_eq!(labels, ["Fichiers", "Terminal"]);
-        // Steam seulement : Jeux ne montre que lui
+        // Steam only: Jeux shows only it
         let steam = merge(&config, &Detected { start: vec![start_app("Steam")], ..Default::default() });
         let jeux = steam.apps[1].children.as_ref().unwrap();
         assert_eq!((steam.apps[1].label.as_str(), jeux.len(), jeux[0].label.as_str()), ("Jeux", 1, "Steam"));
         assert_eq!(steam.apps.last().unwrap().label, "Toutes");
-        // Spotify sans connexion : Musique le lance directement ; connecté, ses playlists
+        // Spotify not connected: Musique launches it directly; connected, its playlists
         let music = |playlists| {
             let config = merge(&config, &Detected { start: vec![start_app("Spotify")], playlists, ..Default::default() });
             config.apps.into_iter().find(|it| it.label == "Musique").unwrap()
@@ -764,7 +764,7 @@ mod tests {
         assert_eq!(music(vec![lofi]).children.map(|c| c.len()), Some(2));
     }
 
-    /// L'exemple anglais : les mêmes tuiles, seuls les libellés (et sources) changent
+    /// The English example: the same tiles, only the labels (and sources) change
     #[test]
     fn english_example_matches() {
         fn without_labels(value: &mut serde_json::Value) {
@@ -824,8 +824,8 @@ mod tests {
         assert_eq!((music[1].label.as_str(), music[1].icon.as_deref(), music[1].target.as_deref()), ("Lofi", Some("musique"), Some("spotify:playlist:abc")));
     }
 
-    /// Spotify pas connecté (pas de playlists) : le groupe n'a que le lanceur, il devient ce
-    /// lanceur ; ses playlists le refont groupe, avec le même identifiant
+    /// Spotify not connected (no playlists): the group only has the launcher, it becomes that
+    /// launcher; its playlists make it a group again, with the same id
     #[test]
     fn lone_launcher_replaces_its_auto_group() {
         let base = parse(r#"{ "apps": [ { "label": "Code", "target": "code.exe" },
@@ -843,7 +843,7 @@ mod tests {
         let playlists = vec![spotify::Playlist { name: "Lofi".into(), uri: "spotify:playlist:abc".into() }];
         let full = merge(&base, &Detected { playlists, ..Default::default() });
         assert_eq!((full.apps[1].id.as_str(), full.apps[1].children.as_ref().map(Vec::len)), ("a1", Some(2)));
-        // Un seul jeu trouvé, sans lanceur à soi : il reste dans son groupe
+        // A single game found, without a launcher of its own: it stays in its group
         let steam = vec![steam::Game { appid: 1, name: "Celeste".into(), last_played: 0 }];
         let one = merge(&parse(r#"{ "apps": [ { "label": "Jeux", "auto": "steam", "children": [] } ] }"#).unwrap(), &Detected { steam, ..Default::default() });
         assert_eq!(one.apps[0].children.as_ref().map(Vec::len), Some(1));
@@ -879,7 +879,7 @@ mod tests {
         assert!(group.hidden && docker.hidden && docker.start && !all[0].hidden);
         assert_eq!((group.id.as_str(), docker.id.as_str()), ("a0.2", "a0.2.0"));
         assert!(serde_json::to_string(&all[0]).unwrap().find("hidden").is_none());
-        // Plus rien de masqué : pas de groupe
+        // Nothing hidden any more: no group
         let config = merge(&base, &Detected { start: vec![app("Paint")], hidden: Vec::new(), ..Default::default() });
         assert_eq!(config.apps[0].children.as_ref().unwrap().len(), 1);
     }
@@ -900,13 +900,13 @@ mod tests {
             { "label": "Vide", "children": [] } ] }"#).unwrap();
         assert!(needs_start_menu(&base.apps));
         assert_eq!(wanted_defaults(&base.apps), ["https"]);
-        // Rien de trouvé : seulement ce qui ne dépend pas du PC, groupes vides compris retirés
+        // Nothing found: only what doesn't depend on the PC, empty groups removed too
         let config = merge(&base, &Detected::default());
         let labels: Vec<&str> = config.apps.iter().map(|it| it.label.as_str()).collect();
         assert_eq!(labels, ["Fichiers"]);
         assert_eq!(config.apps[0].id, "a2", "les identifiants ne bougent pas");
         assert!(scan_needed(&base.apps, &Detected::default()));
-        // Trouvés : par nom, sans majuscules ; la vraie icône sans clé d'icône
+        // Found: by name, case-insensitive; the real icon without an icon key
         let games = Detected {
             start: vec![start_app("Discord"), start_app("Visual Studio Code")],
             defaults: vec![("https".into(), r"C:\Brave\brave.exe".into())],
@@ -934,7 +934,7 @@ mod tests {
         assert!(parse(r#"{ "apps": [ { "label": "A", "default": ".pdf" }, { "label": "B", "app": "B", "args": [] } ] }"#).is_ok());
     }
 
-    /// Diagnostic sur l'apps.json de Funsaiki : cargo test real_config -- --ignored --nocapture
+    /// Diagnostic on the real apps.json: cargo test real_config -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_config() {
@@ -950,8 +950,8 @@ mod tests {
         show(&config.apps, 0);
     }
 
-    /// Diagnostic : l'exemple (la config d'un nouvel utilisateur) sur ce PC, avec le programme
-    /// dont la fenêtre serait ramenée (lecture seule, rien n'est lancé) :
+    /// Diagnostic: the example (a new user's config) on this PC, with the program
+    /// whose window would be brought back (read-only, nothing is launched):
     /// cargo test real_example -- --ignored --nocapture
     #[test]
     #[ignore]

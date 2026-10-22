@@ -1,8 +1,8 @@
 /* ══════════════════════════════════════════════════════════
-   Barre pastel (demandée par Funsaiki le 16/10/2026) : à la place de la barre des tâches de
-   Windows, une pilule flottante centrée en bas de chaque écran, en masquage automatique.
-   Mêmes jetons que le téléphone (styles.css) : la pilule et la fenêtre de la zone de
-   notification sont des cartes, les menus ont le fond encre du mélangeur.
+   Pastel bar (requested by Funsaiki on 2026-10-16): in place of the Windows taskbar,
+   a floating pill centered at the bottom of each screen, auto-hiding.
+   Same tokens as the phone (styles.css): the pill and the notification area
+   window are cards, the menus have the mixer's ink background.
    ══════════════════════════════════════════════════════════ */
 @import '@fontsource/nunito/700.css';
 @import '@fontsource/nunito/800.css';
@@ -11,7 +11,7 @@
 :root {
   --ink: #0f3b42;
   --ink-deep: #0a2a2f;
-  --fill: #9fe0dc;   /* accent, remplacé par celui de apps.json ou de la carte Personnaliser */
+  --fill: #9fe0dc;   /* accent, replaced by the one from apps.json or the Customize card */
   --soft: rgb(from var(--ink) r g b / .72);
   --ease: cubic-bezier(.2, .8, .2, 1);
   --float: 0 3px 0 var(--ink), 0 14px 30px rgb(from var(--ink) r g b / .25);
@@ -23,12 +23,12 @@ body.preview { background: #f4f7f8; }
 button { font-family: inherit; }
 [hidden] { display: none !important; }
 
-/* Aperçu navigateur : la place du fond d'écran, comme pour le téléphone */
+/* Browser preview: the wallpaper's place, as for the phone */
 .wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgb(from var(--ink) r g b / .55); }
 .preview .wallpaper-hint { display: block; }
 .preview-help { position: absolute; left: 48px; top: 64px; margin: 0; font-size: 13px; font-weight: 800; color: rgb(from var(--ink) r g b / .55); }
 
-/* ── Survols, comme le téléphone ── */
+/* ── Hovers, like the phone ── */
 .tp-press { transition: transform .12s, box-shadow .12s, background .15s; }
 .tp-press:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink) !important; }
 .tp-press:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink) !important; }
@@ -37,9 +37,9 @@ button { font-family: inherit; }
 @keyframes tp-pop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
 .tp-pop { animation: tp-pop .45s var(--ease) both; }
 
-/* ── Pilule : carte blanche du téléphone, à la largeur de son contenu, 10 px au-dessus du bord
-   de l'écran. Elle sort du bas en dépassant de 4 px (comme l'entrée du téléphone, en plus
-   court) et y redescend quand la souris la quitte. ── */
+/* ── Pill: the phone's white card, as wide as its content, 10 px above the edge
+   of the screen. It comes up from the bottom, overshooting by 4 px (like the phone's entrance,
+   shorter) and goes back down when the mouse leaves it. ── */
 .bar {
   position: fixed; left: 0; right: 0; bottom: 10px; width: fit-content; margin: 0 auto;
   display: flex; align-items: center; gap: 8px; padding: 6px 8px 9px; border-radius: 30px;
@@ -48,28 +48,28 @@ button { font-family: inherit; }
 }
 .bar.hidden { translate: 0 100px; transition: translate .26s cubic-bezier(.55, 0, .8, .35); }
 
-/* Tuiles de 40 px : celles de l'onglet Apps du téléphone, un peu plus petites */
+/* 40 px tiles: those of the phone's Apps tab, a bit smaller */
 .bar-tile {
   position: relative; width: 40px; height: 40px; flex: none; padding: 0; box-sizing: border-box; border-radius: 13px;
   border: 2.5px solid var(--ink); background: var(--tile, #ffffff); color: var(--ink); box-shadow: 0 3px 0 var(--ink);
   display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; cursor: pointer;
 }
 .bar-tile canvas { width: 22px; height: 22px; }
-/* Fenêtre au premier plan, ou tuile dont le menu est ouvert : fond accent */
+/* Foreground window, or tile whose menu is open: accent background */
 .bar-tile.active, .bar-tile.menu-open { background: var(--fill); }
-/* Application épinglée fermée : à plat, sans ombre ; elle se soulève au survol comme les autres */
+/* Pinned app that is closed: flat, no shadow; it lifts on hover like the others */
 .bar-tile.closed { box-shadow: none; }
-/* Applications : fond encre comme le bouton Applications du téléphone, quatre carrés accent */
+/* Apps: ink background like the phone's Apps button, four accent squares */
 .bar-tile.bar-apps { background: var(--ink); color: var(--fill); box-shadow: 0 3px 0 var(--ink-deep); }
-/* Plusieurs fenêtres du même programme : leur nombre, comme les groupes de la vue applications */
+/* Several windows of the same program: their count, like the groups of the apps view */
 .bar-count {
   position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
   border-radius: 9px; border: 2px solid var(--ink); background: #ffffff; color: var(--ink);
   display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px;
 }
 
-/* Fenêtre qui demande l'attention (Discord à un nouveau message) : tuile rose avec une
-   pastille, qui sonne une fois en arrivant */
+/* Window asking for attention (Discord on a new message): pink tile with a
+   badge, which rings once when it arrives */
 .bar-tile.attention { background: #f6c6da; }
 .bar-alert {
   position: absolute; top: -5px; left: -5px; width: 13px; height: 13px; box-sizing: border-box;
@@ -81,8 +81,8 @@ button { font-family: inherit; }
 }
 .tp-ring { animation: tp-ring .75s var(--ease); }
 
-/* Spotify : la pochette du morceau (à défaut, une note sur l'accent) ; pastille de l'action du
-   clic, pause en lecture (fond accent) ou lecture en pause, comme le bouton du téléphone */
+/* Spotify: the track's cover (failing that, a note on the accent); badge of the click's
+   action, pause while playing (accent background) or play while paused, like the phone's button */
 .bar-music { background-color: var(--fill); background-size: cover; background-position: center; }
 .bar-music.has-cover > svg { display: none; }
 .bar-music-state {
@@ -97,8 +97,8 @@ button { font-family: inherit; }
 .bar-windows:empty, .bar-windows:empty + .bar-sep { display: none; }
 .bar-sep { width: 2.5px; height: 26px; flex: none; border-radius: 2px; background: rgb(from var(--ink) r g b / .16); }
 
-/* ^ et haut-parleur : ronds sans bord comme Paramètres et Alimentation, accent au survol et une
-   fois ouverts */
+/* ^ and speaker: borderless circles like Settings and Power, accent on hover and once
+   open */
 .bar-round {
   width: 40px; height: 40px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
   color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -108,7 +108,7 @@ button { font-family: inherit; }
 .bar-round:hover, .bar-round[aria-expanded="true"] { background: var(--fill); }
 .bar-round:active { translate: 0 2px; }
 #bar-tray[aria-expanded="true"] svg { rotate: 180deg; }
-/* Niveau pendant la molette sur le haut-parleur : même pastille que le nombre de fenêtres */
+/* Level while scrolling the wheel on the speaker: same badge as the window count */
 .bar-level {
   position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
   border-radius: 9px; border: 2px solid var(--ink); background: #ffffff; color: var(--ink);
@@ -118,7 +118,7 @@ button { font-family: inherit; }
 #bar-sound.leveling .bar-level { opacity: 1; scale: 1; }
 .bar-round:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
-/* Heure : ouvre le calendrier ; fond accent au survol et une fois ouvert, comme le ^ */
+/* Clock: opens the calendar; accent background on hover and once open, like the ^ */
 .bar-clock {
   height: 40px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 0 10px;
   border: none; border-radius: 20px; background: transparent; color: var(--ink); line-height: 1.15; cursor: pointer;
@@ -130,13 +130,13 @@ button { font-family: inherit; }
 .bar-time { font-weight: 900; font-size: 15px; }
 .bar-date { font-weight: 800; font-size: 11px; color: var(--soft); }
 
-/* ── Cartes au-dessus de la pilule (zone de notification, calendrier, lecteur, son) : carte blanche
-   du téléphone, pointe vers leur bouton. Ouverture en bulle (demande de Funsaiki, 17/10/2026) :
-   en plus du fondu et de la montée de 6 px, la bulle part d'un rond de 68 px de large au-dessus
-   du bouton (sa pointe) et s'ouvre en largeur vers les côtés, avec un léger rebond ; le contenu
-   apparaît une fois la bulle presque ouverte. Fermeture : la bulle se referme vers sa pointe.
-   La bulle (fond, bord, ombre) est dessinée par ::before, le contenu ne se déforme pas : la
-   carte elle-même n'a pas de bord (ses 2,5 px sont dans le rembourrage). ── */
+/* ── Cards above the pill (notification area, calendar, player, sound): the phone's white
+   card, arrow toward their button. Bubble opening (Funsaiki's request, 2026-10-17):
+   on top of the fade and the 6 px rise, the bubble starts from a 68 px wide circle above
+   the button (its arrow) and widens toward the sides, with a slight bounce; the content
+   appears once the bubble is almost open. Closing: the bubble closes back toward its arrow.
+   The bubble (background, border, shadow) is drawn by ::before, so the content is not
+   distorted: the card itself has no border (its 2.5 px are in the padding). ── */
 .bar-card {
   position: fixed; box-sizing: border-box;
   opacity: 0; visibility: hidden; translate: 0 6px; transition: opacity .1s ease .15s, translate .25s var(--ease), visibility 0s .25s;
@@ -160,8 +160,8 @@ button { font-family: inherit; }
   background: #ffffff; rotate: 45deg;
 }
 
-/* ── Zone de notification : carte au-dessus du ^, pointe vers lui ; mêmes tuiles que
-   l'onglet Apps du téléphone, six par rangée ── */
+/* ── Notification area: card above the ^, arrow toward it; same tiles as
+   the phone's Apps tab, six per row ── */
 .bar-pop { width: 340px; padding: 14.5px 16.5px 16.5px; }
 .bar-pop-head { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-weight: 900; font-size: 14px; }
 .bar-pop-count {
@@ -173,8 +173,8 @@ button { font-family: inherit; }
 .bar-grid .bar-tile canvas { width: 24px; height: 24px; }
 .bar-empty { margin: 0; font-weight: 800; font-size: 13px; color: var(--soft); }
 
-/* ── Son : la carte du volume du téléphone (en-tête, curseur) et sa tuile Micro (styles.css,
-   mêmes tailles), au-dessus du haut-parleur ── */
+/* ── Sound: the phone's volume card (header, slider) and its Mic tile (styles.css,
+   same sizes), above the speaker ── */
 .bar-vol { width: 300px; display: flex; flex-direction: column; gap: 14px; padding: 14.5px 16.5px 16.5px; }
 .slider { display: flex; flex-direction: column; gap: 12px; }
 .slider-head { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 14px; }
@@ -205,8 +205,8 @@ button { font-family: inherit; }
 .qtile-label { font-weight: 900; font-size: 15px; }
 .qtile-sub { font-weight: 700; font-size: 12px; color: rgb(from var(--ink) r g b / .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ── Calendrier : carte au-dessus de l'heure, comme la zone de notification ; six semaines du
-   lundi au dimanche, aujourd'hui en rond accent bordé d'encre ── */
+/* ── Calendar: card above the clock, like the notification area; six weeks from
+   Monday to Sunday, today in an accent circle with an ink border ── */
 .bar-cal { width: 300px; padding: 12.5px 16.5px 16.5px; }
 .bar-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .bar-cal-nav {
@@ -240,8 +240,8 @@ button { font-family: inherit; }
 }
 .bar-cal-notif:hover { background: var(--fill); }
 
-/* ── Lecteur : la carte de lecture du téléphone (styles.css, mêmes tailles), au-dessus de la
-   tuile de Spotify comme le calendrier au-dessus de l'heure ── */
+/* ── Player: the phone's now playing card (styles.css, same sizes), above the
+   Spotify tile like the calendar above the clock ── */
 .bar-player { width: 354px; display: flex; align-items: center; gap: 12px; padding: 11.5px 12.5px 11.5px 11.5px; }
 .media-art {
   width: 46px; height: 46px; flex: none; border-radius: 16px; border: 2.5px solid var(--ink);
@@ -258,7 +258,7 @@ button { font-family: inherit; }
 .media-title { font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .media-artist { font-weight: 700; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .media-controls { display: flex; align-items: center; gap: 3px; margin-top: 2px; height: 15px; }
-/* Volume de Spotify en marches d'égaliseur : clic ou glisser, 10 % par marche */
+/* Spotify volume as equalizer steps: click or drag, 10% per step */
 .media-volume { flex: none; display: flex; height: 14px; cursor: pointer; touch-action: none; border-radius: 3px; }
 .media-volume i { flex: none; width: 6px; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
 .media-volume i::before {
@@ -268,8 +268,8 @@ button { font-family: inherit; }
 .media-volume:hover i::before { box-shadow: 0 0 0 .5px rgb(from var(--ink) r g b / .25); }
 .media-volume:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .media-volume[aria-disabled="true"] { opacity: .4; cursor: default; pointer-events: none; }
-/* Aléatoire et répétition (Spotify connecté) ; « 1 » : répétition du titre ; étincelle et fond
-   rose : aléatoire intelligent */
+/* Shuffle and repeat (Spotify connected); "1": repeat the track; sparkle and pink
+   background: smart shuffle */
 .media-mode {
   width: 15px; height: 15px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
   color: rgb(from var(--ink) r g b / .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -292,9 +292,9 @@ button { font-family: inherit; }
 .media-play .icon-play, .media-play.paused .icon-pause { display: none; }
 .media-play.paused .icon-play { display: block; }
 
-/* ── Aperçu au survol d'une tuile : carte blanche au-dessus d'elle, pointe vers elle ; un cadre
-   par fenêtre, à sa proportion, où Windows dessine la vignette en direct (6 px à l'intérieur) ;
-   cadre accent au survol, et un × pour la fermer à côté de son titre ── */
+/* ── Hover preview of a tile: white card above it, arrow toward it; one frame
+   per window, at its aspect ratio, where Windows draws the live thumbnail (6 px inside);
+   accent frame on hover, and a × to close it next to its title ── */
 .bar-preview {
   position: fixed; z-index: 1; display: flex; gap: 10px; padding: 10px 10px 12px; border-radius: 20px;
   border: 2.5px solid var(--ink); background: #ffffff; box-shadow: var(--float);
@@ -318,8 +318,8 @@ button { font-family: inherit; }
 }
 .bar-shot-icon canvas { width: 16px; height: 16px; }
 .bar-shot-title { min-width: 0; flex: 1; width: 0; font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Fermer (demande de Funsaiki) : rond de 18 px au survol du cadre, rose sous la souris comme
-   Fermer dans les menus ; pas sur la vignette, que Windows dessine par-dessus la page */
+/* Close (Funsaiki's request): 18 px circle on hovering the frame, pink under the mouse like
+   Close in the menus; not on the thumbnail, which Windows draws over the page */
 .bar-shot-close {
   width: 18px; height: 18px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity .15s, background .15s;
@@ -327,7 +327,7 @@ button { font-family: inherit; }
 .bar-shot:hover .bar-shot-close { opacity: 1; }
 .bar-shot-close:hover { background: #f6c6da; }
 .bar-shot-close:active { translate: 0 1px; }
-/* Fermeture demandée : grisée le temps que la fenêtre se ferme (ou demande d'enregistrer) */
+/* Close requested: grayed out while the window closes (or asks to save) */
 .bar-shot.closing { opacity: .45; pointer-events: none; transition: opacity .15s; }
 .bar-thumb {
   height: 112px; box-sizing: border-box; border-radius: 12px; border: 2px solid var(--ink);
@@ -342,7 +342,7 @@ button { font-family: inherit; }
 .bar-thumb-icon canvas { width: 22px; height: 22px; }
 .bar-thumb-note { font-weight: 800; font-size: 11px; color: var(--soft); }
 
-/* ── Menus (clic droit, fenêtres d'un programme) : ceux de l'onglet Apps du téléphone ── */
+/* ── Menus (right-click, windows of a program): those of the phone's Apps tab ── */
 .bar-menu {
   position: fixed; z-index: 2; width: 240px; box-sizing: border-box; padding: 10px 8px 8px; border-radius: 20px;
   background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgb(from var(--ink) r g b / .25);
@@ -368,18 +368,18 @@ button { font-family: inherit; }
 .bar-item:hover { background: rgba(255, 255, 255, .14); }
 .bar-item:focus-visible { outline: 3px solid #ffffff; outline-offset: -2px; }
 .bar-item.current { background: rgba(255, 255, 255, .14); }
-/* Fenêtre qui demande l'attention : anneau rose autour de son icône */
+/* Window asking for attention: pink ring around its icon */
 .bar-item.alert .bar-dot { box-shadow: 0 0 0 3px #f6c6da; }
 .bar-dot {
   width: 28px; height: 28px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid #ffffff;
   background: var(--tile, #ffffff); color: var(--ink); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px;
 }
 .bar-dot canvas { width: 16px; height: 16px; }
-/* Forcer à quitter : le premier clic demande confirmation, l'élément passe au rose */
+/* Force quit: the first click asks for confirmation, the item turns pink */
 .bar-item.confirm, .bar-item.confirm:hover { background: #f6c6da; color: var(--ink); }
 .bar-item.confirm .bar-dot { border-color: var(--ink); }
-/* Fermer une fenêtre de la liste d'un programme (demande de Funsaiki, 20/10/2026) : le × de
-   l'aperçu, au survol de la ligne, rose sous la souris ; ligne grisée le temps qu'elle se ferme */
+/* Close a window from a program's list (Funsaiki's request, 2026-10-20): the × of the
+   hover preview, on hovering the line, pink under the mouse; line grayed out while it closes */
 .bar-item-close {
   width: 24px; height: 24px; flex: none; margin-right: -4px; border-radius: 50%; color: #ffffff;
   display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s, background .15s, color .15s;

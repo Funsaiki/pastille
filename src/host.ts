@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════
-   Pont avec le système. Dans Tauri, chaque méthode appelle Rust (invoke)
-   ou écoute ses événements ; dans l'aperçu navigateur, rien n'est exécuté :
-   données de l'exemple et lignes dans la console.
+   Bridge to the system. In Tauri, each method calls Rust (invoke)
+   or listens to its events; in the browser preview, nothing runs:
+   example data and lines in the console.
    ══════════════════════════════════════════════════════════ */
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -12,7 +12,7 @@ import { LANGUAGE, tr, type Language } from './i18n';
 
 export const PREVIEW = !('__TAURI_INTERNALS__' in window);
 
-/* Apparence gardée (carte Personnaliser) et image choisie pour la breloque (data:…) */
+/* Saved appearance (Customize card) and image chosen for the charm (data:…) */
 export interface AppearancePayload {
   appearance: Appearance;
   image: string | null;
@@ -20,32 +20,32 @@ export interface AppearancePayload {
 
 export interface ConfigPayload {
   config: Config;
-  problems: string[];   // à afficher dans le lanceur (config invalide, raccourci indisponible…)
-  welcome: Welcome | null;   // premier lancement seulement
+  problems: string[];   // to show in the launcher (invalid config, shortcut unavailable…)
+  welcome: Welcome | null;   // first run only
 }
 
-/* Premier lancement (pour les amis de Funsaiki) : notifications de bienvenue */
+/* First run (other PCs): welcome notifications */
 export interface Welcome {
-  shortcut: string | null;   // raccourci enregistré (« Alt+Space ») ; null s'il était déjà pris
-  autostart: boolean;        // « Démarrer avec Windows » déjà coché
+  shortcut: string | null;   // registered shortcut ("Alt+Space"); null if it was already taken
+  autostart: boolean;        // "Start with Windows" already checked
 }
 
 export interface Profile {
-  name: string;     // prénom du compte Windows
-  system: string;   // « Windows 11 »
+  name: string;     // first name of the Windows account
+  system: string;   // "Windows 11"
 }
 
 export interface Stats {
-  down: number;     // octets par seconde, cartes physiques
+  down: number;     // bytes per second, physical adapters
   up: number;
-  cpu: number | null;   // %, comme le Gestionnaire des tâches
+  cpu: number | null;   // %, like Task Manager
   ram: number | null;
 }
 
 export interface AudioState {
-  volume: number | null;      // 0 à 100 ; null sans sortie audio
+  volume: number | null;      // 0 to 100; null without an audio output
   muted: boolean;
-  mic_muted: boolean | null;  // null sans micro
+  mic_muted: boolean | null;  // null without a mic
 }
 
 export interface NowPlaying {
@@ -59,91 +59,91 @@ export type MediaAction = 'toggle' | 'next' | 'previous';
 export interface AppIcon {
   width: number;
   height: number;
-  rgba: string;     // pixels RGBA en base64, ligne par ligne depuis le haut
+  rgba: string;     // RGBA pixels in base64, row by row from the top
 }
 
 export interface AppVolume {
-  key: string;      // programme, ou « system » pour les sons système
+  key: string;      // program, or "system" for system sounds
   name: string;
-  volume: number;   // 0 à 100, relatif au volume principal
+  volume: number;   // 0 to 100, relative to the master volume
   icon: AppIcon | null;
 }
 
-/* Volume de Spotify : celui de Spotify lui-même quand il est connecté (API web, spotify.rs),
-   sinon celui du mélangeur de Windows */
+/* Spotify volume: Spotify's own when it is connected (web API, spotify.rs),
+   otherwise the one in the Windows mixer */
 export interface SpotifyVolume {
   source: 'app' | 'windows';
-  key: string;      // programme, pour setAppVolume (source « windows », le même que dans le mélangeur)
-  volume: number;   // 0 à 100
+  key: string;      // program, for setAppVolume (source "windows", the same as in the mixer)
+  volume: number;   // 0 to 100
 }
 
 export type RepeatMode = 'off' | 'context' | 'track';
-export type ShuffleMode = 'off' | 'on' | 'smart';   // smart : aléatoire intelligent de Spotify
+export type ShuffleMode = 'off' | 'on' | 'smart';   // smart: Spotify's Smart Shuffle
 
 export interface SpotifyState {
-  volume: SpotifyVolume | null;   // null : pas d'appareil actif (connecté) ou pas de session audio
-  shuffle: ShuffleMode | null;    // aléatoire et répétition : Spotify connecté seulement
+  volume: SpotifyVolume | null;   // null: no active device (connected) or no audio session
+  shuffle: ShuffleMode | null;    // shuffle and repeat: Spotify connected only
   repeat: RepeatMode | null;
-  problem: string | null;         // dernier échec de connexion, pour les notifications
-  reconnect: boolean;             // connexion d'avant les playlists : à refaire
-  connect: boolean;               // pas connecté : notification « Connecter » si Spotify est ouvert
+  problem: string | null;         // last connection failure, for the notifications
+  reconnect: boolean;             // connection from before the playlists: to redo
+  connect: boolean;               // not connected: "Connect" notification if Spotify is open
 }
 
-/* Fenêtre ouverte, pour la recherche (open_windows.rs) */
+/* Open window, for the search (open_windows.rs) */
 export interface OpenWindow {
-  id: string;      // renvoyé pour la ramener ; Rust vérifie qu'elle est encore là
+  id: string;      // sent back to bring it forward; Rust checks it is still there
   title: string;
-  app: string;     // programme (« Discord »)
+  app: string;     // program ("Discord")
   icon: AppIcon | null;
 }
 
-/* Fenêtre ouverte de la barre pastel (bar.rs) */
+/* Open window in the pastel bar (bar.rs) */
 export interface BarWindow {
   id: string;
   title: string;
-  app: string;        // nom du programme (« Brave »)
-  key: string;        // programme : ses fenêtres partagent une tuile
-  exe: string;        // nom du programme en minuscules (« brave.exe ») : application épinglée ; vide pour une app hébergée
-  icon: AppIcon | null;   // null aussi quand le front l'a déjà (barWindows, known)
-  active: boolean;    // au premier plan
-  attention: boolean; // demande l'attention (clignote dans la barre de Windows)
-  glyph?: string;     // aperçu navigateur seulement : icône à trait (ICONS) à la place de la vraie
+  app: string;        // program name ("Brave")
+  key: string;        // program: its windows share a tile
+  exe: string;        // program name in lowercase ("brave.exe"): pinned app; empty for a hosted app
+  icon: AppIcon | null;   // also null when the front already has it (barWindows, known)
+  active: boolean;    // in the foreground
+  attention: boolean; // wants attention (flashes in the Windows taskbar)
+  glyph?: string;     // browser preview only: line icon (ICONS) instead of the real one
 }
 
-/* Application épinglée à la barre pastel (bar_pins.rs) : sa tuile reste, même fermée */
+/* App pinned to the pastel bar (bar_pins.rs): its tile stays, even when closed */
 export interface PinnedApp {
-  exe: string;        // nom du programme en minuscules : ses fenêtres
+  exe: string;        // program name in lowercase: its windows
   name: string;
-  icon: AppIcon | null;   // null aussi quand le front l'a déjà (barPins, known)
-  glyph?: string;     // aperçu navigateur seulement
+  icon: AppIcon | null;   // also null when the front already has it (barPins, known)
+  glyph?: string;     // browser preview only
 }
 
-/* Application de la zone de notification (tray_apps.rs) */
+/* Notification area app (tray_apps.rs) */
 export interface TrayApp {
-  key: string;        // chemin du programme ou « #n » (icône), renvoyé pour agir (Rust vérifie qu'il est dans la liste)
+  key: string;        // program path or "#n" (icon), sent back to act (Rust checks it is in the list)
   name: string;
   icon: AppIcon | null;
-  packaged: boolean;  // Microsoft Store : pas d'emplacement de fichier
-  clicks: boolean;    // ses clics vont à l'application, comme sur son icône (barre pastel cochée, tray_host.rs)
-  tip: string | null; // infobulle actuelle de son icône
+  packaged: boolean;  // Microsoft Store: no file location
+  clicks: boolean;    // its clicks go to the app, as on its icon (pastel bar on, tray_host.rs)
+  tip: string | null; // current tooltip of its icon
 }
 
 export type TrayAction = 'open' | 'location' | 'quit';
-/* Clic sur une icône : double, le second clic d'un double clic ; key, Entrée */
+/* Click on an icon: double, the second click of a double click; key, Enter */
 export type TrayClick = 'left' | 'double' | 'right' | 'middle' | 'key';
 
-/* Clic droit sur une application de la vue applications (app_menu.rs) : ce qu'elle permet en
-   plus d'Ouvrir */
+/* Right-click on an app in the apps view (app_menu.rs): what it allows besides
+   Open */
 export interface AppMenuOptions {
   admin: boolean;
   location: boolean;
-  pinned: boolean | null;   // null : barre pastel coupée, ou rien à épingler
-  hidden: boolean | null;   // null : pas une application du menu Démarrer
+  pinned: boolean | null;   // null: pastel bar off, or nothing to pin
+  hidden: boolean | null;   // null: not a Start menu app
 }
 
 export type AppAction = 'admin' | 'location' | 'pin' | 'unpin' | 'hide' | 'show';
 
-/* Notifications lues par Rust (feed.rs) ; `age` en secondes */
+/* Notifications read by Rust (feed.rs); `age` in seconds */
 export type FeedEvent =
   | { kind: 'update'; version: string }
   | { kind: 'download'; name: string; age: number }
@@ -154,24 +154,24 @@ export type FeedEvent =
 export type Tool = 'settings' | 'taskmgr' | 'wifi' | 'bluetooth' | 'steam-downloads' | 'windows-update' | 'storage' | 'notifications';
 export type PowerAction = 'sleep' | 'shutdown' | 'restart' | 'signout';
 
-/* Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026) : ce que réglait le menu de
-   l'icône, et la langue */
+/* Settings page (requested by Funsaiki on 2026-10-21): what the tray icon menu used to set,
+   and the language */
 export type { Language };
-// outdated : d'avant les playlists ; pending : connexion en cours dans le navigateur
+// outdated: from before the playlists; pending: connection in progress in the browser
 export type SpotifyLink = 'connected' | 'disconnected' | 'outdated' | 'pending';
 export interface Prefs {
   language: Language;
-  autostart: boolean | null;   // null : version de développement (seule la version installée s'inscrit)
+  autostart: boolean | null;   // null: development build (only the installed build registers itself)
   bar: boolean;
-  shortcut: string;            // celui de apps.json (« Alt+Space »)
+  shortcut: string;            // the one in apps.json ("Alt+Space")
   spotify: SpotifyLink;
   version: string;
-  update: string | null;       // version proposée
+  update: string | null;       // version offered
 }
 export type PrefSwitch = 'autostart' | 'bar';
 export type PrefAction = 'spotify' | 'edit-config' | 'reload' | 'quit';
 
-/* Aperçu navigateur : apparence gardée dans la page (localStorage, partagé avec barre.html) */
+/* Browser preview: appearance kept in the page (localStorage, shared with barre.html) */
 const PREVIEW_LOOK = 'apparence-apercu';
 const PREVIEW_IMAGE = 'apparence-apercu-image';
 
@@ -191,23 +191,23 @@ function previewWrite(key: string, value: string) {
   }
 }
 
-/* Aperçu navigateur : l'exemple, avec quelques lancements pour la recherche et les récents */
+/* Browser preview: the example, with a few launches for the search and Recent */
 function previewConfig(): Config {
   const config: Config = structuredClone(EXAMPLE);
   const now = Math.floor(Date.now() / 1000);
   config.apps.slice(0, 3).forEach((app, i) => Object.assign(app, { uses: 3 - i, last: now - i * 600 }));
-  // Groupe des applications du menu Démarrer (« Toutes ») ; ?demarrer : la Calculatrice lancée
-  // en dernier. Les tuiles `app` et `default` de l'exemple sont toutes là, comme si tout était installé.
+  // Group of the Start menu apps ("All apps"); ?demarrer: Calculator launched
+  // last. The example's `app` and `default` tiles are all there, as if everything were installed.
   const all: AppItem[] = PREVIEW_START.map((label, i) => ({ id: `d${i}`, label, target: `shell:AppsFolder\\${label}`, start: true }));
   if (new URLSearchParams(location.search).has('demarrer')) all[3].last = now;
-  // Masquées (clic droit) : dans un groupe à la fin, comme config.rs
+  // Hidden (right-click): in a group at the end, like config.rs
   const children = all.filter((it) => !previewHidden.has(it.label));
   const hidden = all.filter((it) => previewHidden.has(it.label)).map((it) => ({ ...it, hidden: true }));
   if (hidden.length) children.push({ label: tr('Masquées', 'Hidden'), icon: 'masquees', hidden: true, children: hidden });
   const start = config.apps.find((it) => it.auto === 'start');
   if (start) start.children = children;
-  // Ids, groupes `auto` réduits à leur lanceur (rien n'y est ajouté ici : ni jeux, ni playlists)
-  // et `same` comme config.rs : une tuile `app` et son application dans « Toutes »
+  // Ids, `auto` groups reduced to their launcher (nothing is added to them here: no games, no
+  // playlists) and `same` like config.rs: an `app` tile and its app in "All apps"
   const assign = (items: AppItem[], prefix: string) => items.forEach((it, i) => {
     it.id ??= `${prefix}${i}`;
     if (it.children) assign(it.children, `${it.id}.`);
@@ -222,8 +222,8 @@ function previewConfig(): Config {
   return config;
 }
 
-/* Aperçu navigateur : applications épinglées depuis le clic droit, applications du menu
-   Démarrer masquées ; la config est refaite quand elles changent */
+/* Browser preview: apps pinned from the right-click menu, hidden Start menu apps; the
+   config is rebuilt when they change */
 const previewPinned = new Set<string>([tr('Navigateur', 'Browser')]);
 const previewHidden = new Set<string>();
 const previewConfigListeners: (() => void)[] = [];
@@ -233,7 +233,7 @@ const PREVIEW_START = ['2XKO', 'Battle.net', tr('Bloc-notes', 'Notepad'), CALCUL
   'Epic Games Launcher', 'Excel', tr('Explorateur de fichiers', 'File Explorer'), 'Firefox', 'GitHub Desktop', 'Google Chrome', 'HoYoPlay',
   'Krita (x64)', 'League of Legends', 'Microsoft Store', 'OBS Studio (64bit)', 'Paint', 'Steam', 'Terminal', 'VLC media player'];
 
-/* Aperçu navigateur : une pastille de couleur à la place de la vraie icône */
+/* Browser preview: a colored dot instead of the real icon */
 function previewIcon(seed: number): AppIcon {
   const [r, g, b] = [[95, 170, 230], [240, 120, 90], [120, 200, 120], [170, 120, 220]][seed % 4];
   let bytes = '';
@@ -243,16 +243,16 @@ function previewIcon(seed: number): AppIcon {
   return { width: 48, height: 48, rgba: btoa(bytes) };
 }
 
-/* Aperçu navigateur : le morceau de la maquette */
+/* Browser preview: the mockup's song */
 const previewMedia: NowPlaying = { title: tr('[Titre du morceau]', '[Song title]'), artist: tr('[Artiste]', '[Artist]'), playing: true };
 
-/* Aperçu navigateur : aléatoire et répétition de Spotify */
+/* Browser preview: Spotify shuffle and repeat */
 const previewSound: AudioState = { volume: 62, muted: false, mic_muted: true };
 let previewShuffle: ShuffleMode = 'smart';
 let previewRepeat: RepeatMode = 'off';
 
-/* Aperçu navigateur : applications de la zone de notification, sans leurs icônes ; leurs clics
-   vont à l'application (barre pastel cochée) */
+/* Browser preview: notification area apps, without their icons; their clicks go to the
+   app (pastel bar on) */
 let previewTray: TrayApp[] = ['Discord', 'EarTrumpet', 'G HUB', 'Lightshot', 'Riot Client', 'Spotify', 'Steam', 'Wallpaper Engine']
   .map((name) => ({
     key: name,
@@ -263,7 +263,7 @@ let previewTray: TrayApp[] = ['Discord', 'EarTrumpet', 'G HUB', 'Lightshot', 'Ri
     tip: name === 'EarTrumpet' ? tr('EarTrumpet\nHaut-parleurs : 42 %', 'EarTrumpet\nSpeakers: 42%') : name,
   }));
 
-/* Aperçu navigateur : fenêtres des deux écrans de Funsaiki, sans leurs icônes */
+/* Browser preview: windows on Funsaiki's two screens, without their icons */
 let previewBar: BarWindow[] = [
   { id: 'w1', title: 'lanceur-pastel — Visual Studio Code', app: 'Visual Studio Code', key: 'code', exe: 'code.exe', glyph: 'code', active: true },
   { id: 'w2', title: 'Spotify Web API — Brave', app: 'Brave', key: 'brave', exe: 'brave.exe', glyph: 'navigateur', active: false },
@@ -275,14 +275,14 @@ let previewBar: BarWindow[] = [
   { id: 'w8', title: 'Steam', app: 'Steam', key: 'steam', exe: 'steam.exe', glyph: 'steam', active: false },
 ].map((w) => ({ ...w, icon: null, attention: w.key === 'discord' }));
 
-/* Aperçu navigateur : Brave épinglé et ouvert, le lanceur d'Epic épinglé et fermé */
+/* Browser preview: Brave pinned and open, the Epic launcher pinned and closed */
 let previewPins: Omit<PinnedApp, 'icon'>[] = [
   { exe: 'brave.exe', name: 'Brave', glyph: 'navigateur' },
   { exe: 'epicgameslauncher.exe', name: 'Epic Games Launcher', glyph: 'epic' },
 ];
 
-/* Aperçu navigateur : réglages de la page Paramètres ; ?maj : une mise à jour trouvée par
-   « Vérifier » ; ?dev : version de développement (Démarrer avec Windows grisé) */
+/* Browser preview: Settings page values; ?maj: an update found by "Check"; ?dev:
+   development build (Start with Windows grayed out) */
 const previewPrefs: Prefs = {
   language: LANGUAGE,
   autostart: new URLSearchParams(location.search).has('dev') ? null : false,
@@ -297,24 +297,24 @@ const previewLanguageListeners: ((language: Language) => void)[] = [];
 
 export const host = {
   async getConfig(): Promise<ConfigPayload> {
-    // ?bienvenue : premier lancement
+    // ?bienvenue: first run
     const welcome = new URLSearchParams(location.search).has('bienvenue') ? { shortcut: 'Alt+Space', autostart: false } : null;
     if (PREVIEW) return { config: previewConfig(), problems: [], welcome };
     return invoke<ConfigPayload>('get_config');
   },
-  /* Carte Personnaliser : apparence gardée (apparence.json, à côté de apps.json) ; `image` : avec
-     celle de la breloque (la barre pastel ne la demande pas) */
+  /* Customize card: saved appearance (apparence.json, next to apps.json); `image`: with the
+     charm's image (the pastel bar does not ask for it) */
   async appearance(image = true): Promise<AppearancePayload> {
     if (!PREVIEW) return invoke<AppearancePayload>('get_appearance', { image });
     return { appearance: JSON.parse(previewRead(PREVIEW_LOOK) ?? '{}'), image: image ? previewRead(PREVIEW_IMAGE) : null };
   },
-  /* Rust envoie la nouvelle apparence aux pages de la barre pastel */
+  /* Rust sends the new appearance to the pastel bar pages */
   async setAppearance(appearance: Appearance) {
     if (PREVIEW) previewWrite(PREVIEW_LOOK, JSON.stringify(appearance));
     else await invoke('set_appearance', { appearance });
   },
-  /* Image de la breloque choisie sur le PC (data:…), null si rien n'est choisi. App : la boîte
-     « Ouvrir » de Windows, l'image copiée à côté de apps.json ; rejette avec un message en français. */
+  /* Charm image chosen on the PC (data:…), null if nothing is chosen. App: the Windows "Open"
+     dialog, the image copied next to apps.json; rejects with a message in the interface language. */
   async pickCharmImage(): Promise<string | null> {
     if (!PREVIEW) return invoke<string | null>('pick_charm_image');
     const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/png,image/svg+xml,image/jpeg,image/webp,image/gif' });
@@ -332,18 +332,18 @@ export const host = {
     previewWrite(PREVIEW_IMAGE, url);
     return url;
   },
-  /* Premier lancement : Rust montre le téléphone une fois la page prête (une fois par démarrage) */
+  /* First run: Rust shows the phone once the page is ready (once per startup) */
   async firstShow() {
     if (!PREVIEW) await invoke('first_show');
   },
-  /* « Démarrer avec Windows » depuis la bienvenue ; rejette en développement */
+  /* "Start with Windows" from the welcome notification; rejects in development */
   async enableAutostart() {
     if (PREVIEW) console.info('[aperçu] démarrer avec Windows');
     else await invoke('enable_autostart');
   },
-  /* Rust retrouve la cible à partir de l'id : le front n'envoie jamais de chemin.
-     Rejette avec un message en français si le lancement échoue. */
-  /* `fresh` (Ctrl+clic) : nouvelle fenêtre même si l'application est déjà ouverte */
+  /* Rust finds the target from the id: the front never sends a path.
+     Rejects with a message in the interface language if the launch fails. */
+  /* `fresh` (Ctrl+click): new window even if the app is already open */
   async launch(item: AppItem | Favorite, fresh = false) {
     if (PREVIEW) {
       const app = item as AppItem;
@@ -355,7 +355,7 @@ export const host = {
     if (PREVIEW) console.info('[aperçu] ouvrir :', tool);
     else await invoke('open_tool', { tool });
   },
-  /* En développement, Rust écrit seulement une ligne de journal (règle 1) */
+  /* In development, Rust only writes a log line (rule 1) */
   async power(action: PowerAction) {
     if (PREVIEW) console.info('[aperçu] alimentation :', action);
     else await invoke('power', { action });
@@ -364,13 +364,13 @@ export const host = {
     if (PREVIEW) return { name: 'Funsaiki', system: 'Windows 11' };
     return invoke<Profile>('profile');
   },
-  /* Débit et processeur depuis l'appel précédent ; le premier d'une ouverture mesure sur 250 ms */
+  /* Network speed and CPU since the previous call; the first one after opening measures over 250 ms */
   async stats(): Promise<Stats> {
     const jitter = () => 0.8 + Math.random() * 0.4;
     if (PREVIEW) return { down: 1.2 * 1024 ** 2 * jitter(), up: 84 * 1024 * jitter(), cpu: Math.round(14 * jitter()), ram: 41 };
     return invoke<Stats>('stats');
   },
-  /* Sortie et micro par défaut des réglages Son de Windows */
+  /* Default output and mic from the Windows Sound settings */
   async audio(): Promise<AudioState> {
     if (PREVIEW) return { ...previewSound };
     return invoke<AudioState>('audio');
@@ -392,7 +392,7 @@ export const host = {
       await invoke('set_mic_muted', { muted });
     }
   },
-  /* Applications qui utilisent la sortie par défaut, celles qui jouent du son d'abord */
+  /* Apps using the default output, those playing sound first */
   async mixer(): Promise<AppVolume[]> {
     if (PREVIEW) {
       return [
@@ -410,7 +410,7 @@ export const host = {
   },
   async spotifyState(): Promise<SpotifyState> {
     if (PREVIEW) {
-      // ?reconnecter : connexion d'avant les playlists ; ?connecter : pas connecté (volume de Windows)
+      // ?reconnecter: connection from before the playlists; ?connecter: not connected (Windows volume)
       const params = new URLSearchParams(location.search);
       if (params.has('connecter')) {
         return { volume: { source: 'windows', key: 'spotify.exe', volume: 80 }, shuffle: null, repeat: null, problem: null, reconnect: false, connect: true };
@@ -420,8 +420,8 @@ export const host = {
     }
     return invoke<SpotifyState>('spotify_state');
   },
-  /* Notifications « Connecter » et « Reconnecter » : comme l'entrée du menu, dans le navigateur
-     (sans identifiant, la page de configuration) */
+  /* "Connect" and "Reconnect" notifications: like the menu entry, in the browser
+     (without a Client ID, the setup page) */
   async spotifyReconnect() {
     if (PREVIEW) console.info('[aperçu] reconnecter Spotify');
     else await invoke('spotify_reconnect');
@@ -434,15 +434,15 @@ export const host = {
     if (PREVIEW) previewRepeat = mode;
     else await invoke('set_spotify_repeat', { mode });
   },
-  /* Volume de Spotify lui-même (connecté seulement) */
+  /* Spotify's own volume (connected only) */
   async setSpotifyVolume(level: number) {
     if (PREVIEW) console.info('[aperçu] volume de Spotify :', level);
     else await invoke('set_spotify_volume', { level });
   },
-  /* Mise à jour de Pastille, alertes, activité de Steam, téléchargements des dernières 24 h */
+  /* Pastille update, alerts, Steam activity, downloads from the last 24 h */
   async feed(): Promise<FeedEvent[]> {
     if (PREVIEW) {
-      // ?maj : une mise à jour proposée
+      // ?maj: an update offered
       const update: FeedEvent[] = new URLSearchParams(location.search).has('maj') ? [{ kind: 'update', version: '1.12.0' }] : [];
       return [
         ...update,
@@ -453,12 +453,12 @@ export const host = {
     }
     return invoke<FeedEvent[]>('feed');
   },
-  /* Programmes qui tournent et ont une icône dans la zone de notification, par nom */
+  /* Running programs with an icon in the notification area, by name */
   async trayApps(): Promise<TrayApp[]> {
     if (PREVIEW) return [...previewTray];
     return invoke<TrayApp[]>('tray_apps');
   },
-  /* Clic sur une icône qui a ses clics : envoyé à son application */
+  /* Click on an icon that has its clicks: sent to its app */
   async trayClick(key: string, kind: TrayClick) {
     if (PREVIEW) {
       console.info('[aperçu] zone de notification : clic', kind, key);
@@ -466,7 +466,7 @@ export const host = {
       await invoke('tray_click', { key, kind });
     }
   },
-  /* « quit » : arrêt forcé, à confirmer avant */
+  /* "quit": force quit, to confirm first */
   async trayAppAction(key: string, action: TrayAction) {
     if (PREVIEW) {
       console.info('[aperçu] zone de notification :', action, key);
@@ -475,11 +475,11 @@ export const host = {
       await invoke('tray_app_action', { key, action });
     }
   },
-  /* Clic droit sur une application : Rust retrouve sa cible d'après l'id. Aperçu : d'après la
-     cible de l'exemple (la Calculatrice du menu Démarrer : une app du Store) */
+  /* Right-click on an app: Rust finds its target from the id. Preview: from the example's
+     target (Calculator from the Start menu: a Store app) */
   async appMenu(item: AppItem): Promise<AppMenuOptions> {
     if (PREVIEW) {
-      // Tuiles `app` et `default` : comme une application du menu Démarrer
+      // `app` and `default` tiles: like a Start menu app
       const target = item.target ?? '';
       const store = item.label === CALCULATOR;
       const found = item.start || !!item.app || !!item.default;
@@ -509,8 +509,8 @@ export const host = {
       previewConfigListeners.forEach((fn) => fn());
     }
   },
-  /* Télécharge la mise à jour proposée, vérifie sa signature et lance l'installateur : en
-     production, Pastille quitte (l'installateur la relance) */
+  /* Downloads the offered update, checks its signature and runs the installer: in
+     production, Pastille quits (the installer restarts it) */
   async installUpdate() {
     if (PREVIEW) {
       console.info('[aperçu] installer la mise à jour');
@@ -521,12 +521,12 @@ export const host = {
     if (PREVIEW) return { ...previewPrefs };
     return invoke<Prefs>('prefs');
   },
-  /* Langue de Rust ; aperçu : celle de la page */
+  /* Rust's language; preview: the page's */
   async language(): Promise<Language> {
     if (PREVIEW) return previewPrefs.language;
     return invoke<Language>('get_language');
   },
-  /* Rust prévient toutes les pages (onLanguageChanged), qui se rechargent */
+  /* Rust notifies every page (onLanguageChanged), which reload */
   async setLanguage(language: Language) {
     if (!PREVIEW) {
       await invoke('set_language', { language });
@@ -539,15 +539,15 @@ export const host = {
     if (PREVIEW) previewLanguageListeners.push(fn);
     else listen<Language>('language:changed', (e) => fn(e.payload));
   },
-  /* « Démarrer avec Windows » écrit dans le registre (HKCU\…\Run) : seul Funsaiki le coche */
+  /* "Start with Windows" writes to the registry (HKCU\…\Run): only Funsaiki checks it */
   async setPrefSwitch(key: PrefSwitch, on: boolean) {
     if (PREVIEW) {
       console.info('[aperçu] paramètres :', key, on);
       previewPrefs[key] = on;
     } else await invoke('set_pref_switch', { key, on });
   },
-  /* Spotify : connecter (navigateur), reconnecter, rouvrir la page de la connexion en cours ou
-     déconnecter selon l'état ; quit : Pastille quitte pendant l'appel */
+  /* Spotify: connect (browser), reconnect, reopen the page of the connection in progress or
+     disconnect depending on the state; quit: Pastille quits during the call */
   async prefAction(action: PrefAction) {
     if (!PREVIEW) {
       await invoke('pref_action', { action });
@@ -556,19 +556,19 @@ export const host = {
     console.info('[aperçu] paramètres :', action);
     if (action === 'spotify') previewPrefs.spotify = previewPrefs.spotify === 'connected' ? 'disconnected' : 'connected';
   },
-  /* « Vérifier » : la version trouvée (gardée, proposée aussi dans Notifs) */
+  /* "Check": the version found (kept, also offered in Notifs) */
   async checkUpdate(): Promise<string | null> {
     if (!PREVIEW) return invoke<string | null>('check_update');
     await new Promise((resolve) => setTimeout(resolve, 1200));
     previewPrefs.update = new URLSearchParams(location.search).has('maj') ? '1.12.0' : null;
     return previewPrefs.update;
   },
-  /* Le nom du fichier seulement : Rust le cherche dans Téléchargements */
+  /* The file name only: Rust looks for it in Downloads */
   async openDownload(name: string) {
     if (PREVIEW) console.info('[aperçu] ouvrir le téléchargement :', name);
     else await invoke('open_download', { name });
   },
-  /* Icônes des applications du menu Démarrer `ids`, dans le même ordre (null : pas d'icône) */
+  /* Icons of the Start menu apps `ids`, in the same order (null: no icon) */
   async startIcons(ids: string[]): Promise<(AppIcon | null)[]> {
     if (PREVIEW) {
       await new Promise((r) => setTimeout(r, 150));
@@ -576,7 +576,7 @@ export const host = {
     }
     return invoke<(AppIcon | null)[]>('start_icons', { ids });
   },
-  /* Fenêtres de la barre des tâches, la plus récemment active d'abord */
+  /* Taskbar windows, the most recently active first */
   async openWindows(): Promise<OpenWindow[]> {
     if (PREVIEW) {
       return [
@@ -595,25 +595,25 @@ export const host = {
       await invoke('focus_window', { id });
     }
   },
-  /* ── Barre pastel (bar.rs) : une fenêtre par écran, « bar-0 » pour le principal ── */
-  /* Écran de la fenêtre ; aperçu : ?ecran=2 pour le second */
+  /* ── Pastel bar (bar.rs): one window per screen, "bar-0" for the main one ── */
+  /* The window's screen; preview: ?ecran=2 for the second one */
   barScreen(): number {
     if (PREVIEW) return Math.max(0, Number(new URLSearchParams(location.search).get('ecran') ?? 1) - 1);
     return Number(getCurrentWindow().label.replace('bar-', '')) || 0;
   },
-  /* Là où la fenêtre prend la souris (x, y, largeur, hauteur en pixels CSS) ; ailleurs, elle
-     la laisse passer aux fenêtres de dessous */
+  /* Where the window takes the mouse (x, y, width, height in CSS pixels); elsewhere, it lets
+     it through to the windows below */
   barRects(rects: number[][]) {
     if (!PREVIEW) invoke('bar_rects', { rects });
   },
-  /* Pilule rentrée : Rust masque la fenêtre */
+  /* Pill tucked away: Rust hides the window */
   barHidden() {
     if (!PREVIEW) invoke('bar_hidden');
   },
-  /* Envoyés par Rust à la fenêtre de cet écran : souris au bord bas (ou `peek` : un instant,
-     pour une fenêtre qui demande l'attention), souris sur la pilule ou non, clic ailleurs,
-     fenêtres à relire (signaux de Windows), écran branché ou débranché (pilule rentrée sans
-     attendre). Résolus une fois l'écoute en place. */
+  /* Sent by Rust to this screen's window: mouse at the bottom edge (or `peek`: for a moment,
+     for a window that wants attention), mouse on the pill or not, click elsewhere, windows to
+     read again (Windows signals), screen plugged in or unplugged (pill tucked away without
+     waiting). Resolved once the listener is in place. */
   onBarReveal(fn: (peek: boolean) => void): Promise<unknown> {
     return PREVIEW ? Promise.resolve() : getCurrentWindow().listen<boolean>('bar:reveal', (e) => fn(e.payload));
   },
@@ -629,19 +629,19 @@ export const host = {
   onBarReset(fn: () => void): Promise<unknown> {
     return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:reset', fn);
   },
-  /* Fenêtres de la barre des tâches de tous les écrans (demande de Funsaiki), sauf celles du
-     lanceur ; sans l'icône des programmes de `known` (le front l'a déjà) */
+  /* Taskbar windows from every screen (Funsaiki's request), except the launcher's;
+     without the icon of the programs in `known` (the front already has it) */
   async barWindows(known: string[]): Promise<BarWindow[]> {
     if (PREVIEW) return previewBar.map((w) => ({ ...w }));
     return invoke<BarWindow[]>('bar_windows', { known });
   },
-  /* Aperçus au survol (bar_preview.rs) : vignettes en direct des fenêtres `ids`, dessinées par
-     Windows ; pour chacune, sa taille, ou null si elle est réduite ou fermée (pas d'image) */
+  /* Hover previews (bar_preview.rs): live thumbnails of the windows `ids`, drawn by
+     Windows; for each, its size, or null if it is minimized or closed (no image) */
   async barPreview(ids: string[]): Promise<([number, number] | null)[]> {
     if (PREVIEW) return ids.map((id) => (id === 'w4' ? null : [1600, 900]));
     return invoke<([number, number] | null)[]>('bar_preview', { ids });
   },
-  /* Places des vignettes (x, y, largeur, hauteur en pixels CSS), dans l'ordre de barPreview */
+  /* Thumbnail positions (x, y, width, height in CSS pixels), in barPreview order */
   barPreviewPlace(rects: number[][]) {
     if (!PREVIEW) invoke('bar_preview_place', { rects });
   },
@@ -656,7 +656,7 @@ export const host = {
       await invoke('minimize_window', { id });
     }
   },
-  /* Comme le bouton de fermeture : le programme peut demander d'enregistrer */
+  /* Like the close button: the program may ask to save */
   async closeWindow(id: string) {
     if (PREVIEW) {
       console.info('[aperçu] fermer :', id);
@@ -665,27 +665,27 @@ export const host = {
       await invoke('close_window', { id });
     }
   },
-  /* Nombre d'écrans */
+  /* Number of screens */
   async barScreens(): Promise<number> {
     if (PREVIEW) return 2;
     return invoke<number>('bar_screens');
   },
-  /* Envoie la fenêtre `id` sur l'écran suivant (l'autre écran chez Funsaiki) */
+  /* Sends the window `id` to the next screen (the other screen when there are two) */
   async moveWindow(id: string) {
     if (PREVIEW) console.info('[aperçu] fenêtre sur l’autre écran :', id);
     else await invoke('move_window', { id });
   },
-  /* Relance le programme de la fenêtre `id` ; Rust retrouve son chemin */
+  /* Starts the program of the window `id` again; Rust finds its path */
   async newWindow(id: string) {
     if (PREVIEW) console.info('[aperçu] nouvelle fenêtre comme :', id);
     else await invoke('new_window', { id });
   },
-  /* Applications épinglées (bar_pins.rs), dans leur ordre ; sans l'icône de celles de `known` */
+  /* Pinned apps (bar_pins.rs), in their order; without the icon of those in `known` */
   async barPins(known: string[]): Promise<PinnedApp[]> {
     if (PREVIEW) return previewPins.map((p) => ({ ...p, icon: null }));
     return invoke<PinnedApp[]>('bar_pins', { known });
   },
-  /* Épingle le programme de la fenêtre `id` ; Rust retrouve son chemin */
+  /* Pins the program of the window `id`; Rust finds its path */
   async barPin(id: string) {
     if (PREVIEW) {
       const w = previewBar.find((x) => x.id === id);
@@ -698,7 +698,7 @@ export const host = {
     if (PREVIEW) previewPins = previewPins.filter((p) => p.exe !== exe);
     else await invoke('bar_unpin', { exe });
   },
-  /* Lance l'application épinglée `exe` */
+  /* Launches the pinned app `exe` */
   async barOpenPin(exe: string) {
     if (PREVIEW) {
       console.info('[aperçu] ouvrir l’application épinglée :', exe);
@@ -708,36 +708,36 @@ export const host = {
       await invoke('bar_open_pin', { exe });
     }
   },
-  /* Épingles changées (depuis l'autre écran aussi) */
+  /* Pins changed (from the other screen too) */
   onBarPins(fn: () => void): Promise<unknown> {
     return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:pins', fn);
   },
-  /* Fait monter le téléphone sur l'écran de la barre */
+  /* Brings the phone up on the bar's screen */
   async showLauncher() {
     if (PREVIEW) console.info('[aperçu] ouvrir le lanceur');
     else await invoke('show_launcher');
   },
-  /* Menu de l'icône du lanceur, à la souris (la barre de Windows masquée, l'icône n'est plus
-     accessible) */
+  /* The launcher's tray icon menu, at the mouse (with the Windows taskbar hidden, the icon is
+     out of reach) */
   barMenu() {
     if (PREVIEW) console.info('[aperçu] menu du lanceur');
     else invoke('bar_menu');
   },
-  /* Résultat d'un calcul */
+  /* Result of a calculation */
   async copy(text: string) {
     await navigator.clipboard.writeText(text);
   },
-  /* Le texte seulement : Rust construit l'adresse de la recherche */
+  /* The text only: Rust builds the search URL */
   async webSearch(query: string) {
     if (PREVIEW) console.info('[aperçu] recherche web :', query);
     else await invoke('web_search', { query });
   },
-  /* Spotify seulement ; null quand il n'est pas ouvert */
+  /* Spotify only; null when it is not open */
   async media(): Promise<NowPlaying | null> {
     if (PREVIEW) return { ...previewMedia };
     return invoke<NowPlaying | null>('media');
   },
-  /* Pochette du morceau en cours (image intégrable data:…), null sans pochette */
+  /* Cover of the current song (embeddable data:… image), null without a cover */
   async mediaCover(): Promise<string | null> {
     if (PREVIEW) return null;
     return invoke<string | null>('media_cover');
@@ -750,7 +750,7 @@ export const host = {
       await invoke('media_control', { action });
     }
   },
-  /* Rust masque la fenêtre et laisse WebView2 rendre de la mémoire */
+  /* Rust hides the window and lets WebView2 give back memory */
   hide() {
     if (PREVIEW) console.info('[aperçu] masquer le lanceur');
     else invoke('hide_window');
@@ -758,8 +758,8 @@ export const host = {
   async isVisible(): Promise<boolean> {
     return PREVIEW || getCurrentWindow().isVisible();
   },
-  /* Envoyés par Rust : raccourci, zone de notification, perte de focus, Alt+F4. `page` : ce qui
-     s'ouvre une fois le téléphone monté (« prefs » : Paramètres, du menu de l'icône) */
+  /* Sent by Rust: shortcut, notification area, focus lost, Alt+F4. `page`: what opens once
+     the phone is up ("prefs": Settings, from the tray icon menu) */
   onShown(fn: (page: string | null) => void) {
     if (!PREVIEW) listen<string | null>('launcher:shown', (e) => fn(e.payload));
   },
@@ -770,7 +770,7 @@ export const host = {
     if (PREVIEW) previewConfigListeners.push(fn);
     else listen('config:changed', fn);
   },
-  /* Apparence changée dans le téléphone (barre pastel) */
+  /* Appearance changed in the phone (pastel bar) */
   onAppearanceChanged(fn: (appearance: Appearance) => void) {
     if (!PREVIEW) listen<Appearance>('appearance:changed', (e) => fn(e.payload));
   },

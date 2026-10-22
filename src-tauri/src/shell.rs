@@ -1,7 +1,7 @@
-//! Lancement des cibles par ShellExecuteExW, comme un double-clic dans l'Explorateur :
-//! .exe (avec arguments), .lnk, dossiers, fichiers, URL, liens d'application, .bat.
-//! Contrairement à std::process::Command, l'invite UAC s'affiche pour les programmes
-//! qui demandent l'élévation.
+//! Launching targets with ShellExecuteExW, like a double click in Explorer:
+//! .exe (with arguments), .lnk, folders, files, URLs, app links, .bat.
+//! Unlike std::process::Command, the UAC prompt shows for programs
+//! that ask for elevation.
 
 use std::path::Path;
 use std::sync::LazyLock;
@@ -23,9 +23,9 @@ use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use crate::i18n::tr;
 use crate::{config, start_menu};
 
-/// Le front envoie l'id d'un élément (a… : application, f… : dossier) ; Rust retrouve sa cible
-/// dans la config chargée.
-/// `fresh` (Ctrl+clic) : nouvelle fenêtre même si l'application est déjà ouverte.
+/// The front sends an item's id (a…: app, f…: folder); Rust finds its target
+/// in the loaded config.
+/// `fresh` (Ctrl+click): new window even if the app is already open.
 #[tauri::command]
 pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), String> {
     let (target, args) = match setting_target(&id) {
@@ -34,17 +34,17 @@ pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), Strin
             .ok_or_else(|| tr(format!("Élément {id} introuvable, la config a peut-être changé."), format!("Item {id} not found, the config may have changed.")))?,
     };
     let key = crate::usage::key(&target, &args);
-    // Playlist (groupe auto « spotify ») : Spotify la joue directement (spotify.rs)
+    // Playlist (auto group "spotify"): Spotify plays it directly (spotify.rs)
     if crate::spotify::is_playable(&target) {
         let play = app.clone();
         crate::blocking(move || crate::spotify::play(&play, &target)).await??;
         crate::usage::record(&app, key);
         return Ok(());
     }
-    // Hors du fil principal : l'invite UAC, par exemple, attend la réponse de l'utilisateur
+    // Off the main thread: the UAC prompt, for example, waits for the user's answer
     crate::blocking(move || {
-        // Déjà ouverte (Code, Brave…) : sa fenêtre revient au premier plan (switch.rs). Une
-        // application du menu Démarrer : le programme de son raccourci, s'il n'a pas d'arguments.
+        // Already open (Code, Brave…): its window comes back to the foreground (switch.rs). A
+        // Start menu app: the program of its shortcut, if it has no arguments.
         if !fresh && args.is_empty() {
             let program = if target.starts_with(start_menu::PREFIX) {
                 crate::com::with_com(|| start_menu::program(&target))
@@ -63,8 +63,8 @@ pub async fn launch(app: AppHandle, id: String, fresh: bool) -> Result<(), Strin
     Ok(())
 }
 
-/// Pages des Paramètres proposées par la recherche (demande de Funsaiki) : la liste du front
-/// (src/settings.json), identifiants « s<position> » ; le front n'envoie jamais de cible.
+/// Windows Settings pages offered by the search (requested by Funsaiki): the front's list
+/// (src/settings.json), identifiers "s<position>"; the front never sends a target.
 fn setting_target(id: &str) -> Option<String> {
     #[derive(Deserialize)]
     struct Setting {
@@ -76,33 +76,33 @@ fn setting_target(id: &str) -> Option<String> {
     SETTINGS.get(index).map(|s| s.target.clone())
 }
 
-/// Boutons du haut de la vue réglages : le front envoie un nom, pas une cible.
+/// Buttons at the top of the quick settings view: the front sends a name, not a target.
 #[tauri::command]
 pub async fn open_tool(tool: String) -> Result<(), String> {
     let target = match tool.as_str() {
         "settings" => "ms-settings:",
         "taskmgr" => "taskmgr.exe",
-        // Barre d'état : la liste des réseaux de la barre de Windows ; pour le Bluetooth, Windows
-        // n'a pas de lien fiable vers son panneau rapide, ce sont ses Paramètres
+        // Status bar: the network list of the Windows taskbar; for Bluetooth, Windows
+        // has no reliable link to its quick panel, so it's its Settings
         "wifi" => "ms-availablenetworks:",
         "bluetooth" => "ms-settings:bluetooth",
         // Notifications
         "steam-downloads" => "steam://open/downloads",
         "windows-update" => "ms-settings:windowsupdate",
         "storage" => "ms-settings:storagesense",
-        // Barre pastel : calendrier
+        // Pastel bar: calendar
         "notifications" => "ms-actioncenter:",
         _ => return Err(tr(format!("Outil inconnu : {tool}."), format!("Unknown tool: {tool}."))),
     };
     crate::blocking(move || open(target, &[])).await?
 }
 
-/// Ouvre `target` avec `args`, après développement des variables d'environnement (%USERPROFILE%…).
+/// Opens `target` with `args`, after expanding environment variables (%USERPROFILE%…).
 pub fn open(target: &str, args: &[String]) -> Result<(), String> {
     run(target, args, None)
 }
 
-/// Comme `open`, en administrateur (clic droit dans la vue applications) : l'invite UAC de Windows
+/// Like `open`, as administrator (right click in the apps view): the Windows UAC prompt
 pub fn open_as_admin(target: &str, args: &[String]) -> Result<(), String> {
     run(target, args, Some("runas"))
 }
@@ -115,7 +115,7 @@ fn run(target: &str, args: &[String], verb: Option<&str>) -> Result<(), String> 
     } else {
         let path = target.replace('/', "\\");
         let dir = working_dir(&path);
-        // Windows ouvre les .ps1 dans le Bloc-notes : on les exécute avec PowerShell
+        // Windows opens .ps1 files in Notepad: we run them with PowerShell
         if path.to_ascii_lowercase().ends_with(".ps1") {
             args.splice(0..0, ["-NoProfile".into(), "-File".into(), path]);
             ("powershell.exe".into(), dir)
@@ -126,14 +126,14 @@ fn run(target: &str, args: &[String], verb: Option<&str>) -> Result<(), String> 
     let params = args.iter().map(|a| quote(a)).collect::<Vec<_>>().join(" ");
     eprintln!("[lanceur] {} {file} {params}", if verb.is_some() { "ouvrir en administrateur" } else { "ouvrir" });
     match shell_execute(&file, &params, dir.as_deref(), verb) {
-        // Invite UAC refusée par Funsaiki : rien à signaler
+        // UAC prompt declined by Funsaiki: nothing to report
         Err(e) if e.code() == ERROR_CANCELLED.to_hresult() => Ok(()),
         result => result.map_err(|e| format!("{target} : {}", e.message().trim_end())),
     }
 }
 
-/// Recherche sur le web quand rien ne correspond dans le lanceur (demande de Funsaiki) : le front
-/// envoie le texte, Rust construit l'adresse ; ouverte dans le navigateur par défaut.
+/// Web search when nothing matches in the launcher (requested by Funsaiki): the front
+/// sends the text, Rust builds the address; opened in the default browser.
 #[tauri::command]
 pub async fn web_search(query: String) -> Result<(), String> {
     let query = query.trim();
@@ -144,7 +144,7 @@ pub async fn web_search(query: String) -> Result<(), String> {
     crate::blocking(move || open_as_is(&url)).await?
 }
 
-/// Paramètre d'adresse : espaces en « + », tout sauf lettres, chiffres et - _ . ~ en %XX (UTF-8)
+/// URL parameter: spaces as "+", everything but letters, digits and - _ . ~ as %XX (UTF-8)
 pub(crate) fn encode_query(text: &str) -> String {
     text.bytes()
         .map(|b| match b {
@@ -155,16 +155,16 @@ pub(crate) fn encode_query(text: &str) -> String {
         .collect()
 }
 
-/// Ouvre un fichier ou une adresse tels quels, comme un double-clic dans l'Explorateur
-/// (fichiers téléchargés, recherche web) : sans développer les variables d'environnement
-/// (« %20 » reste « %20 »), et un .ps1 s'ouvre comme dans l'Explorateur au lieu d'être exécuté
-/// par PowerShell (les .exe, .bat… se lancent, comme d'un double-clic)
+/// Opens a file or an address as is, like a double click in Explorer
+/// (downloaded files, web search): without expanding environment variables
+/// ("%20" stays "%20"), and a .ps1 opens as in Explorer instead of being run
+/// by PowerShell (.exe, .bat… are launched, as with a double click)
 pub fn open_as_is(path: &str) -> Result<(), String> {
     eprintln!("[lanceur] ouvrir {path}");
     shell_execute(path, "", working_dir(path).as_deref(), None).map_err(|e| format!("{path} : {}", e.message().trim_end()))
 }
 
-/// « steam://… », « spotify: », « ms-settings: »… Un préfixe d'une seule lettre est un lecteur (C:).
+/// "steam://…", "spotify:", "ms-settings:"… A one-letter prefix is a drive (C:).
 pub(crate) fn is_uri(s: &str) -> bool {
     match s.find(':') {
         Some(i) if i > 1 => s[..i]
@@ -174,15 +174,15 @@ pub(crate) fn is_uri(s: &str) -> bool {
     }
 }
 
-/// Programme qu'ouvre Windows par défaut pour un protocole (« https » : le navigateur) ou une
-/// extension (« .pdf »), d'après les choix des Paramètres : tuiles `default` de apps.json
+/// Program Windows opens by default for a protocol ("https": the browser) or an
+/// extension (".pdf"), per the choices in Settings: `default` tiles of apps.json
 pub fn default_program(kind: &str) -> Option<String> {
     let kind = kind.trim_end_matches(':');
     let flags = if kind.starts_with('.') { ASSOCF_NONE } else { ASSOCF_IS_PROTOCOL };
     let kind = HSTRING::from(kind);
     let mut len = 0u32;
     unsafe {
-        // Une première fois pour la longueur (S_FALSE), puis le chemin
+        // Once for the length (S_FALSE), then the path
         AssocQueryStringW(flags, ASSOCSTR_EXECUTABLE, &kind, PCWSTR::null(), None, &mut len).ok().ok()?;
         let mut buf = vec![0u16; len as usize];
         AssocQueryStringW(flags, ASSOCSTR_EXECUTABLE, &kind, PCWSTR::null(), Some(windows::core::PWSTR(buf.as_mut_ptr())), &mut len).ok().ok()?;
@@ -191,7 +191,7 @@ pub fn default_program(kind: &str) -> Option<String> {
     }
 }
 
-/// Dossier de travail = celui du fichier lancé : beaucoup de jeux et d'outils en ont besoin.
+/// Working directory = the launched file's: many games and tools need it.
 fn working_dir(path: &str) -> Option<String> {
     let path = Path::new(path);
     if !path.is_file() {
@@ -200,8 +200,8 @@ fn working_dir(path: &str) -> Option<String> {
     path.parent().map(|dir| dir.to_string_lossy().into_owned())
 }
 
-/// Met un argument entre guillemets selon les règles de la ligne de commande Windows
-/// (celles de CommandLineToArgvW).
+/// Quotes an argument according to the Windows command line rules
+/// (those of CommandLineToArgvW).
 fn quote(arg: &str) -> String {
     if !arg.is_empty() && !arg.contains([' ', '\t', '"']) {
         return arg.to_string();
@@ -213,7 +213,7 @@ fn quote(arg: &str) -> String {
             backslashes += 1;
             continue;
         }
-        // Les barres obliques inverses ne sont spéciales que devant un guillemet
+        // Backslashes are only special before a quote
         let n = if c == '"' { backslashes * 2 + 1 } else { backslashes };
         out.extend(std::iter::repeat_n('\\', n));
         out.push(c);
@@ -240,7 +240,7 @@ pub fn expand_env(s: &str) -> String {
     }
 }
 
-/// `verb` : « runas » pour l'administrateur ; sinon l'action par défaut (ouvrir)
+/// `verb`: "runas" for administrator; otherwise the default action (open)
 fn shell_execute(file: &str, params: &str, dir: Option<&str>, verb: Option<&str>) -> windows::core::Result<()> {
     let file = HSTRING::from(file);
     let params = HSTRING::from(params);
@@ -248,7 +248,7 @@ fn shell_execute(file: &str, params: &str, dir: Option<&str>, verb: Option<&str>
     let verb = verb.map(HSTRING::from);
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
-        // Pas de boîte d'erreur de Windows : le lanceur affiche lui-même le problème
+        // No Windows error box: the launcher shows the problem itself
         fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
         lpVerb: verb.as_ref().map_or(PCWSTR::null(), |v| PCWSTR(v.as_ptr())),
         lpFile: PCWSTR(file.as_ptr()),
@@ -257,7 +257,7 @@ fn shell_execute(file: &str, params: &str, dir: Option<&str>, verb: Option<&str>
         nShow: SW_SHOWNORMAL.0,
         ..Default::default()
     };
-    // ShellExecuteEx peut passer par des extensions du shell, qui demandent COM
+    // ShellExecuteEx may go through shell extensions, which need COM
     let com = unsafe { CoInitializeEx(None, COINIT(COINIT_APARTMENTTHREADED.0 | COINIT_DISABLE_OLE1DDE.0)) };
     let result = unsafe { ShellExecuteExW(&mut info) };
     if com.is_ok() {
@@ -280,7 +280,7 @@ mod tests {
         }
     }
 
-    /// Lecture seule : rien n'est ouvert
+    /// Read only: nothing is opened
     #[test]
     fn default_programs() {
         let browser = default_program("https").expect("un navigateur par défaut");

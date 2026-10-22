@@ -1,8 +1,8 @@
-//! Apparence du téléphone (carte Personnaliser, customize.ts ; demandée par Funsaiki le
-//! 19/10/2026) : apparence.json à côté de apps.json (pas dans apps.json : une version plus
-//! ancienne refuserait le champ) et l'image choisie pour la breloque, copiée à côté
-//! (breloque.png…). Le front envoie l'apparence entière ; Rust ne garde que ce qu'il reconnaît.
-//! Les pages de la barre pastel reçoivent la nouvelle apparence (accent et encre).
+//! Phone appearance (Customize card, customize.ts; requested by Funsaiki on
+//! 2026-10-19): apparence.json next to apps.json (not in apps.json: an older version
+//! would reject the field) and the image chosen for the charm, copied next to it
+//! (breloque.png…). The front sends the whole appearance; Rust keeps only what it recognizes.
+//! The pastel bar pages receive the new appearance (accent and ink).
 
 use std::{
     fs,
@@ -28,7 +28,7 @@ use windows::Win32::UI::Shell::{
 use crate::i18n::tr;
 use crate::launcher;
 
-/// Couleurs en #rrggbb ; un champ absent : celui d'origine (l'accent : celui de apps.json)
+/// Colors as #rrggbb; a missing field: the original one (the accent: the one from apps.json)
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Appearance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -39,15 +39,15 @@ pub struct Appearance {
     ecran: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     encre: Option<String>,
-    /// Absente : la pastille
+    /// Missing: the Pastille charm
     #[serde(default, skip_serializing_if = "Option::is_none")]
     breloque: Option<String>,
-    /// Trois couleurs, de haut en bas
+    /// Three colors, top to bottom
     #[serde(default, skip_serializing_if = "Option::is_none")]
     perles: Option<Vec<String>>,
 }
 
-/// Breloques connues du front, sauf la pastille (par défaut)
+/// Charms known to the front, except the Pastille one (default)
 const CHARMS: [&str; 5] = ["etoile", "coeur", "chat", "image", "aucune"];
 
 fn is_color(s: &str) -> bool {
@@ -55,7 +55,7 @@ fn is_color(s: &str) -> bool {
 }
 
 impl Appearance {
-    /// Ce qui n'est pas reconnu est retiré (fichier modifié à la main, version plus récente)
+    /// What isn't recognized is dropped (file edited by hand, newer version)
     fn cleaned(mut self) -> Self {
         for color in [&mut self.accent, &mut self.coque, &mut self.ecran, &mut self.encre] {
             *color = color.take().filter(|c| is_color(c)).map(|c| c.to_ascii_lowercase());
@@ -73,7 +73,7 @@ fn dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_config_dir().map_err(|e| tr(format!("Dossier de config introuvable : {e}."), format!("Config folder not found: {e}.")))
 }
 
-/// Fichier absent ou illisible : l'apparence d'origine
+/// File missing or unreadable: the original appearance
 fn load(app: &AppHandle) -> Appearance {
     let Ok(text) = dir(app).and_then(|dir| fs::read_to_string(dir.join("apparence.json")).map_err(|e| e.to_string()))
     else {
@@ -87,7 +87,7 @@ fn load(app: &AppHandle) -> Appearance {
         })
 }
 
-/// Fichier temporaire puis renommage, comme barre.json ; une écriture à la fois
+/// Temporary file then rename, like barre.json; one write at a time
 fn save(app: &AppHandle, appearance: &Appearance) -> Result<(), String> {
     static WRITING: Mutex<()> = Mutex::new(());
     let _writing = WRITING.lock().unwrap();
@@ -100,9 +100,9 @@ fn save(app: &AppHandle, appearance: &Appearance) -> Result<(), String> {
         .map_err(|e| tr(format!("Apparence non enregistrée : {e}."), format!("Appearance not saved: {e}.")))
 }
 
-/* ── Image de la breloque ── */
+/* ── Charm image ── */
 
-/// Formats acceptés : extension et type
+/// Accepted formats: extension and type
 const IMAGES: [(&str, &str); 6] = [
     ("png", "image/png"),
     ("svg", "image/svg+xml"),
@@ -111,10 +111,10 @@ const IMAGES: [(&str, &str); 6] = [
     ("webp", "image/webp"),
     ("gif", "image/gif"),
 ];
-/// Elle est affichée en 52 × 52 px au plus
+/// It is shown at 52 × 52 px at most
 const MAX_IMAGE: u64 = 4 * 1024 * 1024;
 
-/// Le début du fichier correspond à son extension
+/// The start of the file matches its extension
 fn looks_like(ext: &str, bytes: &[u8]) -> bool {
     match ext {
         "png" => bytes.starts_with(b"\x89PNG"),
@@ -130,7 +130,7 @@ fn data_url(mime: &str, bytes: &[u8]) -> String {
     format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
-/// L'image gardée dans `dir`, en image intégrable
+/// The image kept in `dir`, as a data URL
 fn charm_image(dir: &Path) -> Option<String> {
     IMAGES.iter().find_map(|(ext, mime)| {
         let bytes = fs::read(dir.join(format!("breloque.{ext}"))).ok()?;
@@ -138,8 +138,8 @@ fn charm_image(dir: &Path) -> Option<String> {
     })
 }
 
-/// Copie l'image choisie dans `dir`, à côté de apps.json (le fichier d'origine peut être déplacé
-/// ou effacé)
+/// Copies the chosen image into `dir`, next to apps.json (the original file may be moved
+/// or deleted)
 fn keep_image(dir: &Path, source: &Path) -> Result<String, String> {
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
     let Some(&(ext, mime)) = IMAGES.iter().find(|(e, _)| *e == ext) else {
@@ -161,16 +161,16 @@ fn keep_image(dir: &Path, source: &Path) -> Result<String, String> {
         .and_then(|_| fs::write(&temp, &bytes))
         .and_then(|_| fs::rename(&temp, &target))
         .map_err(|e| tr(format!("Image non enregistrée : {e}."), format!("Image not saved: {e}.")))?;
-    // Une seule image gardée
+    // Only one image kept
     for (other, _) in IMAGES.iter().filter(|(e, _)| *e != ext) {
         let _ = fs::remove_file(dir.join(format!("breloque.{other}")));
     }
     Ok(data_url(mime, &bytes))
 }
 
-/// Boîte « Ouvrir » de Windows, au-dessus du lanceur (sa propriétaire : le lanceur, toujours
-/// au-dessus, la cacherait sinon). Sur un fil à part en appartement COM monothread, comme
-/// l'Explorateur le demande. None : annulée.
+/// Windows "Open" dialog, above the launcher (its owner: the launcher, always on top, would
+/// hide it otherwise). On a separate thread in a COM single-threaded apartment, as
+/// Explorer requires. None: cancelled.
 fn pick_file(owner: Option<isize>) -> Result<Option<PathBuf>, String> {
     let com = unsafe { CoInitializeEx(None, COINIT(COINIT_APARTMENTTHREADED.0 | COINIT_DISABLE_OLE1DDE.0)) };
     let result = show_dialog(owner.map(|h| HWND(h as *mut _))).map_err(|e| e.message().trim_end().to_string());
@@ -187,7 +187,7 @@ fn show_dialog(owner: Option<HWND>) -> windows::core::Result<Option<PathBuf>> {
         dialog.SetFileTypes(&types)?;
         dialog.SetTitle(&HSTRING::from(tr("Image de la breloque", "Charm image")))?;
         dialog.SetOptions(dialog.GetOptions()? | FOS_FILEMUSTEXIST | FOS_FORCEFILESYSTEM)?;
-        // La première fois, dans Images ; ensuite, Windows rouvre le dernier dossier
+        // The first time, in Pictures; after that, Windows reopens the last folder
         if let Ok(pictures) = SHGetKnownFolderItem::<IShellItem>(&FOLDERID_Pictures, KF_FLAG_DEFAULT, None) {
             let _ = dialog.SetDefaultFolder(&pictures);
         }
@@ -201,12 +201,12 @@ fn show_dialog(owner: Option<HWND>) -> windows::core::Result<Option<PathBuf>> {
     }
 }
 
-/* ── Commandes ── */
+/* ── Commands ── */
 
 #[derive(Serialize)]
 pub struct Payload {
     appearance: Appearance,
-    /// Image de la breloque (data:…) ; la barre pastel ne la demande pas
+    /// Charm image (data:…); the pastel bar doesn't ask for it
     image: Option<String>,
 }
 
@@ -228,8 +228,8 @@ pub async fn set_appearance(app: AppHandle, appearance: Appearance) -> Result<()
     Ok(())
 }
 
-/// Ton image : la boîte « Ouvrir » de Windows, puis l'image copiée à côté de apps.json ; None si
-/// rien n'est choisi. Le lanceur reste affiché pendant ce temps (launcher::set_dialog).
+/// Your image: the Windows "Open" dialog, then the image copied next to apps.json; None if
+/// nothing is chosen. The launcher stays shown meanwhile (launcher::set_dialog).
 #[tauri::command]
 pub async fn pick_charm_image(app: AppHandle) -> Result<Option<String>, String> {
     let main = app.get_webview_window("main");
@@ -237,7 +237,7 @@ pub async fn pick_charm_image(app: AppHandle) -> Result<Option<String>, String> 
     launcher::set_dialog(true);
     let picked = crate::blocking(move || pick_file(owner)).await;
     launcher::set_dialog(false);
-    // Le focus revient au lanceur (un clic ailleurs pendant la boîte l'aurait laissé sans)
+    // Focus returns to the launcher (a click elsewhere during the dialog would have left it without)
     if let Some(w) = main.filter(|w| w.is_visible().unwrap_or(false)) {
         let _ = w.set_focus();
     }
@@ -299,8 +299,8 @@ mod tests {
         fs::remove_dir_all(&source).unwrap();
     }
 
-    /// Diagnostic : la boîte « Ouvrir » s'ouvre (elle apparaît à l'écran), puis le test la ferme
-    /// comme Annuler au bout d'une seconde. `cargo test pick_dialog_opens -- --ignored`
+    /// Diagnostic: the "Open" dialog opens (it appears on screen), then the test closes it
+    /// like Cancel after one second. `cargo test pick_dialog_opens -- --ignored`
     #[test]
     #[ignore]
     fn pick_dialog_opens_and_cancels() {

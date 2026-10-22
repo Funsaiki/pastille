@@ -1,9 +1,9 @@
 <!doctype html>
-<!-- Page de configuration de Spotify (spotify.rs, premier branchement) : tuto pour créer son
-     app Spotify, puis le Client ID à coller. Servie par le petit serveur local de la connexion ;
-     les noms entre doubles accolades sont remplacés par spotify.rs (setup_page). Les libellés de
-     developer.spotify.com sont en anglais, comme sur le site. Styles : spotify-setup.css, communs
-     à la version anglaise (spotify-setup.en.html). -->
+<!-- Spotify setup page (spotify.rs, first connection): tutorial to create one's own
+     Spotify app, then the Client ID to paste. Served by the small local server of the connection;
+     the names in double braces are replaced by spotify.rs (setup_page). The labels of
+     developer.spotify.com are in English, as on the site. Styles: spotify-setup.css, shared
+     with the English version (spotify-setup.en.html). -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -113,7 +113,7 @@
   <footer>Cette page vient de Pastille, sur ton PC&nbsp;: ton identifiant ne part que chez Spotify.</footer>
 </main>
 <script>
-  // Copier : presse-papiers (adresse locale : contexte sûr), sinon sélection classique
+  // Copy: clipboard (local address: secure context), otherwise a classic selection
   for (const button of document.querySelectorAll('[data-copy]')) {
     button.addEventListener('click', async () => {
       const source = document.getElementById(button.dataset.copy);
@@ -132,7 +132,7 @@
       }, 1600);
     });
   }
-  // Identifiant refusé : le champ, prêt à corriger
+  // Client ID refused: the field, ready to be fixed
   if (document.querySelector('.error')) {
     const input = document.getElementById('id');
     input.focus();

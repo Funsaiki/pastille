@@ -1,7 +1,7 @@
-<!-- Source de l'icône : tuile « Applications » de la maquette (quatre carrés, accent pastel,
-     contour et ombre portée #0f3b42).
-     Régénérer : exporter en PNG 1024 px fond transparent, puis `npm run tauri icon <png>`
-     (supprimer ensuite les dossiers android/ et ios/ créés). -->
+<!-- Icon source: the mockup's "Apps" tile (four squares, pastel accent,
+     outline and drop shadow #0f3b42).
+     Regenerate: export as a 1024 px PNG on a transparent background, then `npm run tauri icon <png>`
+     (then delete the android/ and ios/ folders it creates). -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <rect x="80" y="103" width="864" height="864" rx="290" fill="#0f3b42"/>
   <rect x="80" y="58" width="864" height="864" rx="290" fill="#9fe0dc" stroke="#0f3b42" stroke-width="37"/>

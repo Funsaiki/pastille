@@ -1,8 +1,8 @@
-//! Langue de Pastille (demandée par Funsaiki le 21/10/2026) : français ou anglais, choisie dans
-//! la page Paramètres (prefs.rs, reglages.json), sinon celle de Windows. Les textes de Rust que
-//! voit l'utilisateur (erreurs montrées dans les notifications, menu de l'icône, pages de la
-//! connexion à Spotify) s'écrivent dans les deux : `tr("français", "English")`, et deux
-//! `format!` pour un texte avec des valeurs. Les journaux de développement restent en français.
+//! Pastille's language (requested by Funsaiki on 2026-10-21): French or English, chosen in
+//! the Settings page (prefs.rs, reglages.json), otherwise Windows's. The Rust texts the
+//! user sees (errors shown in the notifications, tray icon menu, Spotify connection
+//! pages) are written in both: `tr("français", "English")`, and two
+//! `format!` for a text with values. The development logs stay in French.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -16,7 +16,7 @@ pub fn set_english(on: bool) {
     ENGLISH.store(on, Ordering::Relaxed);
 }
 
-/// Le texte de la langue en cours
+/// The text in the current language
 pub fn tr<T>(fr: T, en: T) -> T {
     if english() { en } else { fr }
 }

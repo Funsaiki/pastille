@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════
-   Pastille — valeurs reprises de maquette/Telephone.dc.html,
-   qui fait foi. Police Nunito embarquée (fonctionne hors connexion).
+   Pastille — values taken from maquette/Telephone.dc.html,
+   the reference. Nunito font bundled (works offline).
    ══════════════════════════════════════════════════════════ */
 @import '@fontsource/nunito/700.css';
 @import '@fontsource/nunito/800.css';
@@ -9,12 +9,12 @@
 :root {
   --ink: #0f3b42;
   --ink-deep: #0a2a2f;
-  --fill: #9fe0dc;   /* accent, remplacé par celui de apps.json */
+  --fill: #9fe0dc;   /* accent, replaced by the one in apps.json */
   --soft: rgb(from var(--ink) r g b / .72);
   --ease: cubic-bezier(.2, .8, .2, 1);
   --turn: cubic-bezier(.45, .05, .25, 1);
-  /* Coque et écran de la maquette ; la carte Personnaliser les remplace (appearance.ts déduit
-     les nuances d'une seule couleur) */
+  /* Case and screen from the mockup; the Customize card replaces them (appearance.ts derives
+     the shades from a single color) */
   --coque-top: #2d7a84;
   --coque: #1f5f68;
   --coque-bottom: #174b52;
@@ -33,7 +33,7 @@
   --edge-bg: linear-gradient(180deg, var(--edge-1) 0px, var(--edge-1) 7px, var(--edge-hi) 7px, var(--edge-hi) 10px, var(--edge-1) 10px, var(--edge-2) 55%, var(--edge-3) 100%);
 }
 
-/* Transparence : la fenêtre Tauri l'est aussi (tauri.conf.json) */
+/* Transparency: the Tauri window is transparent too (tauri.conf.json) */
 html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
 body { font-family: 'Nunito', sans-serif; color: var(--ink); }
 body.preview { background: #f4f7f8; }
@@ -42,11 +42,11 @@ button, input { font-family: 'Nunito', sans-serif; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ── Animations ── */
-/* Entrée (retouchée par Funsaiki) : sans fondu, le téléphone sort de sous le bord de l'écran
-   (740 px : tout en dessous de la scène, qui le coupe), monte 10 px trop haut et retombe vite,
-   en se redressant d'une légère rotation venue de la droite (tp-turn, à part pour sa courbe).
-   Propriétés translate et rotate plutôt que transform : la rotation se fait autour du centre
-   du téléphone, sans le déporter sur le côté. */
+/* Entrance (reworked by Funsaiki): no fade, the phone comes out from below the screen edge
+   (740 px: entirely below the stage, which clips it), rises 10 px too high and drops back fast,
+   straightening from a slight rotation coming from the right (tp-turn, separate for its curve).
+   translate and rotate properties rather than transform: the rotation turns around the center
+   of the phone, without pushing it sideways. */
 @keyframes tp-rise {
   from { translate: 0 740px; animation-timing-function: cubic-bezier(.25, .8, .35, 1); }
   82% { translate: 0 -10px; animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
@@ -65,19 +65,19 @@ button, input { font-family: 'Nunito', sans-serif; }
 .tp-in-l { animation: tp-in-l .4s var(--ease) both; }
 .tp-fade-late { animation: tp-fade .35s .6s var(--ease) both; }
 .tp-land { animation: tp-fade-rot .35s .6s var(--ease) both; }
-/* Fermeture (demandée par Funsaiki, pas dans la maquette) : tp-rise à l'envers, courbes comprises :
-   le téléphone monte de 10 px puis plonge sous le bord de l'écran. Même durée que LEAVE_MS dans
-   ui.ts. Plus de clic sur le téléphone pendant qu'il descend. */
+/* Exit (requested by Funsaiki, not in the mockup): tp-rise reversed, curves included:
+   the phone rises 10 px then dives below the screen edge. Same duration as LEAVE_MS in
+   ui.ts. No more clicks on the phone while it goes down. */
 @keyframes tp-sink {
   from { translate: 0 0; animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
   18% { translate: 0 -10px; animation-timing-function: cubic-bezier(.65, 0, .75, .2); }
   to { translate: 0 740px; }
 }
-/* tp-turn à l'envers (nom distinct : un même nom garderait l'animation finie, qui sauterait à 5°) */
+/* tp-turn reversed (own name: reusing tp-turn would keep the finished animation, which would jump to 5°) */
 @keyframes tp-unturn { from { rotate: 0deg; } to { rotate: 5deg; } }
 .phone.leaving { animation: tp-sink .5s both, tp-unturn .5s cubic-bezier(.6, 0, .7, .3) both; pointer-events: none; }
 
-/* ── Survols et focus ── */
+/* ── Hover and focus ── */
 .tp-press { transition: transform .12s, box-shadow .12s; }
 .tp-press:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink) !important; }
 .tp-press:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink) !important; }
@@ -87,17 +87,17 @@ button, input { font-family: 'Nunito', sans-serif; }
 .tp-app:active .tp-app-ic { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink) !important; }
 .tp-app:focus-visible { outline: none; }
 .tp-app:focus-visible .tp-app-ic { outline: 3px solid var(--ink); outline-offset: 3px; }
-/* Recherche active : fond teinté de l'accent au lieu du contour de la maquette (choix de Funsaiki) */
+/* Active search: background tinted with the accent instead of the mockup's outline (Funsaiki's choice) */
 .tp-search { transition: background .15s; }
 .tp-search:focus-within { background: color-mix(in srgb, var(--fill) 45%, #ffffff); }
 .tp-link { transition: color .15s; }
 .tp-link:hover { color: var(--ink-deep) !important; text-decoration: underline; }
 
-/* ══ Strap (demandé par Funsaiki, pas dans la maquette) : pendu au bord gauche, un peu à
-   l'extérieur, accroché par le centre de son anneau (31 px, 10 px), dans le plan du téléphone
-   (le tourner vers nous le ferait passer derrière la coque). Quand le téléphone se couche, il
-   tourne d'un quart de tour avec un léger rebond pour rester pendu vers le bas. Il se balance
-   à l'ouverture et au survol. ══ */
+/* ══ Strap (requested by Funsaiki, not in the mockup): hanging from the left edge, slightly
+   outside, attached by the center of its ring (31 px, 10 px), in the plane of the phone
+   (turning it toward us would put it behind the case). When the phone lies flat, it
+   turns a quarter turn with a slight bounce to keep hanging downward. It swings
+   on opening and on hover. ══ */
 .strap {
   position: absolute; left: -35px; top: 150px; width: 62px; height: 186px; transform-origin: 31px 10px;
   transform: translateZ(3px) rotate(0deg);
@@ -106,15 +106,15 @@ button, input { font-family: 'Nunito', sans-serif; }
 .landscape .strap { transform: translateZ(3px) rotate(90deg); }
 .strap-swing { position: relative; width: 100%; height: 100%; transform-origin: 31px 10px; animation: strap-swing 1.8s .2s both; }
 .strap-swing svg { display: block; }
-/* Breloque (customize.ts) : son anneau au bout du cordon, avec l'ombre d'encre de 3 px des
-   autres éléments */
+/* Charm (customize.ts): its ring at the end of the cord, with the 3 px ink shadow of the
+   other elements */
 .strap-charm {
   position: absolute; left: 5px; top: 134px; width: 52px; user-select: none;
   filter: drop-shadow(0 3px 0 var(--ink));
 }
 .strap-charm > * { display: block; width: 100%; height: auto; }
-/* Dessins de customize.ts (52 × 64) réduits à 44 × 54 : téléphone couché, une breloque plus
-   haute sortirait par le bas de l'écran */
+/* Drawings from customize.ts (52 × 64) shrunk to 44 × 54: with the phone laid flat, a taller
+   charm would go off the bottom of the screen */
 .strap-charm > svg { width: 44px; height: 54px; margin: 0 auto; }
 @keyframes strap-swing {
   0%, 100% { rotate: 0deg; animation-timing-function: ease-in-out; }
@@ -124,10 +124,10 @@ button, input { font-family: 'Nunito', sans-serif; }
   74% { rotate: -2deg; animation-timing-function: ease-in-out; }
 }
 
-/* ── Scène : 1440 × 900, agrandie ou réduite à l'écran (zoom posé par ui.ts) ── */
+/* ── Stage: 1440 × 900, scaled up or down to the screen (zoom set by ui.ts) ── */
 .scene { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; }
 .stage { flex: none; position: relative; width: 1440px; height: 900px; overflow: hidden; }
-/* Aperçu navigateur : faux fond d'écran de la maquette */
+/* Browser preview: the mockup's fake wallpaper */
 .preview .stage {
   background:
     radial-gradient(circle 620px at 22% 30%, #dff4f3, transparent 70%),
@@ -138,9 +138,9 @@ button, input { font-family: 'Nunito', sans-serif; }
 .wallpaper-hint { display: none; position: absolute; left: 48px; top: 40px; font-size: 12px; font-weight: 800; letter-spacing: .24em; color: rgb(from var(--ink) r g b / .55); }
 .preview .wallpaper-hint { display: block; }
 
-/* ── Téléphone : incliné et debout, ou à plat et couché (.landscape sur la scène) ──
-   Couché, il est agrandi de 10 % (demande de Funsaiki) et remonté de 140 px au lieu de 130 :
-   la breloque du strap reste au-dessus du bord de l'écran. */
+/* ── Phone: tilted and upright, or flat and on its side (.landscape on the stage) ──
+   Laid flat, it is enlarged by 10% (Funsaiki's request) and raised by 140 px instead of 130:
+   the strap's charm stays above the screen edge. */
 .phone { position: absolute; left: 500px; top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%; }
 .phone-tilt {
   position: relative; width: 410px; height: 830px;
@@ -153,24 +153,24 @@ button, input { font-family: 'Nunito', sans-serif; }
   transform: rotateZ(0deg); transform-style: preserve-3d; transition: transform .7s var(--turn);
 }
 .landscape .phone-orient { transform: rotateZ(-90deg); }
-/* Couché, la rotation finie (.settled, ui.ts) : rendu à plat, sans perspective. En 3D, WebView2
-   étire l'image du texte au lieu de le redessiner à sa taille (agrandi de 10 %) : il était flou
-   (remarque de Funsaiki). Toutes les rotations sont à 0 : rien ne bouge (moins d'un demi-pixel). */
+/* Laid flat, once the rotation is done (.settled, ui.ts): flat rendering, no perspective. In 3D,
+   WebView2 stretches the text's image instead of redrawing it at its size (enlarged by 10%): it
+   was blurry (Funsaiki's remark). All rotations are at 0: nothing moves (less than half a pixel). */
 .landscape.settled .phone { perspective: none; }
 .landscape.settled .phone-tilt, .landscape.settled .phone-orient { transform-style: flat; }
-/* Transformation en 2D pur : les rotations à 0 (rotateX, rotateY) restent de la 3D pour le
-   navigateur, qui en fait un calque à part */
+/* Pure 2D transform: rotations at 0 (rotateX, rotateY) are still 3D for the
+   browser, which makes a separate layer of them */
 .landscape.settled .phone-tilt { transform: translateY(-140px) scale(1.1); }
-/* Passage 3D ↔ plat (setSettled, ui.ts) : sans transition, identique à l'œil ; au retour, la
-   rotation repart de la forme 3D d'origine et suit le même chemin qu'avant */
+/* 3D ↔ flat switch (setSettled, ui.ts): no transition, identical to the eye; on the way back, the
+   rotation starts again from the original 3D form and follows the same path as before */
 .settling .phone-tilt, .settling .strap { transition: none !important; }
-/* Sans décalage 3D (il faisait du corps un calque à part, dessiné puis posé) ; isolation garde
-   l'ordre d'empilement que donnait la transformation. La tranche est déjà invisible. */
+/* No 3D offset (it made the body a separate layer, drawn then composited); isolation keeps
+   the stacking order the transform gave. The side edge is already invisible. */
 .landscape.settled .phone-body { transform: none; isolation: isolate; }
 .landscape.settled .edges { display: none; }
 .landscape.settled .strap { transform: rotate(90deg); transition: none; }
 
-/* Tranche : disparaît tout de suite en se couchant, revient après la rotation */
+/* Side edge: disappears at once when the phone lies down, comes back after the rotation */
 .edges { position: absolute; left: 0; top: 0; width: 410px; height: 830px; transform-style: preserve-3d; pointer-events: none; --edge-o: 1; --edge-d: .45s; }
 .landscape .edges { --edge-o: 0; --edge-d: 0s; }
 .edge { opacity: var(--edge-o, 1); transition: opacity .25s ease var(--edge-d, 0s); }
@@ -211,7 +211,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .island span { width: 10px; height: 10px; border-radius: 50%; background: var(--coque-top); border: 2px solid var(--lens-ring); }
 
-/* ══ Vue réglages ══ */
+/* ══ Quick settings view ══ */
 .view-settings { position: absolute; inset: 0; box-sizing: border-box; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
 
 .status { height: 40px; flex: none; display: flex; justify-content: space-between; align-items: flex-start; }
@@ -219,8 +219,8 @@ button, input { font-family: 'Nunito', sans-serif; }
 .status-time .time { font-weight: 900; font-size: 21px; }
 .status-time .date { font-weight: 700; font-size: 12px; color: var(--soft); }
 .status-net { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; font-weight: 800; font-size: 12px; }
-/* Wi-Fi et Bluetooth (ajout) : les boutons à droite du nom, réduits en icônes de barre d'état
-   (entre l'île et le débit, il reste ~106 px, le débit en prend jusqu'à 62) */
+/* Wi-Fi and Bluetooth (addition): the buttons to the right of the name, shrunk to status bar
+   icons (between the island and the network speed, ~106 px remain, the speed takes up to 62) */
 .status-right { display: flex; align-items: center; gap: 4px; }
 .status-links { display: flex; }
 .user-action.status-link { width: 20px; height: 20px; }
@@ -235,8 +235,8 @@ button, input { font-family: 'Nunito', sans-serif; }
 .user-name { font-weight: 900; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-os { font-weight: 700; font-size: 13px; color: var(--soft); }
 
-/* Paramètres et Alimentation à droite du nom (demande de Funsaiki, à la place de la rangée de
-   boutons de la maquette) : sans fond ni bordure, un rond de couleur au survol */
+/* Settings and Power to the right of the name (Funsaiki's request, instead of the mockup's row
+   of buttons): no background or border, a colored circle on hover */
 .user-actions { margin-left: auto; display: flex; gap: 4px; }
 .user-action {
   width: 44px; height: 44px; padding: 0; border-radius: 50%; border: none; background: transparent; color: var(--ink);
@@ -246,7 +246,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 .user-action:active { transform: translateY(2px); }
 .user-action:focus-visible { outline: 3px solid var(--ink); outline-offset: 1px; }
 
-/* Bascules et bouton Applications */
+/* Toggles and Apps button */
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .qtile {
   height: 60px; box-sizing: border-box; padding: 0 12px 0 8px; border-radius: 30px; border: 2.5px solid var(--ink);
@@ -262,8 +262,8 @@ button, input { font-family: 'Nunito', sans-serif; }
 .qtile-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .qtile-label { font-weight: 900; font-size: 15px; }
 .qtile-sub { font-weight: 700; font-size: 12px; color: rgb(from var(--ink) r g b / .75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Toute la largeur depuis le retrait de la tuile Bluetooth (essai de Funsaiki) ; il apparaît
-   juste après les deux tuiles (délais .45 et .51 dans ui.ts) */
+/* Full width since the Bluetooth tile was removed (Funsaiki's trial); it appears
+   right after the two tiles (delays .45 and .51 in ui.ts) */
 .qtile-apps { grid-column: 1 / -1; padding: 0 10px 0 8px; background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep); animation-delay: .57s; }
 .qtile-apps .qtile-dot { border-color: #ffffff; background: var(--fill); color: var(--ink); }
 .qtile-apps .qtile-text { flex: 1; }
@@ -273,7 +273,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 
 /* Volume */
 .sliders { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; }
-/* 12 px au lieu des 6 de la maquette : de l'air entre le bouton du mélangeur et le curseur (demande de Funsaiki) */
+/* 12 px instead of the mockup's 6: room between the mixer button and the slider (Funsaiki's request) */
 .slider { display: flex; flex-direction: column; gap: 12px; }
 .slider-head { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 14px; }
 .slider-value { margin-left: auto; font-weight: 800; font-size: 12px; color: var(--soft); }
@@ -288,16 +288,16 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .tp-range:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
-/* ── Mélangeur (demandé par Funsaiki, pas dans la maquette) : petit bouton dans la carte du
-   volume, panneau ouvert sous la carte, par-dessus la lecture et les notifications ── */
+/* ── Mixer (requested by Funsaiki, not in the mockup): small button in the volume
+   card, panel opened below the card, over now playing and the notifications ── */
 .mixer-toggle {
   width: 32px; height: 26px; flex: none; margin: -4px 0; padding: 0; box-sizing: border-box; border-radius: 13px;
   border: 2px solid var(--ink); background: #ffffff; color: var(--ink); box-shadow: 0 2px 0 var(--ink);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .mixer-toggle[aria-expanded="true"] { background: var(--fill); }
-/* Console de mixage : fond encre comme le bouton Applications, une tranche verticale par
-   application (curseur, pastille, nom), pointe vers le bouton. Les tranches montent une à une. */
+/* Mixing console: ink background like the Apps button, one vertical channel per
+   app (slider, badge, name), arrow toward the button. The channels rise one by one. */
 .mixer {
   position: absolute; left: -2.5px; right: -2.5px; top: calc(100% + 12px); z-index: 2; box-sizing: border-box;
   padding: 12px 10px 10px; border-radius: 24px; border: 2.5px solid var(--ink); background: var(--ink); color: #ffffff;
@@ -309,7 +309,7 @@ button, input { font-family: 'Nunito', sans-serif; }
   content: ''; position: absolute; top: -8px; right: 25px; width: 14px; height: 14px; border-radius: 3px 0 0 0;
   background: var(--ink); rotate: 45deg;
 }
-/* Au-delà de 7 applications, défilement horizontal */
+/* Beyond 7 apps, horizontal scrolling */
 .mixer-channels {
   display: flex; justify-content: safe center; gap: 6px; overflow-x: auto;
   scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .5) transparent;
@@ -338,13 +338,13 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .mixer-empty { padding: 6px 0; text-align: center; font-weight: 800; font-size: 13px; color: rgba(255, 255, 255, .8); }
 
-/* Lecture en cours */
+/* Now playing */
 .media { display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 9px; }
 .media-art {
   width: 46px; height: 46px; flex: none; border-radius: 16px; border: 2.5px solid var(--ink);
   background: linear-gradient(135deg, var(--fill), #f6e2ec); display: flex; align-items: center; justify-content: center; box-sizing: border-box;
 }
-/* Pochette de Spotify (demandée par Funsaiki) : remplace l'égaliseur quand Windows la donne */
+/* Spotify cover (requested by Funsaiki): replaces the equalizer when Windows provides it */
 .media-art.has-cover { background-size: cover; background-position: center; }
 .media-art.has-cover .tp-eq { display: none; }
 .tp-eq { display: flex; align-items: flex-end; gap: 3px; height: 18px; }
@@ -355,17 +355,17 @@ button, input { font-family: 'Nunito', sans-serif; }
 .media-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
 .media-title { font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .media-artist { font-weight: 700; font-size: 12px; color: var(--soft); }
-/* Volume de Spotify (demandé par Funsaiki, pas dans la maquette) : petit curseur du style de
-   celui du volume, sous l'artiste ; la carte garde sa hauteur (le texte tient dans les 46 px de
-   la pochette) */
-/* Avec la rangée du volume, le titre et l'artiste se resserrent (1,1 au lieu de 1,2) : la
-   carte garde sa hauteur */
+/* Spotify volume (requested by Funsaiki, not in the mockup): small slider in the style of
+   the volume one, under the artist; the card keeps its height (the text fits in the cover's
+   46 px) */
+/* With the volume row, the title and artist tighten up (1.1 instead of 1.2): the
+   card keeps its height */
 .media:has(.media-controls) .media-text { line-height: 1.1; }
 .media-controls { display: flex; align-items: center; gap: 3px; margin-top: 2px; height: 15px; }
-/* Volume de Spotify en marches d'égaliseur (Funsaiki trouvait le petit curseur redondant avec le
-   volume) : dix barres de 4 px de plus en plus hautes, à l'encre comme l'égaliseur de la
-   pochette, pâles au-dessus du niveau ; celle qui contient le niveau se remplit en partie.
-   Chaque barre est une case de 6 px de large, sans espace entre elles : on vise toujours une marche. */
+/* Spotify volume as equalizer steps (Funsaiki found the small slider redundant with the
+   volume): ten 4 px bars, taller and taller, in ink like the cover's equalizer, pale
+   above the level; the one holding the level fills in part.
+   Each bar is a 6 px wide cell, with no gap between them: you always hit a step. */
 .media-volume { flex: none; display: flex; height: 14px; cursor: pointer; touch-action: none; border-radius: 3px; }
 .media-volume i { flex: none; width: 6px; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
 .media-volume i::before {
@@ -375,9 +375,9 @@ button, input { font-family: 'Nunito', sans-serif; }
 .media-volume:hover i::before { box-shadow: 0 0 0 .5px rgb(from var(--ink) r g b / .25); }
 .media-volume:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .media-volume[aria-disabled="true"] { opacity: .4; cursor: default; pointer-events: none; }
-/* Aléatoire et répétition (demandés par Funsaiki, Spotify connecté) : petits ronds sans bordure
-   à droite du curseur, fond accent quand ils sont actifs, comme les boutons du haut au survol.
-   Répétition d'un seul titre : un « 1 » au milieu. */
+/* Shuffle and repeat (requested by Funsaiki, Spotify connected): small borderless circles
+   to the right of the slider, accent background when active, like the top buttons on hover.
+   Repeat one track: a "1" in the middle. */
 .media-mode {
   width: 15px; height: 15px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent;
   color: rgb(from var(--ink) r g b / .55); display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -389,8 +389,8 @@ button, input { font-family: 'Nunito', sans-serif; }
 .media-mode:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .media-mode .repeat-one { display: none; }
 .media-mode[data-mode="track"] .repeat-one { display: inline; }
-/* Aléatoire intelligent de Spotify (activé dans Spotify, l'API ne peut que le couper) : petite
-   étincelle et fond rose de la palette */
+/* Spotify's Smart Shuffle (turned on in Spotify, the API can only turn it off): small
+   sparkle and the palette's pink background */
 .media-mode .smart-spark { display: none; }
 .media-mode[data-mode="smart"] .smart-spark { display: inline; }
 .media-mode[aria-pressed="true"][data-mode="smart"] { background: #f6c6da; }
@@ -399,7 +399,7 @@ button, input { font-family: 'Nunito', sans-serif; }
   color: var(--ink); box-shadow: 0 2px 0 var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .media-play { width: 40px; height: 40px; background: var(--fill); }
-/* Spotify fermé : boutons grisés (pas dans la maquette) */
+/* Spotify closed: buttons grayed out (not in the mockup) */
 .media-btn:disabled { opacity: .4; cursor: default; pointer-events: none; }
 .media-play .icon-play, .media-play.paused .icon-pause { display: none; }
 .media-play.paused .icon-play { display: block; }
@@ -424,7 +424,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 }
 .notifs-list { display: flex; flex-direction: column; gap: 8px; }
 .notif { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; border: 2px solid var(--ink); background: #ffffff; }
-/* Notification cliquable : ouvre le fichier, Steam, Windows Update… (pas dans la maquette) */
+/* Clickable notification: opens the file, Steam, Windows Update… (not in the mockup) */
 button.notif {
   width: 100%; font-family: inherit; color: inherit; text-align: left; cursor: pointer;
   transition: transform .12s, box-shadow .12s;
@@ -447,10 +447,10 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   font-weight: 800; font-size: 12px; color: var(--soft);
 }
 
-/* ── Onglets de la carte (demandés par Funsaiki, pas dans la maquette) : la pastille du titre en
-   deux moitiés égales (même largeur que « Notifications » de la maquette), un curseur accent
-   bordé d'encre glisse de l'une à l'autre. Le bord de devant part le premier, celui de derrière
-   suit avec un rebond : le curseur s'étire puis se resserre. ── */
+/* ── Card tabs (requested by Funsaiki, not in the mockup): the title badge in two equal
+   halves (same width as the mockup's "Notifications"), an accent thumb outlined in ink
+   slides from one to the other. The leading edge moves first, the trailing edge
+   follows with a bounce: the thumb stretches then tightens. ── */
 .notifs-tabs { display: grid; grid-template-columns: repeat(2, 1fr); padding: 0 2px; gap: 0; }
 .tabs-thumb {
   position: absolute; top: 1px; bottom: 1px; left: 2px; right: 50%; box-sizing: border-box;
@@ -470,23 +470,23 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 .notifs-tab[aria-selected="false"]:hover { color: var(--ink); }
 .notifs-tab[aria-selected="false"]:active { scale: .94; }
 .notifs-tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
-/* Pastilles de nombre plus petites, pâles sur l'onglet fermé ; celle de l'onglet choisi rebondit */
+/* Smaller count badges, pale on the closed tab; the selected tab's badge bounces */
 .notifs-tab .notifs-count { min-width: 17px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 11px; background: rgb(from var(--ink) r g b / .4); transition: background .2s; }
 .notifs-tab[aria-selected="true"] .notifs-count { background: var(--ink); }
-/* Liste des apps pas encore lue (premier affichage) : pas de « 0 » */
+/* App list not read yet (first display): no "0" */
 .notifs-tab .notifs-count:empty { visibility: hidden; }
 @keyframes tab-pop { 0% { scale: .4; } 60% { scale: 1.2; } 100% { scale: 1; } }
 .notifs-count.tab-pop { animation: tab-pop .4s var(--ease) .12s both; }
 .notifs-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
 
-/* Applications de la zone de notification : leurs vraies icônes dans des tuiles blanches, six
-   par rangée ; au-delà de trois rangées, défilement (la carte sort de l'écran en bas). Marge
-   intérieure de 6 px pour que le défilement ne coupe ni le survol ni le focus. */
+/* Notification area apps: their real icons in white tiles, six per row; beyond
+   three rows, scrolling (the card goes off the bottom of the screen). 6 px of
+   padding so the scrolling clips neither the hover nor the focus. */
 .tray-grid {
   display: grid; grid-template-columns: repeat(6, 42px); justify-content: space-between; gap: 12px 0;
   margin: -6px; padding: 6px; max-height: calc(3 * 42px + 2 * 12px); overflow-y: auto; scrollbar-width: none;
 }
-/* --tile : couleur de la palette derrière l'initiale d'une app sans icône (ui.ts) */
+/* --tile: palette color behind the initial of an app without an icon (ui.ts) */
 .tray-app {
   width: 42px; height: 42px; padding: 0; box-sizing: border-box; border-radius: 14px; border: 2.5px solid var(--ink);
   background: var(--tile, #ffffff); color: var(--ink); box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center;
@@ -495,8 +495,8 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 .tray-app canvas { width: 24px; height: 24px; }
 .tray-app.menu-open { background: var(--fill); }
 
-/* Menu du clic droit : fond encre comme le mélangeur, au-dessus de l'icône, pointe vers elle.
-   Mêmes pastilles de couleur que le menu d'alimentation. */
+/* Right-click menu: ink background like the mixer, above the icon, arrow toward it.
+   Same colored dots as the power menu. */
 .tray-menu {
   position: absolute; z-index: 2; width: 214px; box-sizing: border-box; padding: 10px 8px 8px; border-radius: 20px;
   background: var(--ink); color: #ffffff; box-shadow: 0 3px 0 var(--ink-deep), 0 14px 30px rgb(from var(--ink) r g b / .25);
@@ -524,15 +524,15 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   width: 28px; height: 28px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid #ffffff;
   color: var(--ink); display: flex; align-items: center; justify-content: center;
 }
-/* Forcer à quitter : le premier clic demande confirmation, l'élément passe au rose */
+/* Force quit: the first click asks for confirmation, the item turns pink */
 .tray-item.confirm, .tray-item.confirm:hover { background: #f6c6da; color: var(--ink); }
 .tray-item.confirm .tray-dot { border-color: var(--ink); }
 
-/* ══ Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026, pas dans la maquette) :
-   comme une page de téléphone, elle arrive de la droite pendant que le reste de la vue part à
-   gauche ; la barre d'état reste. En-tête de la vue applications (retour, sur-titre et titre),
-   sections au titre des dossiers, rangées des notifications. Le bas du téléphone sort de
-   l'écran : la page défile, avec de quoi remonter la dernière rangée au-dessus du bord. ══ */
+/* ══ Settings page (requested by Funsaiki on 2026-10-21, not in the mockup):
+   like a phone page, it comes in from the right while the rest of the view leaves to the
+   left; the status bar stays. Header of the apps view (back, overline and title), sections
+   titled like Folders, rows like the notifications. The bottom of the phone is off the
+   screen: the page scrolls, with room to bring the last row above the edge. ══ */
 .view-settings > :not(.status, .prefs) { transition: opacity .18s ease, translate .3s var(--ease); }
 .view-settings.prefs-open > :not(.status, .prefs) {
   opacity: 0; translate: -36px 0; visibility: hidden;
@@ -548,7 +548,7 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 .prefs-body {
   position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;
   padding: 12px 20px 170px; display: flex; flex-direction: column; gap: 16px;
-  mask-image: linear-gradient(transparent, #000 12px);   /* fondu sous l'en-tête en défilant */
+  mask-image: linear-gradient(transparent, #000 12px);   /* fade under the header while scrolling */
 }
 .prefs-section { display: flex; flex-direction: column; gap: 8px; }
 .prefs-title { margin: 0 0 0 4px; font-weight: 900; font-size: 14px; }
@@ -557,11 +557,11 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
 .prefs-row.off .notif-icon, .prefs-row.off .notif-text { opacity: .55; }
 div.prefs-row:has(> .switch:not(:disabled)) { cursor: pointer; }
 button.prefs-row > svg:last-child { flex: none; }
-/* Quitter : le premier clic demande confirmation, la rangée passe au rose */
+/* Quit: the first click asks for confirmation, the row turns pink */
 .prefs-row.confirm { background: #f6c6da; }
 
-/* Interrupteur : rond qui glisse avec un léger rebond, fond accent et rond blanc une fois
-   activé (comme les tuiles) */
+/* Switch: knob that slides with a slight bounce, accent background and white knob once
+   on (like the tiles) */
 .switch {
   position: relative; width: 46px; height: 26px; flex: none; padding: 0; box-sizing: border-box; border-radius: 13px;
   border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink); cursor: pointer;
@@ -579,7 +579,7 @@ button.prefs-row > svg:last-child { flex: none; }
 .switch:disabled { opacity: .4; cursor: default; }
 .switch:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
-/* Langue : la pastille des onglets, posée dans la rangée */
+/* Language: the tab pill, placed in the row */
 .prefs-lang {
   position: relative; width: 148px; height: 28px; margin-left: auto; flex: none; box-sizing: border-box; align-items: center;
   border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
@@ -589,7 +589,7 @@ button.prefs-row > svg:last-child { flex: none; }
 .prefs-lang .notifs-tab[aria-checked="false"]:hover { color: var(--ink); }
 .prefs-lang.off { opacity: .4; pointer-events: none; }
 
-/* Petit bouton en pilule (Connecter, Vérifier…), fond accent pour l'action proposée */
+/* Small pill button (Connect, Check…), accent background for the suggested action */
 .prefs-btn {
   height: 30px; flex: none; padding: 0 12px; border-radius: 15px; border: 2.5px solid var(--ink); background: #ffffff;
   color: var(--ink); box-shadow: 0 2px 0 var(--ink); font-weight: 900; font-size: 12px; white-space: nowrap; cursor: pointer;
@@ -601,7 +601,7 @@ button.prefs-row > svg:last-child { flex: none; }
 .prefs-btn:disabled { opacity: .55; cursor: default; }
 .prefs-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
-/* Raccourci en touches */
+/* Shortcut as keys */
 .keys { display: flex; align-items: center; gap: 4px; flex: none; font-weight: 900; font-size: 12px; }
 .key {
   height: 24px; min-width: 24px; box-sizing: border-box; padding: 0 7px; border-radius: 8px; border: 2px solid var(--ink);
@@ -609,11 +609,11 @@ button.prefs-row > svg:last-child { flex: none; }
 }
 .keys-plus { color: var(--soft); }
 
-/* Section Apparence : l'ancienne carte Personnaliser (blanche plutôt qu'à l'encre : les couleurs
-   s'y jugent mieux, et l'encre y change aussi) */
+/* Appearance section: the former Customize card (white rather than ink: colors are easier to
+   judge on it, and the ink changes there too) */
 .custom { padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 14px; }
 .custom-head { display: flex; align-items: center; justify-content: space-between; }
-/* Pastille des onglets de la carte des notifications, posée dans la carte */
+/* Tab pill of the notifications card, placed in the card */
 .custom-tabs {
   position: relative; width: 168px; height: 28px; box-sizing: border-box; align-items: center;
   border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
@@ -630,8 +630,8 @@ button.prefs-row > svg:last-child { flex: none; }
 .custom-value { font-weight: 800; font-size: 12px; color: var(--soft); }
 .custom-value::before { content: '· '; }
 
-/* Nuancier : pastilles de 32 px, celle choisie cerclée d'encre ; la dernière, « Autre couleur »,
-   en arc-en-ciel pastel avec un +, à sa couleur une fois choisie */
+/* Swatches: 32 px dots, the chosen one ringed in ink; the last one, "Other color",
+   in pastel rainbow with a +, in its color once chosen */
 .swatches { display: flex; gap: 8px; }
 .swatch {
   width: 32px; height: 32px; flex: none; padding: 0; box-sizing: border-box; border-radius: 50%;
@@ -646,7 +646,7 @@ button.prefs-row > svg:last-child { flex: none; }
 .swatch-free.chosen { background: var(--c); }
 .swatch-free.chosen svg { display: none; }
 
-/* Couleur libre : teinte et clarté (curseurs du volume, piste aux couleurs possibles), code à droite */
+/* Free color: hue and lightness (volume sliders, track in the possible colors), code on the right */
 .free { display: grid; grid-template-columns: minmax(0, 1fr) 86px; align-items: center; gap: 10px 12px; padding: 4px 0 2px; }
 .free .tp-range { background: var(--track); }
 .free-hex {
@@ -656,7 +656,7 @@ button.prefs-row > svg:last-child { flex: none; }
 }
 .free-hex:focus { background: color-mix(in srgb, var(--fill) 45%, #ffffff); }
 
-/* Breloques : tuiles de 36 px, fond accent pour celle choisie */
+/* Charms: 36 px tiles, accent background for the chosen one */
 .charms { display: flex; gap: 6px; }
 .charm {
   width: 36px; height: 36px; flex: none; padding: 0; box-sizing: border-box; border-radius: 12px;
@@ -670,7 +670,7 @@ button.prefs-row > svg:last-child { flex: none; }
 .charm:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .charm > img, .charm > svg[viewBox="0 0 52 64"] { width: auto; height: 27px; max-width: 27px; object-fit: contain; }
 
-/* Perles : les trois du strap sur leur cordon, celle à changer cerclée */
+/* Beads: the strap's three on their cord, the one to change ringed */
 .beads { position: relative; display: flex; gap: 14px; align-self: flex-start; }
 .beads::before { content: ''; position: absolute; left: 14px; right: 14px; top: 50%; height: 2.5px; translate: 0 -50%; background: var(--ink); }
 .bead {
@@ -683,11 +683,11 @@ button.prefs-row > svg:last-child { flex: none; }
 .bead[aria-checked="true"], .bead[aria-checked="true"]:hover { transform: none; box-shadow: 0 0 0 2.5px #ffffff, 0 0 0 5px var(--ink); }
 .bead:focus-visible { outline: 3px solid var(--ink); outline-offset: 5px; }
 
-/* Image choisie comme breloque : dans 52 × 52 px, le haut contre le cordon (plus haute, elle
-   sortirait par le bas de l'écran, téléphone couché) */
+/* Image chosen as charm: within 52 × 52 px, the top against the cord (taller, it would go
+   off the bottom of the screen with the phone laid flat) */
 .strap-charm.own > img { max-height: 52px; object-fit: contain; object-position: top; }
 
-/* ══ Vue applications : couchée dans l'écran (pivotée de 90°, le téléphone l'est de -90°) ══ */
+/* ══ Apps view: lying in the screen (rotated by 90°, the phone by -90°) ══ */
 .view-apps {
   position: absolute; left: -210px; top: 210px; width: 788px; height: 368px; box-sizing: border-box;
   padding: 22px 30px 20px 66px; display: flex; flex-direction: column; gap: 16px; transform: rotate(90deg);
@@ -701,10 +701,10 @@ button.prefs-row > svg:last-child { flex: none; }
 .apps-title { width: 150px; flex: none; display: flex; flex-direction: column; line-height: 1.1; }
 .apps-sup { font-weight: 800; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .apps-name { font-weight: 900; font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Peinte après le reste de la vue (z-index, sous les menus) : WebView2 155 met le curseur du champ
-   dans un calque à part, et tout ce qui était peint après lui (compte, heure, grille) passait dans
-   un second calque, dessiné pendant la rotation puis étiré : texte flou jusqu'au premier clic
-   (remarque de Funsaiki, 19/10/2026) */
+/* Painted after the rest of the view (z-index, below the menus): WebView2 155 puts the field's
+   caret in a separate layer, and everything painted after it (count, time, grid) went into a
+   second layer, drawn during the rotation then stretched: blurry text until the first click
+   (Funsaiki's remark, 2026-10-19) */
 .search {
   flex: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 22px;
   border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center; gap: 10px;
@@ -734,8 +734,8 @@ button.prefs-row > svg:last-child { flex: none; }
   border-radius: 11px; border: 2px solid var(--ink); background: #ffffff; display: flex; align-items: center;
   justify-content: center; font-weight: 900; font-size: 12px;
 }
-/* Fenêtre ouverte trouvée par la recherche (demandé par Funsaiki) : vraie icône de son programme
-   sur fond blanc, comme l'onglet Apps */
+/* Open window found by the search (requested by Funsaiki): real icon of its program
+   on a white background, like the Apps tab */
 .app-picture { background: #ffffff; }
 .app-picture canvas { width: 30px; height: 30px; }
 .recent-dot canvas { width: 16px; height: 16px; }
@@ -744,7 +744,7 @@ button.prefs-row > svg:last-child { flex: none; }
   height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   font-weight: 800; font-size: 14px; color: var(--soft);
 }
-/* Recherche web (ajout) : pilule des dossiers, à la largeur de son texte */
+/* Web search (addition): Folders pill, as wide as its text */
 .web-search { max-width: 100%; }
 
 .folders { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
@@ -756,8 +756,8 @@ button.prefs-row > svg:last-child { flex: none; }
   font-weight: 800; font-size: 13px; cursor: pointer; min-width: 0;
 }
 .folder svg { flex: none; }
-/* Récents (demandé par Funsaiki, pas dans la maquette) : mêmes pilules que les dossiers, juste
-   au-dessus, avec l'icône de l'application dans une pastille de la palette */
+/* Recent (requested by Funsaiki, not in the mockup): same pills as Folders, just
+   above, with the app's icon in a palette dot */
 .recents { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
 .recents:not([hidden]) + .folders { margin-top: 0; }
 .recent-dot {
@@ -766,9 +766,9 @@ button.prefs-row > svg:last-child { flex: none; }
 }
 .folder span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Clic droit sur une application (demandé par Funsaiki) : le menu de l'onglet Apps, à droite de la
-   tuile (à gauche près du bord, .flip ; au-dessus, il sortirait de la vue), pointe vers l'icône,
-   qui reste soulevée comme au survol */
+/* Right-click on an app (requested by Funsaiki): the Apps tab menu, to the right of the
+   tile (to the left near the edge, .flip; above, it would leave the view), arrow toward the icon,
+   which stays raised as on hover */
 .app-menu { translate: -6px 0; }
 .app-menu.flip { translate: 6px 0; }
 .app-menu.open { translate: 0 0; }
@@ -776,16 +776,16 @@ button.prefs-row > svg:last-child { flex: none; }
 .app-menu.flip::after { left: auto; right: -7px; border-radius: 0 3px 0 0; }
 .app.menu-open .tp-app-ic { transform: translateY(-2px); box-shadow: 0 5px 0 var(--ink) !important; }
 
-/* ══ Menu d'alimentation (demandé par Funsaiki, pas dans la maquette) : l'écran s'assombrit,
-   les choix apparaissent au centre. Masqué par visibility pour qu'il se fonde aussi en
-   disparaissant ; la vue réglages passe en inert tant qu'il est ouvert (ui.ts). ══ */
+/* ══ Power menu (requested by Funsaiki, not in the mockup): the screen darkens,
+   the choices appear in the center. Hidden with visibility so that it also fades
+   out; the quick settings view becomes inert while it is open (ui.ts). ══ */
 .power {
   position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center;
   background: rgb(from var(--ink-deep) r g b / .62); backdrop-filter: blur(3px);
   opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility 0s .2s;
 }
 .power.open { opacity: 1; visibility: visible; transition: opacity .2s ease; }
-/* Un peu au-dessus du centre : le bas du téléphone sort de l'écran */
+/* A little above the center: the bottom of the phone is off the screen */
 .power-menu { width: 270px; display: flex; flex-direction: column; gap: 14px; translate: 0 -60px; scale: .94; transition: scale .3s var(--ease); }
 .power.open .power-menu { scale: 1; }
 .power-choices { display: flex; flex-direction: column; gap: 12px; }

@@ -1,4 +1,4 @@
-//! Icône dans la zone de notification : indispensable, l'app n'apparaît pas dans la barre des tâches.
+//! Icon in the notification area: required, the app doesn't appear in the taskbar.
 
 use std::sync::OnceLock;
 
@@ -11,13 +11,13 @@ use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, IsWindowVisib
 
 use crate::{config, i18n::tr, launcher};
 
-/// Afficher, Paramètres et Quitter : le reste est dans la page Paramètres du téléphone (prefs.rs,
-/// demande de Funsaiki du 21/10/2026)
+/// Show, Settings and Quit: the rest is in the phone's Settings page (prefs.rs,
+/// requested by Funsaiki on 2026-10-21)
 fn labels() -> [&'static str; 3] {
     [tr("Afficher", "Show"), tr("Paramètres", "Settings"), tr("Quitter", "Quit")]
 }
 
-/// Entrées du menu, renommées quand la langue change
+/// Menu entries, relabeled when the language changes
 static ITEMS: OnceLock<[MenuItem<Wry>; 3]> = OnceLock::new();
 
 pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
@@ -57,21 +57,21 @@ pub fn create(app: &AppHandle, tooltip: &str) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Menu de l'icône, aussi montré par la barre pastel (la barre de Windows masquée, l'icône n'est
-/// plus accessible)
+/// Tray icon menu, also shown by the pastel bar (with the Windows taskbar hidden, the icon is no
+/// longer reachable)
 static MENU: OnceLock<Menu<Wry>> = OnceLock::new();
 
-/// À la souris, attaché à la fenêtre du lanceur (masquée) : la barre pastel peut rentrer
-/// pendant qu'il est ouvert. Les choix passent par `on_menu_event`, comme depuis l'icône.
-/// Fil principal : le menu attend le choix.
+/// At the mouse, attached to the launcher window (hidden): the pastel bar can tuck away
+/// while it is open. The choices go through `on_menu_event`, as from the icon.
+/// Main thread: the menu waits for the choice.
 pub fn popup_menu(app: &AppHandle) {
     let (Some(menu), Some(w)) = (MENU.get(), app.get_webview_window("main")) else { return };
     let before = unsafe { GetForegroundWindow() };
     if let Err(e) = menu.popup(w.as_ref().window()) {
         eprintln!("[lanceur] menu du lanceur : {e}");
     }
-    // Windows a mis la fenêtre du lanceur, masquée, au premier plan pour le menu : le clavier
-    // revient à la fenêtre d'avant (« Afficher » remet ensuite le téléphone devant)
+    // Windows put the hidden launcher window in the foreground for the menu: the keyboard
+    // goes back to the previous window ("Show" then brings the phone back to the front)
     if let Ok(hwnd) = w.hwnd() {
         unsafe {
             if GetForegroundWindow() == hwnd && !IsWindowVisible(hwnd).as_bool() && !before.is_invalid() && before != hwnd {
@@ -81,7 +81,7 @@ pub fn popup_menu(app: &AppHandle) {
     }
 }
 
-/// Langue changée (page Paramètres) : menu et infobulle dans la nouvelle
+/// Language changed (Settings page): menu and tooltip in the new one
 pub fn relabel(app: &AppHandle) {
     if let Some(items) = ITEMS.get() {
         for (item, label) in items.iter().zip(labels()) {

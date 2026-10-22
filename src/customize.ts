@@ -1,9 +1,9 @@
 /* ══════════════════════════════════════════════════════════
-   Personnaliser (demandé par Funsaiki le 19/10/2026) : deux onglets, Couleurs
-   (accent, coque, écran, encre) et Strap (breloque, perles). Un nuancier par couleur et
-   une pastille « Autre couleur » qui ouvre teinte, clarté et code. Tout change en direct
-   et est gardé (host.setAppearance : apparence.json). D'abord une carte à part, puis la
-   section Apparence de la page Paramètres (21/10/2026, prefs.ts).
+   Customize (requested by Funsaiki on 2026-10-19): two tabs, Colors
+   (accent, case, screen, ink) and Strap (charm, beads). Swatches for each color and
+   an "Other color" dot that opens hue, lightness and code. Everything changes live
+   and is saved (host.setAppearance: apparence.json). First a separate card, then the
+   Appearance section of the Settings page (2026-10-21, prefs.ts).
    ══════════════════════════════════════════════════════════ */
 import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Swatch } from './appearance';
 import { CONFIG } from './config';
@@ -17,19 +17,19 @@ const $ = (id: string) => document.getElementById(id) as HTMLElement;
 export type Tab = 'colors' | 'strap';
 
 let tab: Tab = 'colors';
-let image: string | null = null;     // image choisie pour la breloque (data:…)
-let editing: string | null = null;   // rangée dont la couleur libre est ouverte (« accent »… « perle »)
-let bead = 0;                        // perle choisie, de haut en bas
-let paletteChanged = () => {};       // ui.ts refait ce qui prend les couleurs de la palette
-let report = (e: unknown) => console.error(e);   // ui.ts : dans les notifications
+let image: string | null = null;     // image chosen for the charm (data:…)
+let editing: string | null = null;   // row whose free color is open ("accent"… "perle")
+let bead = 0;                        // chosen bead, top to bottom
+let paletteChanged = () => {};       // ui.ts redraws what takes the palette's colors
+let report = (e: unknown) => console.error(e);   // ui.ts: in the notifications
 
 const LABELS: Record<ColorKey, string> = { accent: 'Accent', coque: tr('Coque', 'Case'), ecran: tr('Écran', 'Screen'), encre: tr('Encre', 'Ink') };
 const PLUS = 'M12 6v12M6 12h12';
 const PICTURE = 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9h.01';
 const NONE = 'M12 3a9 9 0 100 18 9 9 0 000-18zM5.6 5.6l12.8 12.8';
 
-/* ── Breloques : quatre dessins dans le style du lanceur, de 52 × 64, la pastille par défaut.
-   Chacune a son anneau en haut, au milieu, prolongé jusqu'au cordon. ── */
+/* ── Charms: four drawings in the launcher's style, 52 × 64, Pastille by default.
+   Each has its ring at the top, in the middle, extended up to the cord. ── */
 const DEFAULT_CHARM: Charm = 'pilule';
 
 const ring = (cy: number, body: number) =>
@@ -51,7 +51,7 @@ const DRAWN: Partial<Record<Charm, string>> = {
   coeur: ring(11, 18.3)
     + '<path d="M26 56C14 47 5 39 5 27.5 5 19.5 11 13.5 18 13.5c3.7 0 6.6 1.9 8 4.8 1.4-2.9 4.3-4.8 8-4.8 7 0 13 6 13 14 0 11.5-9 19.5-21 28.5z" fill="#f6c6da" stroke-width="2.5"/>'
     + '<circle cx="13.5" cy="24" r="2.2" fill="#ffffff" stroke="none"/>',
-  // La pastille du nom : une pilule mi-accent, mi-rose
+  // The namesake pastille: a pill, half accent, half pink
   pilule: ring(7, 14)
     + '<path d="M15 36V25a11 11 0 0122 0v11z" style="fill: var(--fill)" stroke="none"/>'
     + '<path d="M15 36h22v11a11 11 0 01-22 0z" fill="#f6c6da" stroke="none"/>'
@@ -75,7 +75,7 @@ const CHARMS: { key: Charm; name: string }[] = [
 
 const charmName = (key: Charm) => CHARMS.find((c) => c.key === key)!.name;
 
-/* La breloque `key` en image ; sans image choisie, la pastille */
+/* The charm `key` as an image; with no image chosen, the Pastille charm */
 function charmNode(key: Charm): Element {
   if (key === 'image' && image) {
     const img = el('img');
@@ -91,7 +91,7 @@ function charmNode(key: Charm): Element {
 
 const charmOf = (): Charm => appearance().breloque ?? DEFAULT_CHARM;
 
-/* Strap du téléphone : sa breloque, ou rien */
+/* Phone strap: its charm, or nothing */
 export function applyStrap() {
   const charm = charmOf();
   $('strap').hidden = charm === 'aucune';
@@ -99,7 +99,7 @@ export function applyStrap() {
   $('strap-charm').replaceChildren(charmNode(charm));
 }
 
-/* ── Changements : appliqués, carte remise à jour, gardés ── */
+/* ── Changes: applied, card updated, saved ── */
 let saveTimer = 0;
 let shownPalette = '';
 
@@ -116,7 +116,7 @@ function changed() {
   saveTimer = setTimeout(() => host.setAppearance(appearance()).catch(report), 250);
 }
 
-/* Une couleur égale à celle d'origine n'est pas gardée : la maquette revient telle quelle */
+/* A color equal to the original one is not saved: the mockup comes back as it is */
 function setColor(key: ColorKey, color: string) {
   const a = { ...appearance() };
   const base = key === 'accent' ? CONFIG.accent : SWATCHES[key][0].color;
@@ -151,7 +151,7 @@ async function chooseImage() {
   setCharm('image');
 }
 
-/* ── Rangées ── */
+/* ── Rows ── */
 interface Row {
   node: HTMLElement;
   update: () => void;
@@ -171,7 +171,7 @@ function radio(className: string, label: string) {
   return b;
 }
 
-/* Titre d'une rangée : « Accent · Menthe » */
+/* Title of a row: "Accent · Mint" */
 function rowLabel(text: string) {
   const label = el('div', 'custom-label');
   const value = el('span', 'custom-value');
@@ -179,8 +179,8 @@ function rowLabel(text: string) {
   return { label, value };
 }
 
-/* Nuancier : les couleurs, puis « Autre couleur » (sa couleur une fois choisie) qui ouvre
-   l'éditeur dessous. `key` : la rangée, pour l'éditeur. */
+/* Swatches: the colors, then "Other color" (its color once chosen) which opens
+   the editor below. `key`: the row, for the editor. */
 function swatchRow(key: string, swatches: Swatch[], value: () => string, choose: (c: string) => void) {
   const group = el('div', 'swatches');
   group.setAttribute('role', 'radiogroup');
@@ -215,9 +215,9 @@ function swatchRow(key: string, swatches: Swatch[], value: () => string, choose:
   return { group, editor: editor.node, update, name: () => swatches.find((s) => s.color === value().toLowerCase())?.name ?? value().toLowerCase() };
 }
 
-/* Couleur libre : teinte et clarté (la saturation de la couleur de départ est gardée), code
-   #rrggbb. Ouvert sur la couleur en cours ; ses curseurs ne sont pas remis à jour pendant
-   qu'on les fait glisser (l'arrondi les ferait sauter). */
+/* Free color: hue and lightness (the starting color's saturation is kept), code
+   #rrggbb. Opened on the current color; its sliders are not updated while
+   they are dragged (rounding would make them jump). */
 function freeEditor(value: () => string, choose: (c: string) => void) {
   const node = el('div', 'free');
   const range = (min: number, max: number, label: string) => {
@@ -250,7 +250,7 @@ function freeEditor(value: () => string, choose: (c: string) => void) {
     choose(c);
   };
   hue.addEventListener('input', () => {
-    // Un gris n'a pas de teinte : il en prend une, assez colorée pour se voir
+    // A gray has no hue: it takes one, saturated enough to be seen
     hsl = [Number(hue.value), hsl[1] < 15 ? 55 : hsl[1], hsl[2]];
     send();
   });
@@ -307,7 +307,7 @@ function charmRow(): Row {
     const b = radio('charm', c.name);
     b.dataset.key = c.key;
     b.addEventListener('click', () => {
-      // Ton image : la choisir la première fois, ou en changer quand elle est déjà mise
+      // Your image: choose it the first time, or change it when it is already set
       if (c.key === 'image' && (!image || charmOf() === 'image')) chooseImage();
       else setCharm(c.key);
     });
@@ -367,7 +367,7 @@ function beadRow(): Row {
   };
 }
 
-/* ── Onglets : mêmes pastille et curseur que la carte des notifications ── */
+/* ── Tabs: same pill and thumb as the notifications card ── */
 function showTab(next: Tab, animate: boolean) {
   const changedTab = next !== tab;
   tab = next;
@@ -388,7 +388,7 @@ function showTab(next: Tab, animate: boolean) {
   }
 }
 
-/* Réinitialiser : l'onglet ouvert revient à la maquette (l'image choisie reste proposée) */
+/* Reset: the open tab goes back to the mockup (the chosen image stays offered) */
 function reset() {
   const a = { ...appearance() };
   if (tab === 'colors') for (const key of Object.keys(LABELS) as ColorKey[]) delete a[key];
@@ -401,16 +401,16 @@ function reset() {
   changed();
 }
 
-/* Page Paramètres ouverte ou refermée : sans couleur libre ouverte ; `next` : à cet onglet
-   (clic sur le strap), en glissant si la page est déjà là */
+/* Settings page opened or closed: with no free color open; `next`: at this tab
+   (click on the strap), sliding if the page is already there */
 export function refreshCustom(next?: Tab, animate = false) {
   editing = null;
   if (next) showTab(next, animate);
   updateAll();
 }
 
-/* Section construite une fois ; `onPalette` : les couleurs de la palette ont changé ; `onError` :
-   apparence pas enregistrée, image refusée */
+/* Section built once; `onPalette`: the palette's colors changed; `onError`:
+   appearance not saved, image refused */
 export function initCustom(onPalette: () => void, onError: (e: unknown) => void) {
   paletteChanged = onPalette;
   report = onError;
@@ -431,7 +431,7 @@ export function initCustom(onPalette: () => void, onError: (e: unknown) => void)
   $('custom-reset').addEventListener('click', reset);
 }
 
-/* Au démarrage : l'apparence gardée, posée avant la première ouverture */
+/* At startup: the saved appearance, set before the first opening */
 export async function loadAppearance() {
   const saved = await host.appearance().catch((e) => {
     console.error(e);

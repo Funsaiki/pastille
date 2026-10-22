@@ -1,11 +1,11 @@
-//! Mettre en veille, se déconnecter, redémarrer, arrêter.
-//! RÈGLE 1 de CLAUDE.md : dans un build de développement, rien n'est exécuté, une ligne de
-//! journal seulement. Le code qui agit n'est compilé que dans le build de production.
+//! Sleep, sign out, restart, shut down.
+//! RULE 1 of CLAUDE.md: in a development build, nothing is run, only a log
+//! line. The code that acts is compiled only in the production build.
 
 #[derive(Debug, PartialEq)]
 enum Plan {
     Sleep,
-    /// shutdown.exe (dans System32) avec ces arguments
+    /// shutdown.exe (in System32) with these arguments
     Shutdown(&'static [&'static str]),
 }
 
@@ -42,8 +42,8 @@ fn run(plan: Plan) -> Result<(), String> {
             if !unsafe { IsPwrSuspendAllowed() } {
                 return Err(crate::i18n::tr("La mise en veille n'est pas disponible sur ce PC.", "Sleep is not available on this PC.").into());
             }
-            // Après la descente du lanceur (0,5 s) : sinon il réapparaîtrait au réveil,
-            // figé au milieu de son animation. SetSuspendState ne rend la main qu'au réveil.
+            // After the launcher sinks (0.5 s): otherwise it would reappear on wake,
+            // frozen in the middle of its animation. SetSuspendState only returns on wake.
             std::thread::spawn(|| {
                 std::thread::sleep(std::time::Duration::from_millis(800));
                 unsafe { SetSuspendState(false, false, false) };
@@ -51,7 +51,7 @@ fn run(plan: Plan) -> Result<(), String> {
             Ok(())
         }
         Plan::Shutdown(args) => {
-            // Chemin complet : pas de shutdown.exe pris ailleurs dans le PATH
+            // Full path: no shutdown.exe picked up elsewhere in the PATH
             let windows = std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into());
             let program = PathBuf::from(windows).join("System32").join("shutdown.exe");
             std::process::Command::new(&program)
@@ -64,7 +64,7 @@ fn run(plan: Plan) -> Result<(), String> {
     }
 }
 
-// Ne JAMAIS appeler `power` ou `run` ici : `cargo test --release` exécuterait l'action.
+// NEVER call `power` or `run` here: `cargo test --release` would run the action.
 #[cfg(test)]
 mod tests {
     use super::*;

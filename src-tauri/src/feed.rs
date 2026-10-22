@@ -1,8 +1,8 @@
-//! Notifications de la vue réglages (choix de Funsaiki) : mise à jour de Pastille (update.rs),
-//! téléchargements terminés, activité de Steam, alertes du PC (redémarrage demandé par Windows
-//! Update, disque presque plein).
-//! Windows ne donne pas ses propres notifications aux applications non empaquetées.
-//! Tout est relu à chaque appel, en lecture seule.
+//! Notifications of the quick settings view (Funsaiki's choice): Pastille update (update.rs),
+//! finished downloads, Steam activity, PC alerts (restart requested by Windows
+//! Update, disk almost full).
+//! Windows doesn't give its own notifications to unpackaged apps.
+//! Everything is read again on each call, read only.
 
 use std::{
     fs,
@@ -25,29 +25,29 @@ use crate::steam;
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Event {
-    /// Version plus récente de Pastille, installée d'un clic
+    /// Newer version of Pastille, installed in one click
     Update { version: String },
-    /// Fichier arrivé dans Téléchargements ; `age` en secondes
+    /// File that arrived in Downloads; `age` in seconds
     Download { name: String, age: u64 },
     Steam(steam::Activity),
-    /// Windows Update attend un redémarrage
+    /// Windows Update is waiting for a restart
     Reboot,
-    /// Disque presque plein (« C: »), octets libres
+    /// Disk almost full ("C:"), free bytes
     Disk { drive: String, free: u64 },
 }
 
-/// Téléchargements des dernières 24 h, trois au plus
+/// Downloads of the last 24 h, three at most
 const RECENT: Duration = Duration::from_secs(24 * 3600);
 const MAX_DOWNLOADS: usize = 3;
-/// En dessous de 10 Go libres, un disque est signalé
+/// Below 10 GB free, a disk is reported
 const LOW_DISK: u64 = 10 * 1024 * 1024 * 1024;
-/// Volumes de moins de 20 Go ignorés
+/// Volumes under 20 GB are ignored
 const SMALL_VOLUME: u64 = 20 * 1024 * 1024 * 1024;
 const DRIVE_FIXED: u32 = 3;
 const FILE_ATTRIBUTE_HIDDEN: u32 = 2;
 const FILE_ATTRIBUTE_SYSTEM: u32 = 4;
 
-/// Mise à jour et alertes d'abord, puis Steam, puis les téléchargements du plus récent au plus ancien
+/// Update and alerts first, then Steam, then downloads from newest to oldest
 #[tauri::command]
 pub async fn feed(app: AppHandle) -> Vec<Event> {
     let update = crate::update::available(&app);
@@ -68,7 +68,7 @@ fn read(update: Option<String>) -> Vec<Event> {
     events
 }
 
-/// Ouvre un fichier de Téléchargements : le front envoie son nom, jamais un chemin
+/// Opens a file from Downloads: the front sends its name, never a path
 #[tauri::command]
 pub async fn open_download(name: String) -> Result<(), String> {
     if name.is_empty() || name.contains(['/', '\\', ':']) || name == "." || name == ".." {
@@ -82,12 +82,12 @@ pub async fn open_download(name: String) -> Result<(), String> {
     crate::blocking(move || crate::shell::open_as_is(&path)).await?
 }
 
-/// Dossier Téléchargements de Windows, même déplacé par l'utilisateur
+/// The Windows Downloads folder, even if moved by the user
 fn downloads_dir() -> Option<PathBuf> {
     known_folder(&FOLDERID_Downloads)
 }
 
-/// Dossier connu de Windows (Téléchargements, Program Files…) ; aussi pour tray_apps.rs
+/// Windows known folder (Downloads, Program Files…); also for tray_apps.rs
 pub fn known_folder(id: &GUID) -> Option<PathBuf> {
     unsafe {
         let path = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None).ok()?;
@@ -109,8 +109,8 @@ fn downloads() -> Vec<Event> {
             if !meta.is_file() || hidden || unfinished(&name) {
                 return None;
             }
-            // Le plus récent de la création et de la modification : un fichier téléchargé peut
-            // garder une date de modification ancienne
+            // The latest of creation and modification: a downloaded file may
+            // keep an old modification date
             let arrived = meta.modified().ok()?.max(meta.created().ok()?);
             let age = now.duration_since(arrived).ok()?;
             (age < RECENT).then_some((age, name))
@@ -120,13 +120,13 @@ fn downloads() -> Vec<Event> {
     files.into_iter().take(MAX_DOWNLOADS).map(|(age, name)| Event::Download { name, age: age.as_secs() }).collect()
 }
 
-/// Téléchargements encore en cours des navigateurs
+/// Browser downloads still in progress
 fn unfinished(name: &str) -> bool {
     let name = name.to_lowercase();
     [".crdownload", ".part", ".partial", ".download", ".opdownload", ".tmp"].iter().any(|ext| name.ends_with(ext))
 }
 
-/// La clé n'existe que tant que Windows Update attend un redémarrage
+/// The key exists only while Windows Update is waiting for a restart
 fn reboot_required() -> bool {
     LOCAL_MACHINE.open(r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired").is_ok()
 }
@@ -143,7 +143,7 @@ fn low_disks() -> Vec<Event> {
             }
             let (mut free, mut total) = (0u64, 0u64);
             unsafe { GetDiskFreeSpaceExW(&root, Some(&mut free), Some(&mut total), None) }.ok()?;
-            // Les petites partitions (« Réservé au système », 100 Mo chez Funsaiki) sont toujours pleines
+            // Small partitions ("System Reserved", about 100 MB) are always full
             (total >= SMALL_VOLUME && free < LOW_DISK).then(|| Event::Disk { drive: format!("{letter}:"), free })
         })
         .collect()
@@ -176,7 +176,7 @@ mod tests {
         );
     }
 
-    /// Diagnostic, lecture seule : cargo test real_feed -- --ignored --nocapture
+    /// Diagnostic, read only: cargo test real_feed -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_feed() {

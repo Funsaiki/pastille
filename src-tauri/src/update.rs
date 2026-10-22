@@ -1,14 +1,14 @@
-//! Mises à jour automatiques (demandées par Funsaiki le 21/10/2026, une fois le dépôt public) :
-//! `latest.json` de la dernière release GitHub, publié par le workflow avec l'installateur signé
-//! (clé de Funsaiki, secret `TAURI_SIGNING_PRIVATE_KEY` ; la clé publique est dans
-//! tauri.conf.json). Version installée seulement : vérifié une minute après le démarrage (le
-//! réseau n'est pas toujours prêt avec Windows), puis toutes les 6 h. Une version plus récente
-//! s'affiche dans Notifs ; un clic la télécharge, vérifie sa signature, lance l'installateur
-//! (barre de progression seule) et quitte : l'installateur relance Pastille.
+//! Automatic updates (requested by Funsaiki on 2026-10-21, once the repo was public):
+//! `latest.json` of the latest GitHub release, published by the workflow with the signed installer
+//! (Funsaiki's key, secret `TAURI_SIGNING_PRIVATE_KEY`; the public key is in
+//! tauri.conf.json). Installed build only: checked one minute after startup (the
+//! network isn't always ready with Windows), then every 6 h. A newer version
+//! shows in Notifs; a click downloads it, checks its signature, runs the installer
+//! (progress bar only) and quits: the installer restarts Pastille.
 //!
-//! En développement, rien, sauf avec `PASTILLE_MAJ` (`1` : la vraie release ; sinon l'adresse
-//! d'un latest.json) : toute version est proposée, et un clic la télécharge et vérifie sa
-//! signature sans l'installer.
+//! In development, nothing, except with `PASTILLE_MAJ` (`1`: the real release; otherwise the URL
+//! of a latest.json): any version is offered, and a click downloads it and checks its
+//! signature without installing it.
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -18,13 +18,13 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::i18n::tr;
 
-/// Mise à jour trouvée, en attente d'un clic
+/// Update found, waiting for a click
 #[derive(Default)]
 pub struct Pending(Mutex<Option<Update>>);
 
 const FIRST_CHECK: Duration = Duration::from_secs(60);
 const EVERY: Duration = Duration::from_secs(6 * 3600);
-/// Vérification et téléchargement (installateur de ~3 Mo)
+/// Check and download (~3 MB installer)
 const TIMEOUT: Duration = Duration::from_secs(120);
 
 pub fn init(app: &AppHandle) {
@@ -36,7 +36,7 @@ pub fn init(app: &AppHandle) {
     std::thread::spawn(move || {
         std::thread::sleep(if cfg!(debug_assertions) { Duration::from_secs(5) } else { FIRST_CHECK });
         loop {
-            // Hors ligne : la mise à jour déjà trouvée reste proposée
+            // Offline: the update already found is still offered
             match tauri::async_runtime::block_on(check_now(&app)) {
                 Ok(Some(version)) => eprintln!("[lanceur] mise à jour : {version} disponible"),
                 Ok(None) => {}
@@ -47,7 +47,7 @@ pub fn init(app: &AppHandle) {
     });
 }
 
-/// `PASTILLE_MAJ`, en développement seulement
+/// `PASTILLE_MAJ`, in development only
 fn dev_test() -> Option<String> {
     if cfg!(debug_assertions) { std::env::var("PASTILLE_MAJ").ok() } else { None }
 }
@@ -57,8 +57,8 @@ async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
     let mut builder = app
         .updater_builder()
         .timeout(TIMEOUT)
-        // Avant l'installateur, Pastille quitte par `std::process::exit` : la barre de Windows
-        // revient comme à un Quitter (le processus de garde l'aurait rendue sinon)
+        // Before the installer, Pastille quits through `std::process::exit`: the Windows taskbar
+        // comes back as on a Quit (the watchdog process would have restored it otherwise)
         .on_before_exit(move || {
             crate::bar::shutdown();
             handle.cleanup_before_exit();
@@ -73,7 +73,7 @@ async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
     builder.build().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())
 }
 
-/// Vérifie et garde la mise à jour trouvée ; renvoie sa version
+/// Checks and keeps the update found; returns its version
 async fn check_now(app: &AppHandle) -> Result<Option<String>, String> {
     let found = check(app).await?;
     let version = found.as_ref().map(|u| u.version.clone());
@@ -81,20 +81,20 @@ async fn check_now(app: &AppHandle) -> Result<Option<String>, String> {
     Ok(version)
 }
 
-/// « Vérifier » de la page Paramètres : tout de suite, aussi en développement (contre la vraie
-/// release ; rien ne s'installe sans clic, et en développement rien du tout)
+/// "Check" on the Settings page: right away, in development too (against the real
+/// release; nothing installs without a click, and in development nothing at all)
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
     check_now(&app).await.map_err(|e| tr(format!("Vérification impossible : {e}"), format!("Couldn't check: {e}")))
 }
 
-/// Version proposée, lue avec les notifications (feed.rs) et la page Paramètres
+/// Version offered, read with the notifications (feed.rs) and the Settings page
 pub fn available(app: &AppHandle) -> Option<String> {
     app.state::<Pending>().0.lock().unwrap().as_ref().map(|u| u.version.clone())
 }
 
-/// Clic sur la notification : téléchargement, signature vérifiée, installateur lancé, puis
-/// Pastille quitte (ne revient pas). En développement, s'arrête après la vérification.
+/// Click on the notification: download, signature checked, installer run, then
+/// Pastille quits (doesn't return). In development, stops after the check.
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
     let update = app.state::<Pending>().0.lock().unwrap().clone().ok_or(tr("Plus de mise à jour en attente.", "No update pending anymore."))?;

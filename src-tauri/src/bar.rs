@@ -1,23 +1,23 @@
-//! Barre pastel (demandée par Funsaiki le 16/10/2026) : à la place de la barre des tâches de
-//! Windows, une pilule en bas de chaque écran (barre.html, bar.ts), en masquage automatique.
+//! Pastel bar (requested by Funsaiki on 2026-10-16): instead of the Windows taskbar, a pill
+//! at the bottom of each screen (barre.html, bar.ts), auto-hidden.
 //!
-//! Une fenêtre transparente par écran (« bar-0 » pour le principal, puis de gauche à droite),
-//! sur toute la largeur de son bord bas et HEIGHT de haut, pour la zone de notification et les
-//! menus au-dessus de la pilule. Elle ne prend jamais le focus (la fenêtre au premier plan reste
-//! celle de Funsaiki) et laisse passer la souris, sauf sur ce que le front affiche (rectangles de
-//! `bar_rects`). Masquée tant que la pilule est rentrée.
+//! One transparent window per screen ("bar-0" for the primary one, then left to right),
+//! across the whole width of its bottom edge and HEIGHT tall, for the notification area and the
+//! menus above the pill. It never takes the focus (the foreground window stays
+//! Funsaiki's) and lets the mouse through, except over what the front shows (rectangles from
+//! `bar_rects`). Hidden while the pill is retracted.
 //!
-//! Un fil relève la souris toutes les 50 ms : au bord bas d'un écran, la pilule de cet écran
-//! sort (pas par-dessus le téléphone ni une application en plein écran) ; il dit au front quand
-//! la souris est sur la pilule (elle rentre 0,7 s après son départ) et quand on clique ailleurs.
+//! A thread polls the mouse every 50 ms: at the bottom edge of a screen, that screen's pill
+//! slides out (not over the phone nor over a fullscreen app); it tells the front when
+//! the mouse is over the pill (it retracts 0.7 s after the mouse leaves) and on clicks elsewhere.
 //!
-//! Les signaux que Windows envoie à sa barre des tâches (shell_hook.rs) font relire les fenêtres
-//! des pilules sorties, et une fenêtre qui demande l'attention (Discord à un nouveau message)
-//! fait sortir un instant la pilule de son écran, sa tuile en rose.
+//! The signals Windows sends to its taskbar (shell_hook.rs) make the pills that are out read
+//! their windows again, and a window asking for attention (Discord on a new message)
+//! briefly slides out the pill of its screen, its tile in pink.
 //!
-//! Seulement si Funsaiki active « Barre pastel » dans la page Paramètres (barre.json, à côté de
-//! apps.json, avec les applications épinglées : bar_pins.rs) ; la barre des tâches de Windows
-//! est alors masquée (taskbar.rs).
+//! Only if Funsaiki turns on "Pastel bar" in the Settings page (barre.json, next to
+//! apps.json, with the pinned apps: bar_pins.rs); the Windows taskbar
+//! is then hidden (taskbar.rs).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -45,19 +45,19 @@ use crate::i18n::tr;
 use crate::shell_hook::{self, Event};
 use crate::{bar_preview, launcher, open_windows, switch, taskbar, tray_apps};
 
-/// Hauteur des fenêtres de la barre, en pixels logiques : la pilule, et au-dessus la zone de
-/// notification avec un menu ouvert
+/// Height of the bar windows, in logical pixels: the pill, and above it the notification
+/// area with a menu open
 const HEIGHT: f64 = 520.0;
-/// Relevé de la souris
+/// Mouse polling
 const POLL: Duration = Duration::from_millis(50);
 
-/* ── Réglage : barre.json ── */
+/* ── Setting: barre.json ── */
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
     active: bool,
-    /// Applications épinglées, dans leur ordre (bar_pins.rs)
+    /// Pinned apps, in their order (bar_pins.rs)
     #[serde(default)]
     pub pinned: Vec<Pin>,
 }
@@ -66,7 +66,7 @@ fn file(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|dir| dir.join("barre.json"))
 }
 
-/// Fichier absent ou illisible : barre coupée
+/// File missing or unreadable: bar off
 fn settings(app: &AppHandle) -> Settings {
     file(app)
         .and_then(|path| fs::read_to_string(path).ok())
@@ -74,7 +74,7 @@ fn settings(app: &AppHandle) -> Settings {
         .unwrap_or_default()
 }
 
-/// Fichier temporaire puis renommage, comme spotify.json
+/// Temporary file then rename, like spotify.json
 fn save(app: &AppHandle, settings: &Settings) {
     let Some(path) = file(app) else { return };
     let temp = path.with_extension("json.tmp");
@@ -85,7 +85,7 @@ fn save(app: &AppHandle, settings: &Settings) {
     }
 }
 
-/// Lit, modifie et réécrit barre.json, une modification à la fois
+/// Reads, changes and rewrites barre.json, one change at a time
 pub fn update(app: &AppHandle, change: impl FnOnce(&mut Settings)) {
     static WRITING: Mutex<()> = Mutex::new(());
     let _writing = WRITING.lock().unwrap();
@@ -102,15 +102,15 @@ pub fn pins(app: &AppHandle) -> Vec<Pin> {
     settings(app).pinned
 }
 
-/// À la page de chaque écran
+/// To the page of each screen
 pub fn emit_all(app: &AppHandle, event: &str) {
     for label in app.webview_windows().into_keys().filter(|label| index(label).is_some()) {
         let _ = app.emit_to(label, event, ());
     }
 }
 
-/// Au démarrage. Barre coupée : celle de Windows est réaffichée, au cas où un arrêt brutal du
-/// lanceur l'aurait laissée masquée.
+/// At startup. Bar off: the Windows taskbar is shown again, in case an abrupt stop of the
+/// launcher left it hidden.
 pub fn init(app: &AppHandle) {
     if is_active(app) {
         start(app);
@@ -119,12 +119,12 @@ pub fn init(app: &AppHandle) {
     }
 }
 
-/// Barre pastel en marche (d'après la barre, pas d'après barre.json, qui a pu être modifié à la main)
+/// Pastel bar running (according to the bar, not to barre.json, which may have been edited by hand)
 pub fn running() -> bool {
     RUNNING.load(SeqCst)
 }
 
-/// Interrupteur « Barre pastel » de la page Paramètres (prefs.rs) ; renvoie le nouvel état
+/// "Pastel bar" switch of the Settings page (prefs.rs); returns the new state
 pub fn toggle(app: &AppHandle) -> bool {
     let active = !RUNNING.load(SeqCst);
     update(app, |settings| settings.active = active);
@@ -132,9 +132,9 @@ pub fn toggle(app: &AppHandle) -> bool {
     active
 }
 
-/* ── Marche et arrêt ── */
+/* ── Start and stop ── */
 
-/// Par écran : là où la fenêtre prend la souris (pixels de l'écran), pilule sortie, souris dessus
+/// Per screen: where the window takes the mouse (screen pixels), pill out, mouse over it
 #[derive(Default)]
 struct Screen {
     rects: Vec<RECT>,
@@ -144,9 +144,9 @@ struct Screen {
 
 static SCREENS: Mutex<Vec<Screen>> = Mutex::new(Vec::new());
 static RUNNING: AtomicBool = AtomicBool::new(false);
-/// Dernière fenêtre au premier plan qui n'est pas au lanceur : celle que la barre montre active
+/// Last foreground window that isn't the launcher's: the one the bar shows as active
 static ACTIVE: Mutex<isize> = Mutex::new(0);
-/// Fenêtres qui demandent l'attention, jusqu'à ce qu'elles passent au premier plan
+/// Windows asking for attention, until they come to the foreground
 static ATTENTION: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 
 fn start(app: &AppHandle) {
@@ -182,7 +182,7 @@ fn stop(app: &AppHandle) {
     taskbar::restore();
 }
 
-/// À la sortie du lanceur : la barre de Windows revient
+/// When the launcher exits: the Windows taskbar comes back
 pub fn shutdown() {
     if RUNNING.swap(false, SeqCst) {
         taskbar::restore();
@@ -197,16 +197,16 @@ fn index(label: &str) -> Option<usize> {
     label.strip_prefix("bar-")?.parse().ok()
 }
 
-/* ── Écrans et fenêtres de la barre ── */
+/* ── Screens and bar windows ── */
 
-/// Un écran (pixels de l'écran) : tout l'écran, et sa zone de travail (sans la barre des tâches)
+/// A screen (screen pixels): the whole screen, and its work area (without the taskbar)
 struct Display {
     primary: bool,
     area: RECT,
     work: RECT,
 }
 
-/// Écrans, le principal d'abord puis de gauche à droite
+/// Screens, the primary one first, then left to right
 fn displays() -> Vec<Display> {
     unsafe extern "system" fn visit(monitor: HMONITOR, _dc: HDC, _rect: *mut RECT, lparam: LPARAM) -> BOOL {
         let found = unsafe { &mut *(lparam.0 as *mut Vec<Display>) };
@@ -234,9 +234,9 @@ fn monitor_info(monitor: HMONITOR) -> Option<Display> {
     })
 }
 
-/// Une fenêtre par écran. Écran branché ou débranché : celles en trop sont détruites, les
-/// autres rentrées (leur état ne vaut plus : pilule sortie, souris prise) ; une fenêtre qui n'a
-/// pas pu être créée est réessayée au relevé suivant.
+/// One window per screen. Screen plugged in or unplugged: the extra ones are destroyed, the
+/// others retracted (their state no longer holds: pill out, mouse captured); a window that
+/// couldn't be created is retried at the next poll.
 fn ensure_windows(app: &AppHandle, monitors: &[RECT]) {
     let changed = {
         let mut screens = SCREENS.lock().unwrap();
@@ -270,7 +270,7 @@ fn ensure_windows(app: &AppHandle, monitors: &[RECT]) {
             continue;
         }
         match create(app, &label) {
-            // Barre coupée pendant la création (`stop`, depuis le fil principal)
+            // Bar turned off during the creation (`stop`, from the main thread)
             Ok(w) if !RUNNING.load(SeqCst) => {
                 let _ = w.destroy();
                 return;
@@ -295,11 +295,11 @@ fn create(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
         .visible(false)
         .build()?;
     w.set_ignore_cursor_events(true)?;
-    launcher::set_memory_low(&w, true);   // pilule rentrée
+    launcher::set_memory_low(&w, true);   // pill retracted
     Ok(w)
 }
 
-/// Sur toute la largeur du bord bas de l'écran
+/// Across the whole width of the screen's bottom edge
 fn place(w: &WebviewWindow, monitor: &RECT) {
     let scale = w
         .monitor_from_point(monitor.left as f64 + 1.0, monitor.top as f64 + 1.0)
@@ -307,35 +307,35 @@ fn place(w: &WebviewWindow, monitor: &RECT) {
         .flatten()
         .map_or(1.0, |m| m.scale_factor());
     let height = (HEIGHT * scale).round() as i32;
-    // Position d'abord : en changeant d'écran, Windows adapte la taille à l'échelle du nouvel écran
+    // Position first: when the window changes screens, Windows adapts its size to the new screen's scale
     let _ = w.set_position(PhysicalPosition::new(monitor.left, monitor.bottom - height));
     let _ = w.set_size(PhysicalSize::new((monitor.right - monitor.left) as u32, height as u32));
 }
 
-/* ── Relevé de la souris ── */
+/* ── Mouse polling ── */
 
 enum Action {
-    /// Souris au bord bas, ou un instant pour une fenêtre qui demande l'attention (vrai)
+    /// Mouse at the bottom edge, or briefly for a window asking for attention (true)
     Reveal(usize, RECT, bool),
     Pointer(usize, bool),
     Outside(usize),
-    /// Fenêtres à relire
+    /// Windows to read again
     Changed(usize),
 }
 
 fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
     let foreground = remember_foreground();
-    // Lus même écran verrouillé : ils s'accumuleraient toute la nuit
+    // Read even when the screen is locked: they would pile up all night
     let (changed, peek) = read_signals(signals, foreground);
     let mut cursor = POINT::default();
-    // Écran verrouillé, demande de l'UAC : pas de souris
+    // Screen locked, UAC prompt: no mouse
     if unsafe { GetCursorPos(&mut cursor) }.is_err() {
         return;
     }
     let monitors = monitors();
     ensure_windows(app, &monitors);
-    // Bouton enfoncé, ou enfoncé depuis le dernier relevé (clic de moins de 50 ms : bit de poids
-    // faible, qu'un autre programme peut prendre avant nous ; jamais un faux clic)
+    // Button down, or pressed since the last poll (click shorter than 50 ms: low-order bit,
+    // which another program may consume before us; never a false click)
     let (mut pressed, mut tapped) = (false, false);
     for key in [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON] {
         let state = unsafe { GetAsyncKeyState(key.0 as i32) };
@@ -345,7 +345,7 @@ fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
     let click = (pressed && !*pressed_before) || tapped;
     *pressed_before = pressed;
 
-    // Décisions sous le verrou, appels à Tauri après (ils passent par le fil principal)
+    // Decisions under the lock, calls to Tauri afterwards (they go through the main thread)
     let mut actions = Vec::new();
     {
         let mut screens = SCREENS.lock().unwrap();
@@ -359,7 +359,7 @@ fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
             } else if changed && screen.out {
                 actions.push(Action::Changed(i));
             }
-            // Le bord bas compte : la pilule ne rentre pas tant que la souris y reste
+            // The bottom edge counts: the pill doesn't retract while the mouse stays there
             let inside = screen.out && (at_edge || screen.rects.iter().any(|r| contains(r, cursor)));
             if inside != screen.inside {
                 screen.inside = inside;
@@ -395,8 +395,8 @@ fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
     }
 }
 
-/// Signaux de Windows depuis le dernier relevé : fenêtres à relire ? Écran d'une fenêtre qui
-/// vient de demander l'attention (la pilule y sort un instant) ?
+/// Windows signals since the last poll: windows to read again? Screen of a window that
+/// just asked for attention (the pill briefly slides out there)?
 fn read_signals(signals: &Receiver<Event>, foreground: HWND) -> (bool, Option<RECT>) {
     let own = std::process::id();
     let mut changed = false;
@@ -409,7 +409,7 @@ fn read_signals(signals: &Receiver<Event>, foreground: HWND) -> (bool, Option<RE
                 attention.retain(|&a| a != h);
                 changed = true;
             }
-            // Répété tant qu'elle clignote : seul le premier compte
+            // Repeated while it flashes: only the first one counts
             Event::Flash(h) => {
                 let hwnd = HWND(h as *mut _);
                 if hwnd != foreground && !attention.contains(&h) && switch::is_app_window(hwnd) && pid_of(hwnd) != own {
@@ -420,7 +420,7 @@ fn read_signals(signals: &Receiver<Event>, foreground: HWND) -> (bool, Option<RE
             }
         }
     }
-    // Passée au premier plan sans signal
+    // Came to the foreground without a signal
     let before = attention.len();
     attention.retain(|&a| a != foreground.0 as isize);
     (changed || attention.len() != before, peek)
@@ -436,7 +436,7 @@ fn pid_of(hwnd: HWND) -> u32 {
     pid
 }
 
-/// Fenêtre au premier plan ; gardée dans ACTIVE si elle n'est pas au lanceur
+/// Foreground window; kept in ACTIVE if it isn't the launcher's
 fn remember_foreground() -> HWND {
     let foreground = unsafe { GetForegroundWindow() };
     if !foreground.is_invalid() && pid_of(foreground) != std::process::id() {
@@ -445,14 +445,14 @@ fn remember_foreground() -> HWND {
     foreground
 }
 
-/// Pas par-dessus le téléphone, ni une application en plein écran sur cet écran (jeu, vidéo,
-/// F11). Une fenêtre agrandie couvre aussi l'écran (la barre de Funsaiki se masque) : elle,
-/// la pilule peut la recouvrir. Le bureau non plus n'est pas un plein écran.
+/// Not over the phone, nor over a fullscreen app on this screen (game, video,
+/// F11). A maximized window also covers the screen (Funsaiki's taskbar auto-hides): that one
+/// the pill may cover. Nor is the desktop a fullscreen app.
 fn blocked(foreground: HWND, monitor: &RECT) -> bool {
     if foreground.is_invalid() {
         return false;
     }
-    // Le téléphone affiché ; masqué, sa fenêtre peut rester au premier plan (menu de l'icône)
+    // The phone is shown; when hidden, its window may stay in the foreground (tray icon menu)
     if pid_of(foreground) == std::process::id() {
         return unsafe { IsWindowVisible(foreground) }.as_bool();
     }
@@ -467,10 +467,10 @@ fn blocked(foreground: HWND, monitor: &RECT) -> bool {
     covers && !desktop && !unsafe { IsZoomed(foreground) }.as_bool()
 }
 
-/* ── Commandes du front ── */
+/* ── Front commands ── */
 
-/// Rectangles où la fenêtre prend la souris : pilule, zone de notification, menu ouvert, en
-/// pixels CSS de la fenêtre (x, y, largeur, hauteur). Vide quand la pilule rentre.
+/// Rectangles where the window takes the mouse: pill, notification area, open menu, in
+/// CSS pixels of the window (x, y, width, height). Empty when the pill retracts.
 #[tauri::command]
 pub async fn bar_rects(window: WebviewWindow, rects: Vec<[f64; 4]>) {
     let Some(i) = index(window.label()) else { return };
@@ -490,8 +490,8 @@ pub async fn bar_rects(window: WebviewWindow, rects: Vec<[f64; 4]>) {
     }
 }
 
-/// Pilule rentrée : la fenêtre est masquée jusqu'à la prochaine sortie, WebView2 en mémoire basse
-/// comme le téléphone masqué
+/// Pill retracted: the window is hidden until the pill slides out again, WebView2 in low memory
+/// like the hidden phone
 #[tauri::command]
 pub async fn bar_hidden(window: WebviewWindow) {
     let Some(i) = index(window.label()) else { return };
@@ -505,30 +505,30 @@ pub async fn bar_hidden(window: WebviewWindow) {
 
 #[derive(Serialize)]
 pub struct BarWindow {
-    /// Handle de la fenêtre, renvoyé pour agir (Rust vérifie qu'elle est encore là)
+    /// Window handle, sent back to act on it (Rust checks it is still there)
     id: String,
     title: String,
-    /// Programme (« Brave Browser »)
+    /// Program ("Brave Browser")
     pub app: String,
-    /// Ses fenêtres partagent une tuile
+    /// Its windows share a tile
     key: String,
-    /// Nom du programme en minuscules (« brave.exe ») : celui d'une application épinglée.
-    /// Vide pour les apps hébergées, qui ne s'épinglent pas.
+    /// Program name in lowercase ("brave.exe"): the one of a pinned app.
+    /// Empty for hosted apps, which can't be pinned.
     pub exe: String,
-    /// Chemin du programme (bar_pins::follow), pas envoyé au front
+    /// Program path (bar_pins::follow), not sent to the front
     #[serde(skip)]
     pub path: String,
-    /// Pas pour les programmes dont le front a déjà l'icône
+    /// Not for programs whose icon the front already has
     icon: Option<crate::icon::Icon>,
-    /// Au premier plan
+    /// In the foreground
     active: bool,
-    /// Demande l'attention (clignote dans la barre de Windows)
+    /// Asks for attention (flashes in the Windows taskbar)
     attention: bool,
 }
 
-/// Fenêtres de la barre des tâches, sauf celles du lanceur. Toutes, quel que soit leur écran
-/// (demande de Funsaiki) : chaque pilule les montre toutes. Relues souvent : les icônes ne sont
-/// envoyées que pour les programmes que le front n'a pas déjà (`known`, des `key`).
+/// Taskbar windows, except the launcher's. All of them, whatever their screen
+/// (requested by Funsaiki): each pill shows them all. Read often: icons are only
+/// sent for programs the front doesn't already have (`known`, a list of `key`s).
 #[tauri::command]
 pub async fn bar_windows(app: AppHandle, known: Vec<String>) -> Vec<BarWindow> {
     let windows = crate::com::com_task(move || Ok(list(&known))).await.unwrap_or_default();
@@ -549,7 +549,7 @@ fn list(known: &[String]) -> Vec<BarWindow> {
                 return None;
             }
             let title = open_windows::title(hwnd);
-            // Une tuile par fenêtre, nommée par son titre
+            // One tile per window, named by its title
             let lower = path.to_lowercase();
             let hosted = is_hosted(&path);
             let app = if hosted {
@@ -577,13 +577,13 @@ fn list(known: &[String]) -> Vec<BarWindow> {
         .collect()
 }
 
-/// Les apps du Store comme Paramètres ou Calculatrice partagent ce programme
+/// Store apps such as Windows Settings or Calculator share this program
 pub fn is_hosted(path: &str) -> bool {
     path.to_lowercase().ends_with(r"\applicationframehost.exe")
 }
 
-/// Réduite, comme un clic sur la tuile de la fenêtre au premier plan dans la barre de Windows.
-/// Sans attendre le programme (il peut ne plus répondre).
+/// Minimized, like a click on the foreground window's tile in the Windows taskbar.
+/// Without waiting for the program (it may have stopped responding).
 #[tauri::command]
 pub async fn minimize_window(id: String) -> Result<(), String> {
     crate::blocking(move || {
@@ -594,7 +594,7 @@ pub async fn minimize_window(id: String) -> Result<(), String> {
     .await?
 }
 
-/// Comme son bouton de fermeture : le programme peut demander d'enregistrer
+/// Like its close button: the program may ask to save
 #[tauri::command]
 pub async fn close_window(id: String) -> Result<(), String> {
     crate::blocking(move || {
@@ -604,16 +604,16 @@ pub async fn close_window(id: String) -> Result<(), String> {
     .await?
 }
 
-/// Relance le programme de la fenêtre (le navigateur ouvre une nouvelle fenêtre, par exemple) ;
-/// une app du Store par son identifiant
+/// Launches the window's program again (the browser opens a new window, for example);
+/// a Store app by its identifier
 #[tauri::command]
 pub async fn new_window(id: String) -> Result<(), String> {
     let target = crate::com::com_task(move || Ok(relaunch_target(&id))).await??;
     crate::blocking(move || crate::shell::open_as_is(&target)).await?
 }
 
-/// Avec COM : l'identifiant d'une app hébergée est lu sur sa fenêtre (ApplicationFrameHost,
-/// relancé seul, n'ouvrirait rien)
+/// With COM: the identifier of a hosted app is read from its window (ApplicationFrameHost,
+/// launched again on its own, would open nothing)
 fn relaunch_target(id: &str) -> Result<String, String> {
     let hwnd = open_windows::app_window(id)?;
     let (path, pid) = switch::process_of(hwnd);
@@ -630,16 +630,16 @@ fn relaunch_target(id: &str) -> Result<String, String> {
         .ok_or_else(|| tr("Identifiant de l'application introuvable.", "The app's identifier was not found.").to_string())
 }
 
-/// Nombre d'écrans : « Envoyer sur l'autre écran » dans le menu d'une fenêtre s'il y en a plusieurs
+/// Number of screens: "Move to the other screen" in a window's menu if there are several
 #[tauri::command]
 pub fn bar_screens() -> usize {
     monitors().len()
 }
 
-/// Fenêtre envoyée sur l'écran suivant (l'autre écran chez Funsaiki), à la même place dans la
-/// zone de travail, puis ramenée devant. Agrandie, elle est remise à sa taille normale sur le
-/// nouvel écran puis agrandie à nouveau (déplacer une fenêtre agrandie trompe certaines apps) ;
-/// réduite, elle s'ouvre sur le nouvel écran.
+/// Window moved to the next screen (the other screen when there are two), at the same place in the
+/// work area, then brought to the front. Maximized, it is restored to its normal size on the
+/// new screen then maximized again (moving a maximized window confuses some apps);
+/// minimized, it opens on the new screen.
 #[tauri::command]
 pub async fn move_window(id: String) -> Result<(), String> {
     crate::blocking(move || {
@@ -655,7 +655,7 @@ pub async fn move_window(id: String) -> Result<(), String> {
         unsafe {
             let zoomed = IsZoomed(hwnd).as_bool();
             if zoomed || IsIconic(hwnd).as_bool() {
-                // Place normale, en coordonnées de la zone de travail de l'écran principal
+                // Normal placement, in coordinates of the primary screen's work area
                 let mut placement = WINDOWPLACEMENT { length: size_of::<WINDOWPLACEMENT>() as u32, ..Default::default() };
                 GetWindowPlacement(hwnd, &mut placement).map_err(error)?;
                 let primary = displays.iter().find(|d| d.primary).unwrap_or(&displays[0]);
@@ -687,8 +687,8 @@ fn offset(r: RECT, dx: i32, dy: i32) -> RECT {
     RECT { left: r.left + dx, top: r.top + dy, right: r.right + dx, bottom: r.bottom + dy }
 }
 
-/// Même place par rapport à la zone de travail ; plus grande que la nouvelle, elle y est
-/// ramenée, sans en sortir (16 px de marge : les bords invisibles des fenêtres de Windows 11)
+/// Same place relative to the work area; larger than the new one, it is brought
+/// back inside, without going out (16 px margin: the invisible borders of Windows 11 windows)
 fn shift(r: RECT, from: &RECT, to: &RECT) -> RECT {
     const MARGIN: i32 = 16;
     let width = (r.right - r.left).min(to.right - to.left);
@@ -698,15 +698,15 @@ fn shift(r: RECT, from: &RECT, to: &RECT) -> RECT {
     RECT { left, top, right: left + width, bottom: top + height }
 }
 
-/// Bouton Applications : le téléphone monte sur l'écran de la souris (celui de la pilule)
+/// Apps button: the phone rises on the mouse's screen (the pill's one)
 #[tauri::command]
 pub fn show_launcher(app: AppHandle) {
     launcher::show(&app);
 }
 
-/// Clic droit sur Applications : le menu de l'icône du lanceur (Afficher, Paramètres, Quitter),
-/// que la barre de Windows masquée ne montre plus. Ouvert depuis la boucle du fil
-/// principal, pas pendant la commande : le menu attend le choix de Funsaiki.
+/// Right-click on Apps: the launcher's tray icon menu (Show, Settings, Quit),
+/// which the hidden Windows taskbar no longer shows. Opened from the main thread's
+/// loop, not during the command: the menu waits for Funsaiki's choice.
 #[tauri::command]
 pub async fn bar_menu(app: AppHandle) {
     let handle = app.clone();
@@ -735,10 +735,10 @@ mod tests {
         let window = RECT { left: 100, top: 50, right: 1100, bottom: 750 };
         let moved = shift(window, &left, &right);
         assert_eq!((moved.left, moved.top, moved.right, moved.bottom), (2020, 50, 3020, 750));
-        // Ancrée à gauche (bord invisible de 7 px) : gardée telle quelle
+        // Snapped to the left (7 px invisible border): kept as is
         let snapped = shift(RECT { left: -7, top: 0, right: 967, bottom: 1087 }, &left, &right);
         assert_eq!((snapped.left, snapped.right), (1913, 2887));
-        // Plus grande que l'écran d'arrivée : ramenée dedans
+        // Larger than the destination screen: brought inside
         let small = RECT { left: 3840, top: 0, right: 5120, bottom: 720 };
         let big = shift(RECT { left: 0, top: 0, right: 1920, bottom: 1080 }, &left, &small);
         assert_eq!((big.left, big.right - big.left, big.bottom - big.top), (3840, 1280, 720));
@@ -746,7 +746,7 @@ mod tests {
 
     #[test]
     fn settings_file() {
-        // barre.json d'avant les épingles
+        // barre.json from before pins
         let old: Settings = serde_json::from_str(r#"{ "active": true }"#).unwrap();
         assert!(old.active && old.pinned.is_empty());
         let text = r#"{ "active": false, "pinned": [{ "exe": "discord.exe", "name": "Discord", "path": "C:/Discord.exe" }] }"#;
@@ -754,7 +754,7 @@ mod tests {
         assert_eq!(file.pinned[0].exe, "discord.exe");
     }
 
-    /// Diagnostic, lecture seule : cargo test real_bar_windows -- --ignored --nocapture
+    /// Diagnostic, read-only: cargo test real_bar_windows -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_bar_windows() {

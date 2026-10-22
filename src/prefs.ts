@@ -1,10 +1,10 @@
 /* ══════════════════════════════════════════════════════════
-   Page Paramètres de Pastille (demandée par Funsaiki le 21/10/2026) : ce que réglait le menu
-   de l'icône (démarrer avec Windows, barre pastel, Spotify, apps.json, quitter), la langue,
-   et la carte Personnaliser devenue la section Apparence (customize.ts). Comme une page de
-   téléphone, elle glisse de la droite à la place du reste de la vue réglages ; ui.ts l'ouvre
-   (bouton à droite du nom, clic sur le strap) et la ferme (retour, Échap, fermeture du lanceur).
-   Rangées au style des notifications ; une erreur s'affiche en tête de la page.
+   Settings page of Pastille (requested by Funsaiki on 2026-10-21): what the tray icon menu
+   used to set (Start with Windows, pastel bar, Spotify, apps.json, quit), the language,
+   and the Customize card, now the Appearance section (customize.ts). Like a phone page,
+   it slides in from the right in place of the rest of the quick settings view; ui.ts opens it
+   (button right of the name, click on the strap) and closes it (back, Esc, launcher closing).
+   Rows in the style of the notifications; an error shows at the top of the page.
    ══════════════════════════════════════════════════════════ */
 import { refreshCustom, type Tab } from './customize';
 import { el } from './dom';
@@ -14,14 +14,14 @@ import { tr } from './i18n';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
-let prefs: Prefs | null = null;   // null : pas encore lus (ou illisibles)
-let checking = false;             // recherche de mise à jour en cours
-let checked = false;              // « À jour » : seulement après une recherche
+let prefs: Prefs | null = null;   // null: not read yet (or unreadable)
+let checking = false;             // update check in progress
+let checked = false;              // "Up to date": only after a check
 let installing = false;
-let reloaded = 0;                 // config relue (minuterie du « Relue »)
-let quitArmed = 0;                // Quitter cliqué une fois (minuterie de la confirmation)
+let reloaded = 0;                 // config reloaded (timer of the "Just reloaded")
+let quitArmed = 0;                // Quit clicked once (confirmation timer)
 let problem: { title: string; text: string } | null = null;
-let leave = () => {};             // ui.ts : masque le lanceur (le navigateur ou l'éditeur s'ouvre)
+let leave = () => {};             // ui.ts: hides the launcher (the browser or the editor opens)
 
 const EXIT = 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9';
 const PENCIL = 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4';
@@ -29,7 +29,7 @@ const KEYBOARD = 'M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10';
 const BAR = 'M3 4h18v16H3zM8.5 14.5h7a1.5 1.5 0 010 3h-7a1.5 1.5 0 010-3z';
 const CHEVRON = 'M9 5l7 7-7 7';
 
-/* « Alt+Space » (apps.json) → « Alt+Espace » ; en anglais, les noms du clavier anglais */
+/* "Alt+Space" (apps.json) → "Alt+Espace"; in English, the English keyboard names */
 export function keyLabel(shortcut: string) {
   const names: Record<string, string> = tr(
     { space: 'Espace', shift: 'Maj', control: 'Ctrl', commandorcontrol: 'Ctrl', cmdorctrl: 'Ctrl', super: 'Win', meta: 'Win', escape: 'Échap', enter: 'Entrée' },
@@ -38,7 +38,7 @@ export function keyLabel(shortcut: string) {
   return shortcut.split('+').map((k) => names[k.toLowerCase()] ?? k.replace(/^(Key|Digit)/, '')).join('+');
 }
 
-/* ── Rangées : pastille de couleur, titre et sous-titre comme une notification, réglage à droite ── */
+/* ── Rows: color dot, title and subtitle like a notification, setting on the right ── */
 interface Row {
   node: HTMLElement;
   update: () => void;
@@ -72,7 +72,7 @@ function parts(node: HTMLElement, d: string, bg: string) {
   return { badge, title, body };
 }
 
-/* Petit bouton en pilule à droite d'une rangée ; `primary` : fond accent */
+/* Small pill-shaped button on the right of a row; `primary`: accent background */
 function pill(click: () => void) {
   const b = el('button', 'prefs-btn');
   b.type = 'button';
@@ -80,8 +80,8 @@ function pill(click: () => void) {
   return b;
 }
 
-/* Interrupteur : fond accent et rond blanc une fois activé, comme les tuiles ; un clic sur la
-   rangée le bascule aussi */
+/* Switch: accent background and white knob once on, like the tiles; a click on the
+   row toggles it too */
 function switchRow(key: PrefSwitch, d: string, bg: string, label: string, sub: (on: boolean | null) => string): Row {
   const node = el('div');
   const { title, body } = parts(node, d, bg);
@@ -110,13 +110,13 @@ function switchRow(key: PrefSwitch, d: string, bg: string, label: string, sub: (
 async function toggle(key: PrefSwitch) {
   if (!prefs || prefs[key] === null) return;
   const on = !prefs[key];
-  prefs = { ...prefs, [key]: on };   // l'interrupteur bascule tout de suite
+  prefs = { ...prefs, [key]: on };   // the switch flips right away
   update();
   await act(key === 'bar' ? tr('Barre pastel', 'Pastel bar') : tr('Démarrer avec Windows', 'Start with Windows'), () => host.setPrefSwitch(key, on));
-  await reload();   // l'état réel (refusé, case changée ailleurs)
+  await reload();   // the real state (refused, setting changed elsewhere)
 }
 
-/* Langue : la pastille des onglets, chaque langue écrite dans la sienne */
+/* Language: the tabs pill, each language named in its own language */
 const LANGUAGES: { key: Language; name: string }[] = [
   { key: 'fr', name: 'Français' },
   { key: 'en', name: 'English' },
@@ -164,8 +164,8 @@ function languageRow(): Row {
   };
 }
 
-/* Rust prévient les pages, qui se rechargent dans la nouvelle langue (ui.ts : le téléphone
-   redescend et remonte sur cette page) */
+/* Rust tells the pages, which reload in the new language (ui.ts: the phone goes down
+   and comes back up on this page) */
 async function setLanguage(language: Language) {
   if (!prefs || prefs.language === language) return;
   prefs = { ...prefs, language };
@@ -173,7 +173,7 @@ async function setLanguage(language: Language) {
   if (!(await act(tr('Langue', 'Language'), () => host.setLanguage(language)))) await reload();
 }
 
-/* Raccourci de apps.json, en touches */
+/* Shortcut from apps.json, as keys */
 function shortcutRow(): Row {
   const node = el('div');
   const { title, body } = parts(node, KEYBOARD, '#ffe08a');
@@ -217,7 +217,7 @@ function spotifyRow(): Row {
     const link = prefs?.spotify;
     if (!link) return;
     const ok = await act('Spotify', () => host.prefAction('spotify'));
-    // Connexion (ou sa page rouverte) : elle se fait dans le navigateur
+    // Connecting (or its page reopened): it happens in the browser
     if (ok && link !== 'connected') leave();
     else await reload();
   });
@@ -234,7 +234,7 @@ function spotifyRow(): Row {
   };
 }
 
-/* Rangée bouton : toute la rangée se clique, chevron à droite */
+/* Button row: the whole row is clickable, chevron on the right */
 function buttonRow(d: string, bg: string, label: string, sub: () => string, click: () => void): Row {
   const node = el('button');
   node.type = 'button';
@@ -266,7 +266,7 @@ function reloadRow() {
   });
 }
 
-/* Version : rechercher une mise à jour, puis l'installer (Pastille redémarre) */
+/* Version: check for an update, then install it (Pastille restarts) */
 function versionRow(): Row {
   const node = el('div');
   const { title, body } = parts(node, ICONS.applications, 'var(--fill)');
@@ -302,12 +302,12 @@ async function check() {
 async function install() {
   installing = true;
   update();
-  await act(tr('Mise à jour', 'Update'), () => host.installUpdate());   // en production, Pastille quitte pendant l'appel
+  await act(tr('Mise à jour', 'Update'), () => host.installUpdate());   // in production, Pastille quits during the call
   installing = false;
   update();
 }
 
-/* Quitter : un premier clic demande confirmation (la rangée passe au rose), comme Forcer à quitter */
+/* Quit: a first click asks for confirmation (the row turns pink), like Force quit */
 function quitRow(): Row {
   const node = el('button');
   node.type = 'button';
@@ -339,8 +339,8 @@ function disarmQuit() {
   update();
 }
 
-/* Action de la page : une erreur s'affiche en tête de la page (les notifications sont derrière) ;
-   vrai si elle a réussi */
+/* Page action: an error shows at the top of the page (the notifications are behind);
+   true if it succeeded */
 async function act(title: string, action: () => Promise<void>) {
   try {
     await action();
@@ -366,10 +366,10 @@ async function reload() {
   update();
 }
 
-/* ── Ouverture et fermeture ── */
+/* ── Opening and closing ── */
 export const prefsOpen = () => $('settings').classList.contains('prefs-open');
 
-/* `tab` : ouverte sur la section Apparence, à cet onglet (clic sur le strap) */
+/* `tab`: opened on the Appearance section, at this tab (click on the strap) */
 export function openPrefs(tab?: Tab) {
   const already = prefsOpen();
   refreshCustom(tab, already);
@@ -394,7 +394,7 @@ export function closePrefs(refocus = false) {
   if (refocus) $('prefs-toggle')?.focus({ preventScroll: true });
 }
 
-/* Page construite une fois ; `onLeave` : masquer le lanceur */
+/* Page built once; `onLeave`: hide the launcher */
 export function initPrefs(onLeave: () => void) {
   leave = onLeave;
   const autostart = (on: boolean | null) => (on === null && prefs ? tr('Version installée seulement', 'Installed version only') : tr('À l’ouverture de session', 'When you sign in'));

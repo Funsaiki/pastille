@@ -1,8 +1,8 @@
 /* ══════════════════════════════════════════════════════════
-   Apparence (demandée par Funsaiki le 19/10/2026) : accent, coque, écran et encre du
-   téléphone, perles et breloque du strap, choisis dans la carte Personnaliser
-   (customize.ts). Une couleur choisie donne toutes les nuances de la maquette qui en
-   dépendent ; sans choix, la maquette (styles.css) reste telle quelle.
+   Appearance (requested by Funsaiki on 2026-10-19): accent, case, screen and ink of the
+   phone, beads and charm of the strap, chosen in the Customize card
+   (customize.ts). A chosen color gives every shade of the mockup that depends on
+   it; with no choice, the mockup (styles.css) stays as it is.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG } from './config';
 import { tr } from './i18n';
@@ -10,15 +10,15 @@ import { tr } from './i18n';
 export type Charm = 'pilule' | 'etoile' | 'coeur' | 'chat' | 'image' | 'aucune';
 export type ColorKey = 'accent' | 'coque' | 'ecran' | 'encre';
 
-/* Ce qui est gardé (couleurs en #rrggbb) ; un champ absent : celui d'origine. L'accent
-   d'origine est celui de apps.json. L'image de la breloque est gardée à part. */
+/* What is saved (colors as #rrggbb); a missing field: the original one. The original
+   accent is the one from apps.json. The charm's image is saved separately. */
 export interface Appearance {
   accent?: string;
   coque?: string;
   ecran?: string;
   encre?: string;
   breloque?: Charm;
-  perles?: string[];   // trois couleurs, de haut en bas
+  perles?: string[];   // three colors, top to bottom
 }
 
 export interface Swatch {
@@ -26,10 +26,10 @@ export interface Swatch {
   color: string;
 }
 
-/* Les fonds des icônes et des dossiers, après l'accent */
+/* Backgrounds of icons and folders, after the accent */
 const PASTELS = ['#f6c6da', '#c9d8ff', '#ffe08a', '#9fe0dc'];
 
-/* Nuancier de chaque couleur ; la première est celle de la maquette */
+/* Swatches of each color; the first is the mockup's */
 export const SWATCHES: Record<ColorKey, Swatch[]> = {
   accent: [
     { name: tr('Menthe', 'Mint'), color: '#9fe0dc' },
@@ -65,7 +65,7 @@ export const SWATCHES: Record<ColorKey, Swatch[]> = {
   ],
 };
 
-/* Perles : mêmes couleurs que l'accent */
+/* Beads: same colors as the accent */
 export const BEAD_SWATCHES = SWATCHES.accent;
 
 let current: Appearance = {};
@@ -76,24 +76,24 @@ export function setAppearance(a: Appearance) {
   current = a;
 }
 
-/* Couleur en cours (choisie, sinon celle de la maquette, ou l'accent de apps.json) */
+/* Current color (chosen, otherwise the mockup's, or the accent from apps.json) */
 export function colorOf(key: ColorKey): string {
   return current[key] ?? (key === 'accent' ? CONFIG.accent : SWATCHES[key][0].color);
 }
 
-/* Fonds des icônes d'apps et des dossiers, dans l'ordre de la liste : l'accent (suivi en direct),
-   puis les pastels de la maquette sauf celui qui sert d'accent */
+/* Backgrounds of app icons and folders, in list order: the accent (followed live),
+   then the mockup's pastels except the one used as the accent */
 export function palette(): string[] {
   const accent = colorOf('accent').toLowerCase();
   return ['var(--fill)', ...PASTELS.filter((c) => c !== accent).slice(0, 3)];
 }
 
-/* Perles de haut en bas : choisies, sinon les trois premières couleurs de la palette */
+/* Beads top to bottom: chosen, otherwise the first three colors of the palette */
 export function beadColors(): string[] {
   return current.perles ?? palette().slice(0, 3).map((c) => (c === 'var(--fill)' ? colorOf('accent') : c));
 }
 
-/* ── Couleurs : #rrggbb ↔ teinte (degrés), saturation et clarté (%) ── */
+/* ── Colors: #rrggbb ↔ hue (degrees), saturation and lightness (%) ── */
 export type Hsl = [number, number, number];
 
 export function toHsl(hex: string): Hsl {
@@ -120,21 +120,21 @@ export const isHex = (s: string) => /^#[0-9a-f]{6}$/i.test(s);
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-/* Nuance d'une couleur : clarté et saturation décalées */
+/* Shade of a color: lightness and saturation shifted */
 function shade(hex: string, dl: number, ds: number) {
   const [h, s, l] = toHsl(hex);
   return toHex([h, clamp(s + ds, 0, 100), clamp(l + dl, 3, 97)]);
 }
 
-/* Mélange de deux couleurs, `t` : part de la seconde */
+/* Mix of two colors, `t`: share of the second */
 function mix(a: string, b: string, t: number) {
   const ch = (hex: string, i: number) => parseInt(hex.slice(i, i + 2), 16);
   return '#' + [1, 3, 5].map((i) => Math.round(ch(a, i) * (1 - t) + ch(b, i) * t).toString(16).padStart(2, '0')).join('');
 }
 
-/* Nuances de la coque de la maquette, en écarts de clarté et de saturation par rapport à sa
-   couleur du milieu (#1f5f68 : 187°, 54 %, 26 %) : haut et bas du dégradé, tranche, boutons,
-   bord de l'objectif */
+/* Shades of the mockup's case, as lightness and saturation offsets from its
+   middle color (#1f5f68: 187°, 54%, 26%): top and bottom of the gradient, edge, buttons,
+   lens rim */
 const COQUE_SHADES: [string, number, number][] = [
   ['--coque-top', 9, -5],
   ['--coque-bottom', -5, 2],
@@ -146,8 +146,8 @@ const COQUE_SHADES: [string, number, number][] = [
   ['--lens-ring', -6, 3],
 ];
 
-/* Pose les couleurs en cours sur la page (variables de styles.css). Une couleur pas choisie
-   retire sa variable : celle de la feuille de style, la maquette, revient. */
+/* Sets the current colors on the page (variables of styles.css). A color not chosen
+   removes its variable: the stylesheet's one, the mockup, comes back. */
 export function applyColors() {
   const root = document.documentElement.style;
   const set = (name: string, value: string | undefined) => (value ? root.setProperty(name, value) : root.removeProperty(name));
@@ -160,7 +160,7 @@ export function applyColors() {
   set('--screen-top', ecran);
   set('--screen-mid', ecran && mix(ecran, '#ffffff', 0.64));
   set('--screen-dot', ecran && mix(ecran, '#ffffff', 0.5));
-  // Perles : la première suit l'accent tant qu'elles ne sont pas choisies
+  // Beads: the first follows the accent as long as they are not chosen
   const beads = current.perles ?? palette().slice(0, 3);
   beads.forEach((c, i) => set(`--bead-${i + 1}`, c));
 }

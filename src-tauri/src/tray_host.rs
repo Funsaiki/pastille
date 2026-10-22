@@ -1,15 +1,15 @@
-//! Zone de notification reprise à Windows pendant que la barre pastel tourne (demande de Funsaiki,
-//! 18/10/2026 : chez un ami, l'icône d'EarTrumpet relançait le programme au lieu d'ouvrir son
-//! mixeur, et aucune icône ne donnait son menu). Une application déclare son icône à la fenêtre
-//! « Shell_TrayWnd » (`Shell_NotifyIcon` : un WM_COPYDATA), la première que trouve Windows :
-//! normalement la barre des tâches. Comme RetroBar, Pastille crée la sienne, gardée devant celle
-//! de Windows ; elle retient chaque icône (fenêtre, message de rappel, infobulle) et transmet tout
-//! à la barre de Windows, qui reste à jour (bulles devenues notifications, retour à la fin). Un
-//! clic sur une tuile envoie à l'application les messages d'un clic sur son icône : elle fait ce
-//! qu'elle fait d'habitude (son mixeur, son menu). Les icônes déjà là sont redemandées aux seuls
-//! programmes qui en ont (« TaskbarCreated », le signal d'un Explorateur relancé).
+//! Notification area taken over from Windows while the pastel bar runs (requested by Funsaiki,
+//! 2026-10-18: with the pastel bar, the EarTrumpet icon restarted the program instead of opening its
+//! mixer, and no icon gave its menu). An app declares its icon to the window
+//! "Shell_TrayWnd" (`Shell_NotifyIcon`: a WM_COPYDATA), the first one Windows finds:
+//! normally the taskbar. Like RetroBar, Pastille creates its own, kept in front of the Windows
+//! one; it records each icon (window, callback message, tooltip) and forwards everything
+//! to the Windows taskbar, which stays up to date (balloons shown as notifications, ready when it
+//! comes back). A click on a tile sends the app the messages of a click on its icon: it does what
+//! it usually does (its mixer, its menu). Icons already there are requested again, only from the
+//! programs that have some ("TaskbarCreated", the signal of a restarted Explorer).
 //!
-//! Tout se passe sur le fil de taskbar.rs, qui masque la barre de Windows.
+//! Everything happens on the thread of taskbar.rs, which hides the Windows taskbar.
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering::SeqCst};
@@ -29,19 +29,19 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WM_WINDOWPOSCHANGING, WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
 
-/// Fenêtre « Shell_TrayWnd » de Pastille (0 : barre pastel coupée)
+/// Pastille's "Shell_TrayWnd" window (0: pastel bar off)
 static HOST: AtomicIsize = AtomicIsize::new(0);
-/// Message « TaskbarCreated », propre à chaque session de Windows
+/// "TaskbarCreated" message, specific to each Windows session
 static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
 static ICONS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
 const TRAY_CLASS: PCWSTR = w!("Shell_TrayWnd");
-/// WM_COPYDATA de `Shell_NotifyIcon` (0 : barres d'applications)
+/// WM_COPYDATA of `Shell_NotifyIcon` (0: appbars)
 const NOTIFY_ICON: usize = 1;
-/// WM_COPYDATA de `Shell_NotifyIconGetRect` : où est l'icône (pour y placer son menu)
+/// WM_COPYDATA of `Shell_NotifyIconGetRect`: where the icon is (to place its menu there)
 const ICON_RECT: usize = 3;
-/// Minuteur de la fenêtre : redemander les icônes après un redémarrage de l'Explorateur
+/// Window timer: request the icons again after Explorer restarts
 const ANNOUNCE: usize = 1;
 
 // Shell_NotifyIcon (shellapi.h)
@@ -57,19 +57,19 @@ const NIS_HIDDEN: u32 = 0x1;
 const NIN_SELECT: u32 = 0x400;
 const NIN_KEYSELECT: u32 = 0x401;
 
-/// Une icône, telle que l'application l'a déclarée
+/// An icon, as the app declared it
 struct Entry {
     id: u32,
     hwnd: isize,
     uid: u32,
     guid: Option<GUID>,
-    /// Message envoyé à `hwnd` pour ses clics (0 : aucun, l'icône ne réagit pas)
+    /// Message sent to `hwnd` for its clicks (0: none, the icon doesn't react)
     callback: u32,
-    /// 0, 3 ou 4 (NOTIFYICON_VERSION_4) : la forme des messages de clic
+    /// 0, 3 or 4 (NOTIFYICON_VERSION_4): the form of the click messages
     version: u32,
     tip: String,
     hidden: bool,
-    /// La souris au dernier clic sur sa tuile : là où est l'icône pour l'application
+    /// The mouse at the last click on its tile: where the icon is, as far as the app knows
     clicked: Option<POINT>,
 }
 
@@ -94,8 +94,8 @@ impl Entry {
     }
 }
 
-/// Ce que transmet `Shell_NotifyIcon` : SHELLTRAYDATA (signature, message), puis NOTIFYICONDATA
-/// dans sa forme 32 bits (handles sur 4 octets, quelle que soit l'application)
+/// What `Shell_NotifyIcon` sends: SHELLTRAYDATA (signature, message), then NOTIFYICONDATA
+/// in its 32-bit form (4-byte handles, whatever the app)
 struct Notify {
     message: u32,
     hwnd: isize,
@@ -112,7 +112,7 @@ struct Notify {
 fn parse(data: &[u8]) -> Option<Notify> {
     const NID: usize = 8;
     let word = |at: usize| data.get(at..at + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
-    // Champs absents d'un format plus ancien, plus court : à zéro
+    // Fields missing from an older, shorter format: zero
     let field = |at: usize| word(NID + at).unwrap_or(0);
     let text = |at: usize, len: usize| {
         let bytes = data.get(NID + at..).unwrap_or_default();
@@ -126,7 +126,7 @@ fn parse(data: &[u8]) -> Option<Notify> {
     };
     Some(Notify {
         message: word(4)?,
-        // Handle sur 32 bits, étendu comme le fait Windows
+        // 32-bit handle, sign-extended as Windows does
         hwnd: word(NID + 4)? as i32 as isize,
         uid: word(NID + 8)?,
         flags: word(NID + 12)?,
@@ -139,7 +139,7 @@ fn parse(data: &[u8]) -> Option<Notify> {
     })
 }
 
-/// GUID zéro s'il manque (format plus ancien)
+/// Zero GUID if missing (older format)
 fn guid_at(data: &[u8], at: usize) -> GUID {
     data.get(at..at + 16).map_or(GUID::zeroed(), |b| {
         GUID::from_values(
@@ -151,10 +151,10 @@ fn guid_at(data: &[u8], at: usize) -> GUID {
     })
 }
 
-/// Réponse à `Shell_NotifyIconGetRect` : WINNOTIFYICONIDENTIFIER (signature, coin demandé :
-/// 1 en haut à gauche, 2 en bas à droite, taille, bourrage, fenêtre sur 32 bits, identifiant,
-/// GUID). Un pixel sous la souris du dernier clic sur sa tuile : son menu s'ouvre là, et pas au
-/// coin de la barre de Windows masquée. None : jamais cliquée, la barre de Windows répond.
+/// Answer to `Shell_NotifyIconGetRect`: WINNOTIFYICONIDENTIFIER (signature, requested corner:
+/// 1 top left, 2 bottom right, size, padding, 32-bit window, identifier,
+/// GUID). One pixel under the mouse at the last click on its tile: its menu opens there, not in the
+/// corner of the hidden Windows taskbar. None: never clicked, the Windows taskbar answers.
 fn icon_corner(data: &[u8]) -> Option<isize> {
     let word = |at: usize| data.get(at..at + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
     let (corner, hwnd, uid, guid) = (word(4)?, word(16)? as i32 as isize, word(20)?, guid_at(data, 24));
@@ -169,11 +169,11 @@ fn icon_corner(data: &[u8]) -> Option<isize> {
         2 => (at.x + 1, at.y + 1),
         _ => return None,
     };
-    // Comme MAKELPARAM : x en bas, y en haut (négatifs sur un écran à gauche ou au-dessus)
+    // Like MAKELPARAM: x low, y high (negative on a screen to the left or above)
     Some(((y as u16 as u32) << 16 | x as u16 as u32) as i32 as isize)
 }
 
-/// Met à jour les icônes ; vrai si Pastille accepte le message
+/// Updates the icons; true if Pastille accepts the message
 fn notify(n: &Notify) -> bool {
     let by_guid = n.flags & NIF_GUID != 0;
     let mut icons = ICONS.lock().unwrap();
@@ -185,7 +185,7 @@ fn notify(n: &Notify) -> bool {
         NIM_ADD | NIM_MODIFY => {
             let index = match found {
                 Some(index) => index,
-                // Une icône modifiée qu'on ne connaissait pas (ajoutée avant Pastille) est prise aussi
+                // A modified icon we didn't know about (added before Pastille) is taken too
                 None if n.hwnd != 0 => {
                     if cfg!(debug_assertions) {
                         eprintln!("[lanceur] zone de notification : icône de {} ({})", pid_of_window(n.hwnd), n.tip.lines().next().unwrap_or(""));
@@ -218,18 +218,18 @@ fn notify(n: &Notify) -> bool {
             }
             _ => false,
         },
-        // NIM_SETFOCUS : la barre de Windows répond
+        // NIM_SETFOCUS: the Windows taskbar answers
         _ => false,
     }
 }
 
-/// Crée la fenêtre et redemande les icônes. Sur le fil de taskbar.rs, qui traite ses messages.
+/// Creates the window and requests the icons again. On the thread of taskbar.rs, which processes its messages.
 pub fn start() {
     unsafe {
         let Ok(instance) = GetModuleHandleW(None) else { return };
-        // Déjà inscrite si la barre a été coupée puis remise : sans effet
+        // Already registered if the bar was turned off then on again: no effect
         RegisterClassW(&WNDCLASSW { lpfnWndProc: Some(on_message), hInstance: instance.into(), lpszClassName: TRAY_CLASS, ..Default::default() });
-        // Même rectangle que la barre de Windows, pour les programmes qui le lui demandent
+        // Same rectangle as the Windows taskbar, for programs that ask it for its rectangle
         let mut rect = RECT::default();
         if let Some(bar) = windows_tray() {
             let _ = GetWindowRect(bar, &mut rect);
@@ -252,7 +252,7 @@ pub fn start() {
             Ok(hwnd) => hwnd,
             Err(e) => return eprintln!("[lanceur] zone de notification impossible : {e}"),
         };
-        // Les programmes d'un niveau d'intégrité plus bas peuvent aussi déclarer leur icône
+        // Programs at a lower integrity level can declare their icon too
         let _ = ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, None);
         TASKBAR_CREATED.store(RegisterWindowMessageW(w!("TaskbarCreated")), SeqCst);
         HOST.store(hwnd.0 as isize, SeqCst);
@@ -261,7 +261,7 @@ pub fn start() {
     announce();
 }
 
-/// Sur le même fil que `start`. La barre de Windows a déjà tout : rien à lui redonner.
+/// On the same thread as `start`. The Windows taskbar already has everything: nothing to give back.
 pub fn stop() {
     let host = HOST.swap(0, SeqCst);
     if host != 0 {
@@ -270,8 +270,8 @@ pub fn stop() {
     ICONS.lock().unwrap().clear();
 }
 
-/// La fenêtre de Pastille reste la première trouvée (l'Explorateur remonte parfois la sienne).
-/// Relevé toutes les 250 ms par taskbar.rs : ~7 µs.
+/// Pastille's window stays the first one found (Explorer sometimes brings its own back up).
+/// Checked every 250 ms by taskbar.rs: ~7 µs.
 pub fn keep_first() {
     let host = HOST.load(SeqCst);
     if host == 0 {
@@ -284,14 +284,14 @@ pub fn keep_first() {
     }
 }
 
-/// Fenêtre de Pastille (sa « Shell_TrayWnd ») : taskbar.rs ne la masque ni ne l'affiche
+/// Pastille's window (its "Shell_TrayWnd"): taskbar.rs neither hides nor shows it
 pub fn own(hwnd: HWND) -> bool {
     let mut pid = 0;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
     pid == std::process::id()
 }
 
-/// La barre de Windows : une « Shell_TrayWnd » qui n'est pas celle de Pastille
+/// The Windows taskbar: a "Shell_TrayWnd" that isn't Pastille's
 fn windows_tray() -> Option<HWND> {
     let mut after = None;
     while let Ok(bar) = unsafe { FindWindowExW(None, after, TRAY_CLASS, None) } {
@@ -303,8 +303,8 @@ fn windows_tray() -> Option<HWND> {
     None
 }
 
-/// Transmis à la barre de Windows ; sa réponse, sauf si elle ne répond pas (4 s) ou qu'il n'y en
-/// a pas (Explorateur en train de redémarrer)
+/// Forwarded to the Windows taskbar; its answer, unless it doesn't answer (4 s) or there is
+/// none (Explorer restarting)
 fn forward(msg: u32, wparam: WPARAM, lparam: LPARAM) -> Option<isize> {
     let bar = windows_tray()?;
     let mut result = 0usize;
@@ -312,15 +312,15 @@ fn forward(msg: u32, wparam: WPARAM, lparam: LPARAM) -> Option<isize> {
     (sent.0 != 0).then_some(result as isize)
 }
 
-/// Redemande leurs icônes aux programmes qui en ont (registre de la zone de notification), comme
-/// après un redémarrage de l'Explorateur ; pas à Windows ni à Pastille
+/// Asks the programs that have icons (notification area registry) for them again, as
+/// after an Explorer restart; not Windows nor Pastille
 fn announce() {
     let message = TASKBAR_CREATED.load(SeqCst);
     if message == 0 {
         return;
     }
     let mut targets = (message, crate::tray_apps::tray_pids());
-    // EnumWindows signale une « erreur » quand le rappel arrête l'énumération : jamais ici
+    // EnumWindows reports an "error" when the callback stops the enumeration: never here
     let _ = unsafe { EnumWindows(Some(tell), LPARAM(&mut targets as *mut (u32, HashSet<u32>) as isize)) };
 }
 
@@ -329,7 +329,7 @@ unsafe extern "system" fn tell(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let mut pid = 0;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
     if pids.contains(&pid) {
-        // Sans attendre la réponse : chacun redonne son icône quand il veut
+        // Without waiting for the answer: each one gives its icon back when it wants
         let _ = unsafe { SendNotifyMessageW(hwnd, *message, WPARAM(0), LPARAM(0)) };
     }
     true.into()
@@ -350,11 +350,11 @@ unsafe extern "system" fn on_message(hwnd: HWND, msg: u32, wparam: WPARAM, lpara
             }
             let accepted = copy.dwData == NOTIFY_ICON && parse(data).is_some_and(|n| notify(&n));
             let answer = forward(msg, wparam, lparam);
-            // Une icône que Pastille a prise est acceptée, même si Windows l'avait déjà (redemandée
-            // par `announce`, il refuse de l'ajouter une seconde fois)
+            // An icon that Pastille took is accepted, even if Windows already had it (requested again
+            // by `announce`, it refuses to add it a second time)
             LRESULT(if accepted { 1 } else { answer.unwrap_or(0) })
         }
-        // Jamais affichée, même par un programme qui la prend pour la barre de Windows
+        // Never shown, even by a program that takes it for the Windows taskbar
         WM_WINDOWPOSCHANGING => {
             let pos = unsafe { &mut *(lparam.0 as *mut WINDOWPOS) };
             pos.flags = SET_WINDOW_POS_FLAGS(pos.flags.0 & !SWP_SHOWWINDOW.0);
@@ -366,14 +366,14 @@ unsafe extern "system" fn on_message(hwnd: HWND, msg: u32, wparam: WPARAM, lpara
             announce();
             LRESULT(0)
         }
-        // Commandes et messages privés de la barre (WM_USER à WM_APP) : à la vraie. Pas les
-        // messages inscrits (0xC000 et plus), souvent diffusés à toutes les fenêtres : elle les a.
+        // Commands and private messages of the taskbar (WM_USER to WM_APP): to the real one. Not the
+        // registered messages (0xC000 and up), often broadcast to every window: it has them.
         WM_COMMAND | WM_USER..0xC000 => {
             forward(msg, wparam, lparam).map_or_else(|| unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }, LRESULT)
         }
         _ if msg != 0 && msg == TASKBAR_CREATED.load(SeqCst) => {
-            // L'Explorateur a redémarré : sa nouvelle barre est peut-être passée devant, et les
-            // programmes lui ont redonné leurs icônes. Redemandées un peu plus tard.
+            // Explorer restarted: its new taskbar may have moved in front, and the
+            // programs gave their icons to it again. Requested again a bit later.
             keep_first();
             unsafe { SetTimer(Some(hwnd), ANNOUNCE, 2000, None) };
             LRESULT(0)
@@ -382,23 +382,23 @@ unsafe extern "system" fn on_message(hwnd: HWND, msg: u32, wparam: WPARAM, lpara
     }
 }
 
-/// Icône affichée dans la liste des applications (tray_apps.rs)
+/// Icon shown in the app list (tray_apps.rs)
 pub struct Live {
     pub key: String,
     pub pid: u32,
     pub tip: String,
-    /// Elle a un message de rappel : ses clics vont à l'application
+    /// It has a callback message: its clicks go to the app
     pub clicks: bool,
 }
 
-/// Icônes visibles (pas masquées par leur application), dans l'ordre d'arrivée ; None : la
-/// zone de notification de Pastille ne tourne pas (barre pastel coupée)
+/// Visible icons (not hidden by their app), in order of arrival; None: Pastille's
+/// notification area isn't running (pastel bar off)
 pub fn icons() -> Option<Vec<Live>> {
     if HOST.load(SeqCst) == 0 {
         return None;
     }
     let mut icons = ICONS.lock().unwrap();
-    // Application arrêtée sans retirer son icône (plantage, arrêt forcé)
+    // App stopped without removing its icon (crash, forced stop)
     icons.retain(|e| unsafe { IsWindow(Some(HWND(e.hwnd as *mut _))) }.as_bool());
     let live = icons
         .iter()
@@ -418,15 +418,15 @@ fn pid_of_window(hwnd: isize) -> u32 {
     pid
 }
 
-/// Processus d'une icône de la liste
+/// Process of an icon in the list
 pub fn pid_of(key: &str) -> Option<u32> {
     let icons = ICONS.lock().unwrap();
     icons.iter().find(|e| key_of(e.id) == key).map(|e| pid_of_window(e.hwnd)).filter(|&pid| pid != 0)
 }
 
-/// Les messages d'un clic sur l'icône, envoyés à son application. `kind` : left, double (le
-/// second clic d'un double clic), right, middle, key (Entrée). Faux : elle n'a pas de message de
-/// rappel (rien ne se passerait non plus sous Windows).
+/// The messages of a click on the icon, sent to its app. `kind`: left, double (the
+/// second click of a double click), right, middle, key (Enter). False: it has no callback
+/// message (nothing would happen with Windows either).
 pub fn click(key: &str, kind: &str) -> Result<bool, String> {
     let mut at = POINT::default();
     let _ = unsafe { GetCursorPos(&mut at) };
@@ -442,18 +442,18 @@ pub fn click(key: &str, kind: &str) -> Result<bool, String> {
     if !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
         return Err(crate::i18n::tr("Cette application n'est plus ouverte.", "This app is no longer open.").into());
     }
-    // Elle peut passer au premier plan (son menu, sa fenêtre), comme après un clic dans la barre
-    // de Windows
+    // It may come to the foreground (its menu, its window), as after a click in the Windows
+    // taskbar
     let _ = unsafe { AllowSetForegroundWindow(pid_of_window(hwnd.0 as isize)) };
     for (wparam, lparam) in messages(kind, version, uid, at)? {
-        // Sans attendre : une application occupée ne fige pas Pastille
+        // Without waiting: a busy app doesn't freeze Pastille
         unsafe { SendNotifyMessageW(hwnd, callback, wparam, lparam) }.map_err(|e| e.message())?;
     }
     Ok(true)
 }
 
-/// Comme la barre de Windows : version 4, l'identifiant de l'icône avec l'événement et le point
-/// d'ancrage (la souris) ; avant, l'identifiant seul. NIN_SELECT et WM_CONTEXTMENU depuis la 3.
+/// Like the Windows taskbar: version 4, the icon's identifier with the event, and the anchor
+/// point (the mouse); before, the identifier alone. NIN_SELECT and WM_CONTEXTMENU since version 3.
 fn messages(kind: &str, version: u32, uid: u32, at: POINT) -> Result<Vec<(WPARAM, LPARAM)>, String> {
     let recent = version >= 3;
     let events: &[u32] = match kind {
@@ -477,7 +477,7 @@ fn messages(kind: &str, version: u32, uid: u32, at: POINT) -> Result<Vec<(WPARAM
         .collect())
 }
 
-// Les tests ne créent jamais la vraie fenêtre (`start`) : toutes les icônes du PC y passeraient.
+// The tests never create the real window (`start`): every icon on the PC would go through it.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,7 +487,7 @@ mod tests {
         DispatchMessageW, PeekMessageW, PostQuitMessage, GetMessageW, MSG, PM_NOREMOVE, WINDOW_EX_STYLE,
     };
 
-    /// SHELLTRAYDATA comme l'envoie `Shell_NotifyIcon`
+    /// SHELLTRAYDATA as `Shell_NotifyIcon` sends it
     fn tray_data(message: u32, hwnd: u32, uid: u32, flags: u32, callback: u32, tip: &str) -> Vec<u8> {
         let mut data = vec![0u8; 8 + 956];
         let put = |data: &mut Vec<u8>, at: usize, value: u32| data[at..at + 4].copy_from_slice(&value.to_le_bytes());
@@ -508,7 +508,7 @@ mod tests {
         [&guid.data1.to_le_bytes()[..], &guid.data2.to_le_bytes(), &guid.data3.to_le_bytes(), &guid.data4].concat()
     }
 
-    /// WINNOTIFYICONIDENTIFIER comme l'envoie `Shell_NotifyIconGetRect`
+    /// WINNOTIFYICONIDENTIFIER as `Shell_NotifyIconGetRect` sends it
     fn identifier(corner: u32, hwnd: u32, uid: u32, guid: GUID) -> Vec<u8> {
         let mut data = vec![0u8; 40];
         data[0..4].copy_from_slice(&0x3475_3423u32.to_le_bytes());
@@ -534,9 +534,9 @@ mod tests {
         assert_eq!((n.message, n.hwnd, n.uid, n.callback), (NIM_MODIFY, 0x0012_3456, 7, 0x8001));
         assert_eq!(n.tip, "EarTrumpet : 42 %");
         assert_eq!(n.guid, guid);
-        // Handle « négatif » sur 32 bits : étendu comme Windows
+        // "Negative" 32-bit handle: sign-extended like Windows does
         assert_eq!(parse(&tray_data(NIM_ADD, 0xFFFF_FFF0, 1, 0, 0, "")).unwrap().hwnd, -16);
-        // Trop court pour être un message de Shell_NotifyIcon
+        // Too short to be a Shell_NotifyIcon message
         assert!(parse(&data[..12]).is_none());
     }
 
@@ -546,20 +546,20 @@ mod tests {
         let send = |message, flags, callback, tip: &str| notify(&parse(&tray_data(message, hwnd as u32, 3, flags, callback, tip)).unwrap());
         assert!(send(NIM_ADD, NIF_MESSAGE | NIF_TIP, 0x8001, "Essai"));
         assert_eq!(entry(hwnd), Some((3, 0x8001, "Essai".into(), false, 0)));
-        // Modifiée : seuls les champs annoncés changent
+        // Modified: only the announced fields change
         assert!(send(NIM_MODIFY, NIF_TIP, 0, "Essai : 2 messages"));
         assert_eq!(entry(hwnd), Some((3, 0x8001, "Essai : 2 messages".into(), false, 0)));
         let mut version = parse(&tray_data(NIM_SETVERSION, hwnd as u32, 3, 0, 0, "")).unwrap();
         version.version = 4;
         assert!(notify(&version));
-        // Masquée par son application
+        // Hidden by its app
         let mut hidden = parse(&tray_data(NIM_MODIFY, hwnd as u32, 3, NIF_STATE, 0, "")).unwrap();
         (hidden.state, hidden.state_mask) = (NIS_HIDDEN, NIS_HIDDEN);
         assert!(notify(&hidden));
         assert_eq!(entry(hwnd), Some((3, 0x8001, "Essai : 2 messages".into(), true, 4)));
         assert!(send(NIM_DELETE, 0, 0, ""));
         assert_eq!(entry(hwnd), None);
-        // Inconnue : rien à retirer, la barre de Windows répond
+        // Unknown: nothing to remove, the Windows taskbar answers
         assert!(!send(NIM_DELETE, 0, 0, ""));
     }
 
@@ -572,7 +572,7 @@ mod tests {
             n
         };
         assert!(notify(&message(NIM_ADD, 0x5A5A_0003)));
-        // Même GUID, nouvelle fenêtre (application relancée) : la même icône
+        // Same GUID, new window (app restarted): the same icon
         assert!(notify(&message(NIM_MODIFY, 0x5A5A_0004)));
         assert_eq!(ICONS.lock().unwrap().iter().filter(|e| e.guid == Some(guid)).count(), 1);
         assert!(entry(0x5A5A_0004).is_some());
@@ -586,16 +586,16 @@ mod tests {
         assert!(notify(&parse(&tray_data(NIM_ADD, hwnd as u32, 2, NIF_MESSAGE, 0x8001, "")).unwrap()));
         let corner = |n| icon_corner(&identifier(n, hwnd as u32, 2, GUID::zeroed()));
         let point = |l: isize| (l as u16 as i16, (l >> 16) as u16 as i16);
-        // Jamais cliquée : la barre de Windows répond
+        // Never clicked: the Windows taskbar answers
         assert_eq!(corner(1), None);
         ICONS.lock().unwrap().iter_mut().find(|e| e.hwnd == hwnd).unwrap().clicked = Some(POINT { x: -20, y: 1070 });
         assert_eq!(corner(1).map(point), Some((-20, 1070)));
         assert_eq!(corner(2).map(point), Some((-19, 1071)));
-        // Une autre icône de la même fenêtre : inconnue
+        // Another icon of the same window: unknown
         assert_eq!(icon_corner(&identifier(1, hwnd as u32, 3, GUID::zeroed())), None);
         assert!(notify(&parse(&tray_data(NIM_DELETE, hwnd as u32, 2, 0, 0, "")).unwrap()));
 
-        // Icône à GUID : trouvée par lui, sans fenêtre
+        // Icon with a GUID: found by it, without a window
         let guid = GUID::from_u128(0x0a0b0c0d_0000_4000_8000_5a5a5a5a0006);
         let mut added = parse(&tray_data(NIM_ADD, 0x5A5A_0006, 0, NIF_GUID | NIF_MESSAGE, 0x8001, "")).unwrap();
         added.guid = guid;
@@ -618,16 +618,16 @@ mod tests {
         assert_eq!(events(pairs("key", 4)), [NIN_KEYSELECT]);
         assert_eq!(events(pairs("key", 0)), [WM_LBUTTONDOWN, WM_LBUTTONUP]);
         assert_eq!(events(pairs("double", 0)), [WM_LBUTTONDBLCLK, WM_LBUTTONUP]);
-        // Avant la version 4 : l'identifiant de l'icône dans wParam
+        // Before version 4: the icon's identifier in wParam
         assert_eq!(pairs("left", 3)[0].0 .0, 5);
-        // Version 4 : l'identifiant avec l'événement, la souris dans wParam (x négatif : second écran à gauche)
+        // Version 4: the identifier with the event, the mouse in wParam (negative x: second screen on the left)
         let (wparam, lparam) = pairs("left", 4)[0];
         assert_eq!(lparam.0 as u32 >> 16, 5);
         assert_eq!((wparam.0 as u16 as i16, (wparam.0 >> 16) as u16 as i16), (-20, 1070));
         assert!(messages("triple", 4, 5, at).is_err());
     }
 
-    /// Fenêtre d'essai du test : elle note les messages de rappel reçus
+    /// The test's own window: it records the callback messages it receives
     static RECEIVED: Mutex<Vec<(usize, isize)>> = Mutex::new(Vec::new());
     const TEST_CALLBACK: u32 = WM_USER + 1024;
 
@@ -642,7 +642,7 @@ mod tests {
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     }
 
-    /// Le clic arrive à la fenêtre de l'icône (une fenêtre du test, jamais une application)
+    /// The click reaches the icon's window (a window of the test, never an app)
     #[test]
     fn click_reaches_the_icon_window() {
         let (sender, receiver) = mpsc::channel();
@@ -665,9 +665,9 @@ mod tests {
         assert_eq!(pid_of(&key), Some(std::process::id()));
         assert_eq!(click(&key, "left"), Ok(true));
         window.join().unwrap();
-        // Version 0 (pas de NIM_SETVERSION) : l'identifiant de l'icône, puis la souris
+        // Version 0 (no NIM_SETVERSION): the icon's identifier, then the mouse message
         assert_eq!(*RECEIVED.lock().unwrap(), [(9, WM_LBUTTONDOWN as isize), (9, WM_LBUTTONUP as isize)]);
-        // La fenêtre fermée : plus de clic possible
+        // Window closed: no more clicks possible
         assert!(click(&key, "left").is_err());
         assert!(click("#0", "left").is_err());
     }

@@ -1,12 +1,12 @@
-//! Onglet « Apps » de la vue réglages (demandé par Funsaiki) : les applications qui ont une icône
-//! dans la zone de notification. Windows 11 ne donne cette liste à personne : sa barre des
-//! tâches (XAML) n'est lisible par l'automatisation que sortie, et celle de Funsaiki se masque.
-//! Il garde en revanche une entrée par programme qui a déjà eu une icône
-//! (HKCU\Control Panel\NotifyIconSettings, lu seulement) : on garde ceux qui tournent, sauf les
-//! composants de Windows et le lanceur lui-même. Le menu de chaque icône n'est pas accessible
-//! non plus : le lanceur a le sien (ouvrir, emplacement du fichier, forcer à quitter).
-//! Barre pastel cochée, Pastille tient elle-même la zone de notification (tray_host.rs) : la
-//! liste commence par ses icônes, dont les clics vont à leur application (son menu compris).
+//! "Apps" tab of the quick settings view (requested by Funsaiki): the apps that have an icon
+//! in the notification area. Windows 11 gives this list to no one: its taskbar (XAML) can only
+//! be read by UI Automation while it is out, and Funsaiki's hides itself.
+//! It does keep one entry per program that has ever had an icon
+//! (HKCU\Control Panel\NotifyIconSettings, only read): we keep those that are running, except
+//! Windows components and the launcher itself. Each icon's menu isn't reachable either:
+//! the launcher has its own (Open, Open file location, Force quit).
+//! With the pastel bar on, Pastille holds the notification area itself (tray_host.rs): the
+//! list starts with its icons, whose clicks go to their app (its menu included).
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -33,32 +33,32 @@ use crate::mixer::exe_path;
 
 #[derive(Serialize)]
 pub struct TrayApp {
-    /// Chemin du programme, ou « #n » pour une icône de la zone de notification de Pastille : le
-    /// front le renvoie pour agir, Rust vérifie qu'il est dans la liste
+    /// Program path, or "#n" for an icon of Pastille's notification area: the
+    /// front sends it back to act, Rust checks that it is in the list
     key: String,
     name: String,
     icon: Option<crate::icon::Icon>,
-    /// Application du Microsoft Store : lancée par son identifiant, son dossier est fermé
+    /// Microsoft Store app: launched by its identifier, its folder is off limits
     packaged: bool,
-    /// Ses clics vont à l'application, comme sur son icône (tray_host.rs)
+    /// Its clicks go to the app, as on its icon (tray_host.rs)
     clicks: bool,
-    /// Infobulle actuelle de son icône (EarTrumpet y met le volume)
+    /// Current tooltip of its icon (EarTrumpet puts the volume in it)
     tip: Option<String>,
 }
 
-/// Par nom
+/// By name
 #[tauri::command]
 pub async fn tray_apps() -> Vec<TrayApp> {
     crate::com::com_task(|| Ok(list())).await.unwrap_or_default()
 }
 
-/// `action` : « open », « location » ou « quit » (arrêt forcé, confirmé dans le front)
+/// `action`: "open", "location" or "quit" (forced stop, confirmed in the front)
 #[tauri::command]
 pub async fn tray_app_action(key: String, action: String) -> Result<(), String> {
     crate::blocking(move || {
         let program = program_of(&key)?;
         match action.as_str() {
-            // Une icône qui a ses clics : comme un clic dessus
+            // An icon that has its clicks: like a click on it
             "open" if key.starts_with('#') && crate::tray_host::click(&key, "left")? => Ok(()),
             "open" => open(&program.path),
             "location" => show_in_folder(&program.path),
@@ -69,14 +69,14 @@ pub async fn tray_app_action(key: String, action: String) -> Result<(), String> 
     .await?
 }
 
-/// Clic sur une icône de la zone de notification de Pastille, envoyé à son application :
-/// `kind` left, double (second clic d'un double clic), right, middle ou key (Entrée)
+/// Click on an icon of Pastille's notification area, sent to its app:
+/// `kind` left, double (second click of a double click), right, middle or key (Enter)
 #[tauri::command]
 pub async fn tray_click(key: String, kind: String) -> Result<(), String> {
     crate::blocking(move || {
         let program = program_of(&key)?;
         match crate::tray_host::click(&key, &kind)? {
-            // Pas de message de rappel : ouverte comme avant
+            // No callback message: opened as before
             false if kind == "left" || kind == "key" => open(&program.path),
             _ => Ok(()),
         }
@@ -84,7 +84,7 @@ pub async fn tray_click(key: String, kind: String) -> Result<(), String> {
     .await?
 }
 
-/// Seulement un programme de la liste : le front ne peut rien lancer ni arrêter d'autre
+/// Only a program of the list: the front can't launch or stop anything else
 fn program_of(key: &str) -> Result<Program, String> {
     let gone = || tr("Cette application n'est plus ouverte.", "This app is no longer open.").to_string();
     if key.starts_with('#') {
@@ -99,13 +99,13 @@ fn program_of(key: &str) -> Result<Program, String> {
 
 struct Program {
     path: String,
-    /// Infobulle de sa première icône
+    /// Tooltip of its first icon
     tooltip: Option<String>,
 }
 
-/// Barre pastel cochée : les icônes reçues par Pastille, puis, comme avant, les programmes qui
-/// tournent sans lui en avoir donné : sans icône en ce moment (Spotify), ou qui ne répondent
-/// pas à « TaskbarCreated » (Riot, Java : vérifié) et ne la redonnent qu'en la changeant
+/// Pastel bar on: the icons Pastille received, then, as before, the programs that
+/// run without having given it one: no icon right now (Spotify), or that don't answer
+/// "TaskbarCreated" (Riot, Java: checked) and only give it again when they change it
 fn list() -> Vec<TrayApp> {
     let mut shown = HashSet::new();
     let mut apps = crate::tray_host::icons().map(|icons| live(icons, &mut shown)).unwrap_or_default();
@@ -121,9 +121,9 @@ fn list() -> Vec<TrayApp> {
     apps
 }
 
-/// Icônes de la zone de notification de Pastille, sans celles de Windows ni la sienne ; une
-/// tuile par icône (une application peut en avoir deux), l'icône de son programme. `shown` :
-/// leurs programmes, en minuscules
+/// Icons of Pastille's notification area, without Windows' ones or its own; one
+/// tile per icon (an app can have two), with its program's icon. `shown`:
+/// their programs, lowercase
 fn live(icons: Vec<crate::tray_host::Live>, shown: &mut HashSet<String>) -> Vec<TrayApp> {
     let excluded = Excluded::new();
     icons
@@ -149,8 +149,8 @@ fn live(icons: Vec<crate::tray_host::Live>, shown: &mut HashSet<String>) -> Vec<
         .collect()
 }
 
-/// Processus des programmes qui ont déjà eu une icône, sauf Windows et le lanceur : ceux à qui
-/// tray_host.rs redemande leurs icônes
+/// Processes of the programs that have ever had an icon, except Windows and the launcher: those
+/// tray_host.rs asks for their icons again
 pub(crate) fn tray_pids() -> HashSet<u32> {
     let excluded = Excluded::new();
     let registered: HashSet<String> = registered().into_iter().map(|(path, _)| path.to_lowercase()).collect();
@@ -164,11 +164,11 @@ pub(crate) fn tray_pids() -> HashSet<u32> {
         .collect()
 }
 
-/// Noms déjà lus, par chemin : la liste est relue toutes les 5 s
+/// Names already read, by path: the list is read again every 5 s
 static NAMES: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
-/// Description du programme (« Discord »), sinon son infobulle (« Wallpaper Engine » pour
-/// wallpaper32.exe, qui n'a pas de description), sinon le nom du fichier
+/// Program description ("Discord"), else its tooltip ("Wallpaper Engine" for
+/// wallpaper32.exe, which has no description), else the file name
 fn name_of(p: &Program) -> String {
     if let Some(name) = NAMES.lock().unwrap().get_or_insert_with(HashMap::new).get(&p.path) {
         return name.clone();
@@ -184,7 +184,7 @@ pub(crate) fn is_packaged(path: &str) -> bool {
     path.to_lowercase().contains(r"\windowsapps\")
 }
 
-/// Programmes en cours qui ont déjà eu une icône, sans doublons
+/// Running programs that have ever had an icon, without duplicates
 fn programs() -> Vec<Program> {
     let running: HashMap<String, String> =
         processes().into_iter().map(|(_, path)| (path.to_lowercase(), path)).collect();
@@ -200,7 +200,7 @@ fn programs() -> Vec<Program> {
         .collect()
 }
 
-/// Entrées de la zone de notification : (chemin du programme, infobulle)
+/// Notification area entries: (program path, tooltip)
 fn registered() -> Vec<(String, Option<String>)> {
     let Ok(settings) = CURRENT_USER.open(r"Control Panel\NotifyIconSettings") else { return Vec::new() };
     let Ok(names) = settings.keys() else { return Vec::new() };
@@ -218,7 +218,7 @@ fn registered() -> Vec<(String, Option<String>)> {
         .collect()
 }
 
-/// « {GUID}\Discord\Discord.exe » : le GUID désigne un dossier connu (Program Files, System32…)
+/// "{GUID}\Discord\Discord.exe": the GUID stands for a known folder (Program Files, System32…)
 fn resolve(path: &str) -> Option<String> {
     let Some(rest) = path.strip_prefix('{') else { return Some(path.to_string()) };
     let (id, rest) = rest.split_once('}')?;
@@ -226,7 +226,7 @@ fn resolve(path: &str) -> Option<String> {
     Some(format!("{}{rest}", folder.display()))
 }
 
-/// Composants de Windows (Explorateur, Sécurité Windows…) et le lanceur lui-même
+/// Windows components (Explorer, Windows Security…) and the launcher itself
 struct Excluded {
     windows: String,
     own: String,
@@ -240,14 +240,14 @@ impl Excluded {
         }
     }
 
-    /// `lower` : chemin en minuscules
+    /// `lower`: lowercase path
     fn contains(&self, lower: &str) -> bool {
         lower.starts_with(&self.windows) || lower == self.own
     }
 }
 
-/// Processus en cours : (identifiant, chemin du programme). Ceux qu'on ne peut pas interroger
-/// (protégés, d'un autre compte) sont ignorés.
+/// Running processes: (identifier, program path). Those that can't be queried
+/// (protected, from another account) are ignored.
 fn processes() -> Vec<(u32, String)> {
     let mut pids = vec![0u32; 4096];
     let mut bytes = 0u32;
@@ -263,8 +263,8 @@ fn pids_of(path: &str) -> Vec<u32> {
     processes().into_iter().filter(|(_, p)| p.to_lowercase() == path).map(|(pid, _)| pid).collect()
 }
 
-/// Ramène sa fenêtre ; sinon (rangée dans la zone de notification), relance le programme, qui
-/// réaffiche alors la sienne (Discord, Steam…). Une app du Store se lance par son identifiant.
+/// Brings back its window; otherwise (tucked away in the notification area), relaunches the
+/// program, which then shows its own again (Discord, Steam…). A Store app is launched by its identifier.
 fn open(path: &str) -> Result<(), String> {
     if crate::switch::focus_existing(path) {
         return Ok(());
@@ -276,7 +276,7 @@ fn open(path: &str) -> Result<(), String> {
     crate::shell::open_as_is(path)
 }
 
-/// Identifiant d'application d'un processus du Store (« SpotifyAB.SpotifyMusic_…!Spotify »)
+/// App identifier of a Store process ("SpotifyAB.SpotifyMusic_…!Spotify")
 pub(crate) fn app_id(pid: u32) -> Option<String> {
     let mut buf = [0u16; 512];
     let mut len = buf.len() as u32;
@@ -286,14 +286,14 @@ pub(crate) fn app_id(pid: u32) -> Option<String> {
         let _ = CloseHandle(process);
         found.ok().ok()?;
     }
-    // La longueur compte le caractère nul final
+    // The length counts the final null character
     (len > 1).then(|| String::from_utf16_lossy(&buf[..len as usize - 1]))
 }
 
-/// Explorateur ouvert sur le dossier du programme, le fichier sélectionné
+/// Explorer opened on the program's folder, the file selected
 pub(crate) fn show_in_folder(path: &str) -> Result<(), String> {
     unsafe {
-        // Le shell attend un appartement monothread, comme pour ShellExecuteEx (shell.rs)
+        // The shell expects a single-threaded apartment, as for ShellExecuteEx (shell.rs)
         let com = CoInitializeEx(None, COINIT(COINIT_APARTMENTTHREADED.0 | COINIT_DISABLE_OLE1DDE.0));
         let item = ILCreateFromPathW(&HSTRING::from(path));
         let result = if item.is_null() {
@@ -310,9 +310,9 @@ pub(crate) fn show_in_folder(path: &str) -> Result<(), String> {
     }
 }
 
-/// Arrêt forcé de tous les processus du programme : une application de la zone de notification
-/// ne se ferme pas avec sa fenêtre, elle y retourne. Elle n'a pas le temps de sauvegarder (le
-/// front demande confirmation). Les arrête tous, puis attend leur fin, 2 s au plus en tout.
+/// Forced stop of all the program's processes: a notification area app
+/// doesn't close with its window, it goes back there. It has no time to save (the
+/// front asks for confirmation). Stops them all, then waits for them to end, 2 s at most in all.
 fn quit(path: &str, name: &str) -> Result<(), String> {
     let pids = pids_of(path);
     if pids.is_empty() {
@@ -323,10 +323,10 @@ fn quit(path: &str, name: &str) -> Result<(), String> {
     let access = PROCESS_TERMINATE | PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION;
     let mut stopped = Vec::new();
     for pid in pids {
-        // Déjà terminé (enfant d'un processus arrêté juste avant) ou refusé : vu à la fin
+        // Already ended (child of a process stopped just before) or refused: seen at the end
         let Ok(process) = (unsafe { OpenProcess(access, false, pid) }) else { continue };
-        // Programme revérifié sur ce handle : un identifiant réattribué entre-temps à un autre
-        // programme n'est pas touché
+        // Program checked again on this handle: an identifier reassigned meanwhile to another
+        // program is not touched
         let same = crate::mixer::process_path(process).is_some_and(|p| p.to_lowercase() == lower);
         if same && unsafe { TerminateProcess(process, 1) }.is_ok() {
             stopped.push(process);
@@ -352,7 +352,7 @@ fn quit(path: &str, name: &str) -> Result<(), String> {
     }
 }
 
-// Ne jamais ouvrir ni arrêter une application de Funsaiki dans un test.
+// Never open or stop one of Funsaiki's apps in a test.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,7 +377,7 @@ mod tests {
         assert!(!excluded.contains(r"c:\users\johnny\appdata\local\discord\app-1.0\discord.exe"));
     }
 
-    /// Sur un programme lancé par le test : une copie de PING.EXE au nom unique, deux fois
+    /// On a program launched by the test: a copy of PING.EXE with a unique name, twice
     #[test]
     fn quit_stops_every_process_of_the_program() {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -405,7 +405,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Diagnostic, lecture seule : cargo test real_tray_apps -- --ignored --nocapture
+    /// Diagnostic, read only: cargo test real_tray_apps -- --ignored --nocapture
     #[test]
     #[ignore]
     fn real_tray_apps() {

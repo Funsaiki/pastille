@@ -1,13 +1,13 @@
-//! Volume interne de Spotify (demande de Funsaiki, compte Premium), par l'API web de Spotify.
-//! Connexion une fois, depuis la page Paramètres (section Spotify, « Connecter ») : autorisation dans
-//! le navigateur avec PKCE (pas de secret à garder), retour sur une adresse locale (REDIRECT,
-//! déclarée dans l'app Spotify de chacun sur developer.spotify.com). L'identifiant de cette app
-//! et le jeton de renouvellement sont dans spotify.json, à côté de apps.json. Chacun a sa propre
-//! app (les amis de Funsaiki aussi) : sans identifiant, la connexion commence par une page locale
-//! qui explique comment la créer et où coller son identifiant (spotify-setup.html).
-//! Sans connexion, le curseur de la carte de lecture règle le volume de Spotify dans le
-//! mélangeur de Windows (mixer.rs). Les échecs (connexion, autorisation retirée) s'affichent
-//! dans les notifications du lanceur (`problem`) : la version installée n'a pas de console.
+//! Spotify's own volume (Funsaiki's request, Premium account), through Spotify's web API.
+//! Connected once, from the Settings page (Spotify section, "Connect"): authorization in
+//! the browser with PKCE (no secret to keep), redirect to a local address (REDIRECT,
+//! declared in each user's Spotify app on developer.spotify.com). That app's id
+//! and the refresh token are in spotify.json, next to apps.json. Everyone has their own
+//! app: without an id, connecting starts with a local page
+//! that explains how to create it and where to paste its id (spotify-setup.html).
+//! Without a connection, the slider of the now playing card sets Spotify's volume in the
+//! Windows mixer (mixer.rs). Failures (connection, authorization revoked) show up
+//! in the launcher's notifications (`problem`): the installed build has no console.
 
 use std::{
     collections::HashMap,
@@ -38,31 +38,31 @@ use windows_future::{AsyncStatus, IAsyncOperationWithProgress};
 use crate::i18n::tr;
 
 const PORT: u16 = 47913;
-/// À déclarer telle quelle dans l'app Spotify (Redirect URIs)
+/// To be declared as is in the Spotify app (Redirect URIs)
 pub const REDIRECT: &str = "http://127.0.0.1:47913/callback";
-/// Lecture et pilotage du lecteur, playlists (groupe auto « spotify »). Une portée ajoutée
-/// demande de se reconnecter (Status::Outdated).
+/// Reading and controlling the player, playlists (auto "spotify" group). An added scope
+/// requires reconnecting (Status::Outdated).
 const SCOPES: &str = "user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative";
-/// Playlists dans le groupe, au plus (titres likés compris)
+/// Playlists in the group, at most (liked songs included)
 const MAX_PLAYLISTS: usize = 100;
 const API: &str = "https://api.spotify.com/v1";
 const TOKEN_URL: &str = "https://accounts.spotify.com/api/token";
-/// Le temps de se connecter dans le navigateur
+/// Time to sign in in the browser
 const WAIT: Duration = Duration::from_secs(180);
-/// Premier branchement : le temps de créer son app Spotify en suivant la page de configuration
+/// First setup: time to create one's Spotify app by following the setup page
 const SETUP_WAIT: Duration = Duration::from_secs(15 * 60);
-/// Onglet d'un essai précédent (retour de Spotify ou page de configuration)
+/// Tab from an earlier attempt (Spotify's redirect or setup page)
 fn stale() -> String {
     tr("cet onglet vient d'un ancien essai : utilise le dernier ouvert.", "this tab comes from an earlier attempt: use the latest one.").into()
 }
-/// Limite d'une requête (join() attendrait sans fin si le réseau ne répond pas)
+/// Limit for a request (join() would wait forever if the network doesn't answer)
 const TIMEOUT: Duration = Duration::from_secs(8);
 
 /// spotify.json
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Saved {
-    /// Identifiant (Client ID) de son app Spotify, collé sur la page de configuration
+    /// Id (Client ID) of one's Spotify app, pasted on the setup page
     #[serde(default)]
     client_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -72,33 +72,33 @@ struct Saved {
 #[derive(Default)]
 pub struct Spotify {
     auth: Mutex<Auth>,
-    /// Un renouvellement à la fois : Spotify peut remplacer le jeton de renouvellement, deux
-    /// demandes avec l'ancien se gêneraient
+    /// One refresh at a time: Spotify can replace the refresh token, two
+    /// requests with the old one would get in each other's way
     refreshing: Mutex<()>,
-    /// Pendant une connexion : la page ouverte dans le navigateur, rouverte par la page Paramètres
-    /// (onglet fermé ou perdu)
+    /// During a connection: the page opened in the browser, reopened by the Settings page
+    /// (tab closed or lost)
     pending: Mutex<Option<String>>,
 }
 
 #[derive(Default)]
 struct Auth {
     saved: Saved,
-    /// Jeton d'accès et fin de sa validité
+    /// Access token and end of its validity
     access: Option<(String, Instant)>,
-    /// Portées accordées, d'après la dernière réponse du point d'accès des jetons
+    /// Granted scopes, from the last response of the token endpoint
     granted: Option<String>,
-    /// Dernier échec (connexion, autorisation retirée), montré dans les notifications
+    /// Last failure (connection, authorization revoked), shown in the notifications
     problem: Option<String>,
 }
 
 fn file(app: &AppHandle) -> Option<PathBuf> {
-    // Premier lancement simulé (config::example_mode) : Spotify pas encore branché, comme chez
-    // un ami ; la connexion de Funsaiki reste intacte
+    // Simulated first launch (config::example_mode): Spotify not set up yet, as on
+    // another PC; Funsaiki's connection stays intact
     let name = if crate::config::example_mode() { "spotify-exemple.json" } else { "spotify.json" };
     app.path().app_config_dir().ok().map(|dir| dir.join(name))
 }
 
-/// Fichier absent ou illisible : pas de connexion
+/// File missing or unreadable: no connection
 fn read_saved(app: &AppHandle) -> Saved {
     file(app)
         .and_then(|path| fs::read_to_string(path).ok())
@@ -106,12 +106,12 @@ fn read_saved(app: &AppHandle) -> Saved {
         .unwrap_or_default()
 }
 
-/// Au démarrage
+/// At startup
 pub fn load(app: &AppHandle) -> Spotify {
     Spotify { auth: Mutex::new(Auth { saved: read_saved(app), ..Default::default() }), ..Default::default() }
 }
 
-/// « Recharger la config » : relit spotify.json (identifiant ajouté à la main, par exemple)
+/// "Reload the config": reads spotify.json again (id added by hand, for example)
 pub fn reload(app: &AppHandle) {
     let saved = read_saved(app);
     {
@@ -124,7 +124,7 @@ pub fn reload(app: &AppHandle) {
     }
 }
 
-/// Fichier temporaire puis renommage : un arrêt en pleine écriture ne perd pas l'identifiant
+/// Temporary file then rename: a shutdown in the middle of writing doesn't lose the id
 fn save(app: &AppHandle, saved: &Saved) {
     let Some(path) = file(app) else { return };
     let temp = path.with_extension("json.tmp");
@@ -137,11 +137,11 @@ fn save(app: &AppHandle, saved: &Saved) {
 
 #[derive(Clone, Copy, PartialEq)]
 enum Status {
-    /// Pas d'identifiant d'app dans spotify.json
+    /// No app id in spotify.json
     NoClient,
     Disconnected,
     Connected,
-    /// Connecté, mais sans toutes les portées de SCOPES (connexion antérieure à leur ajout)
+    /// Connected, but without all the scopes of SCOPES (connection older than their addition)
     Outdated,
 }
 
@@ -164,9 +164,9 @@ fn has_scopes(granted: &str) -> bool {
     SCOPES.split(' ').all(|scope| granted.split(' ').any(|g| g == scope))
 }
 
-/* ── Page Paramètres ── */
+/* ── Settings page ── */
 
-/// État de la connexion pour la page : « pending » pendant une connexion dans le navigateur
+/// Connection state for the page: "pending" during a connection in the browser
 pub fn link(app: &AppHandle) -> &'static str {
     if app.state::<Spotify>().pending.lock().unwrap().is_some() {
         return "pending";
@@ -178,7 +178,7 @@ pub fn link(app: &AppHandle) -> &'static str {
     }
 }
 
-/// Clic sur la notification « Reconnecter » : comme le bouton de la page, sans jamais déconnecter
+/// Click on the "Reconnect" notification: like the page's button, without ever disconnecting
 #[tauri::command]
 pub fn spotify_reconnect(app: AppHandle) -> Result<(), String> {
     if status(&app) == Status::Connected {
@@ -188,8 +188,8 @@ pub fn spotify_reconnect(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Bouton de la page Paramètres : connexion dans le navigateur, ou déconnexion. Connexion en
-/// cours : sa page, rouverte.
+/// Button of the Settings page: connection in the browser, or disconnection. Connection in
+/// progress: its page, reopened.
 pub fn toggle(app: &AppHandle) {
     let pending = app.state::<Spotify>().pending.lock().unwrap().clone();
     if let Some(page) = pending {
@@ -206,11 +206,11 @@ pub fn toggle(app: &AppHandle) {
     }
 }
 
-/// Écoute sur l'adresse de retour, puis le reste hors du fil principal : navigateur, attente,
-/// jetons. Sans identifiant d'app, le navigateur s'ouvre sur la page de configuration.
+/// Listens on the redirect address, then the rest off the main thread: browser, wait,
+/// tokens. Without an app id, the browser opens on the setup page.
 fn start_connect(app: &AppHandle) {
     let client_id = app.state::<Spotify>().auth.lock().unwrap().saved.client_id.trim().to_string();
-    // Écoute avant d'ouvrir le navigateur : la réponse ne doit pas arriver avant
+    // Listen before opening the browser: the answer must not arrive before
     let prepared = Login::new().and_then(|login| {
         let listener = TcpListener::bind(("127.0.0.1", PORT))
             .map_err(|e| tr(format!("adresse de retour {REDIRECT} indisponible ({e})."), format!("redirect address {REDIRECT} unavailable ({e}).")))?;
@@ -230,19 +230,19 @@ fn start_connect(app: &AppHandle) {
     });
 }
 
-/// Fin d'une connexion : un échec est montré dans les notifications
+/// End of a connection: a failure is shown in the notifications
 fn finish(app: &AppHandle, result: Result<(), String>) {
     if let Err(e) = &result {
         eprintln!("[lanceur] Spotify : {e}");
     }
     app.state::<Spotify>().auth.lock().unwrap().problem = result.as_ref().err().map(|e| tr(format!("Connexion impossible : {e}"), format!("Couldn't connect: {e}")));
-    // Nouvelles portées : les playlists peuvent maintenant être lues
+    // New scopes: the playlists can now be read
     if result.is_ok() {
         crate::config::rescan(app);
     }
 }
 
-/// `problem` : pourquoi, si ce n'est pas Funsaiki qui a choisi de se déconnecter
+/// `problem`: why, if it isn't Funsaiki who chose to disconnect
 fn disconnect(app: &AppHandle, problem: Option<String>) {
     {
         let spotify = app.state::<Spotify>();
@@ -254,10 +254,10 @@ fn disconnect(app: &AppHandle, problem: Option<String>) {
     }
 }
 
-/* ── Connexion (PKCE) ── */
+/* ── Connection (PKCE) ── */
 
-/// Une connexion : vérificateur PKCE et `state`, qui sert aussi de jeton à la page de
-/// configuration (une autre page web ne peut pas s'en servir)
+/// A connection: PKCE verifier and `state`, which also serves as a token for the setup
+/// page (another web page can't use it)
 struct Login {
     verifier: String,
     challenge: String,
@@ -266,11 +266,11 @@ struct Login {
 
 impl Login {
     fn new() -> Result<Login, String> {
-        let verifier = b64(&random(48)?); // 64 caractères
+        let verifier = b64(&random(48)?); // 64 characters
         Ok(Login { challenge: challenge(&verifier)?, verifier, state: b64(&random(16)?) })
     }
 
-    /// Page d'autorisation de Spotify
+    /// Spotify's authorization page
     fn authorize_url(&self, client_id: &str) -> String {
         format!(
             "https://accounts.spotify.com/authorize?{}",
@@ -286,14 +286,14 @@ impl Login {
         )
     }
 
-    /// Page de configuration, servie par l'écoute de la connexion
+    /// Setup page, served by the connection's listener
     fn setup_url(&self) -> String {
         format!("http://127.0.0.1:{PORT}/spotify?n={}", self.state)
     }
 }
 
-/// `client_id` vide : premier branchement, le navigateur est sur la page de configuration et
-/// l'identifiant arrive par elle. Il n'est gardé qu'une fois la connexion réussie.
+/// Empty `client_id`: first setup, the browser is on the setup page and
+/// the id arrives through it. It is only kept once the connection succeeds.
 fn connect(app: &AppHandle, listener: &TcpListener, login: &Login, mut client_id: String) -> Result<(), String> {
     let setup = client_id.is_empty();
     let (mut stream, params) =
@@ -329,7 +329,7 @@ fn connect(app: &AppHandle, listener: &TcpListener, login: &Login, mut client_id
     result
 }
 
-/// Identifiant collé sur la page de configuration, qui a marché
+/// Id pasted on the setup page, which worked
 fn remember_client(app: &AppHandle, client_id: &str) {
     let spotify = app.state::<Spotify>();
     let mut auth = spotify.auth.lock().unwrap();
@@ -338,9 +338,9 @@ fn remember_client(app: &AppHandle, client_id: &str) {
     save(app, &auth.saved);
 }
 
-/// Attend la réponse de Spotify sur /callback avec le bon `state`, `wait` au plus. Un ancien
-/// onglet reçoit une explication ; les autres requêtes (page de configuration, icône de
-/// l'onglet) passent par `other`, qui y répond. L'attente continue.
+/// Waits for Spotify's answer on /callback with the right `state`, `wait` at most. An old
+/// tab gets an explanation; the other requests (setup page, tab
+/// icon) go through `other`, which answers them. The wait goes on.
 fn wait_for_callback(
     listener: &TcpListener,
     state: &str,
@@ -371,11 +371,11 @@ fn wait_for_callback(
     Err(tr(format!("pas de réponse de Spotify au bout de {minutes} minutes."), format!("no answer from Spotify after {minutes} minutes.")))
 }
 
-/* ── Page de configuration (premier branchement) ── */
+/* ── Setup page (first setup) ── */
 
-/// /spotify : le tuto et le champ de l'identifiant ; /identifiant : l'identifiant collé. Valide,
-/// il est renvoyé et le navigateur part vers l'autorisation de Spotify ; sinon la page revient
-/// avec l'erreur. On peut revenir en arrière et en coller un autre tant que l'attente dure.
+/// /spotify: the tutorial and the id field; /identifiant: the pasted id. Valid,
+/// it is returned and the browser goes to Spotify's authorization; otherwise the page comes back
+/// with the error. One can go back and paste another one as long as the wait lasts.
 fn serve_setup(stream: &mut TcpStream, login: &Login, path: &str, params: &HashMap<String, String>) -> Option<String> {
     if !matches!(path, "/spotify" | "/identifiant") {
         respond(stream, "404 Not Found", "");
@@ -398,8 +398,8 @@ fn serve_setup(stream: &mut TcpStream, login: &Login, path: &str, params: &HashM
     Some(id)
 }
 
-/// Client ID de Spotify : 32 caractères hexadécimaux (espaces autour et majuscules acceptés).
-/// Le Client secret a la même forme : seul Spotify les distingue (page « Un souci ? »).
+/// Spotify Client ID: 32 hexadecimal characters (surrounding spaces and uppercase accepted).
+/// The Client secret has the same form: only Spotify tells them apart (page "A problem?").
 fn client_id_of(text: &str) -> Option<String> {
     let id = text.trim().to_ascii_lowercase();
     (id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit())).then_some(id)
@@ -415,7 +415,7 @@ fn client_id_error(typed: &str) -> String {
     }
 }
 
-/// Page de la langue de Pastille ; les styles, communs aux deux, dans spotify-setup.css
+/// Page in Pastille's language; the styles, shared by both, in spotify-setup.css
 fn setup_page(state: &str, typed: &str, error: Option<&str>) -> String {
     let error = error.map(|e| format!(r#"<p class="error" role="alert">{}</p>"#, escape(e))).unwrap_or_default();
     tr(include_str!("spotify-setup.html"), include_str!("spotify-setup.en.html"))
@@ -428,11 +428,11 @@ fn setup_page(state: &str, typed: &str, error: Option<&str>) -> String {
         .replace("{{id}}", &escape(typed))
 }
 
-/// Icône du lanceur (tuile Applications, icons/icone.svg) pour l'onglet
+/// Launcher icon (Apps tile, icons/icone.svg) for the tab
 const FAVICON: &str = "<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect x='80' y='103' width='864' height='864' rx='290' fill='%230f3b42'/%3E%3Crect x='80' y='58' width='864' height='864' rx='290' fill='%239fe0dc' stroke='%230f3b42' stroke-width='37'/%3E%3Cpath d='M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' transform='translate(248 226) scale(22)' fill='none' stroke='%230f3b42' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\">";
 
-/// Nunito (700 à 900), la police du lanceur, dans les pages : intégrée (l'écoute s'arrête juste
-/// après la page de résultat, rien ne pourrait plus être téléchargé)
+/// Nunito (700 to 900), the launcher's font, in the pages: embedded (the listener stops right
+/// after the result page, nothing more could be downloaded)
 fn fonts() -> &'static str {
     static FONTS: OnceLock<String> = OnceLock::new();
     FONTS.get_or_init(|| {
@@ -453,7 +453,7 @@ fn fonts() -> &'static str {
     })
 }
 
-/// Cible de la requête (« /callback?code=… »), lue jusqu'à la fin de sa première ligne
+/// Target of the request ("/callback?code=…"), read up to the end of its first line
 fn request_target(stream: &mut TcpStream) -> String {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
@@ -480,8 +480,8 @@ fn redirect(stream: &mut TcpStream, url: &str) {
     let _ = write!(stream, "HTTP/1.1 303 See Other\r\nLocation: {url}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
 }
 
-/// Page affichée dans le navigateur à la fin de la connexion, aux couleurs du lanceur (cartes
-/// de la page de configuration)
+/// Page shown in the browser at the end of the connection, in the launcher's colors (cards
+/// of the setup page)
 fn page(result: &Result<(), String>) -> String {
     let (title, text, retry) = match result {
         Ok(()) => (
@@ -510,7 +510,7 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// Paramètres d'une adresse (« a=1&b=x%20y »), décodés
+/// Parameters of a URL ("a=1&b=x%20y"), decoded
 fn parse_query(query: &str) -> HashMap<String, String> {
     query
         .split('&')
@@ -538,7 +538,7 @@ fn decode(text: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Corps de formulaire ou paramètres d'adresse
+/// Form body or URL parameters
 fn form(pairs: &[(&str, &str)]) -> String {
     pairs.iter().map(|(k, v)| format!("{k}={}", crate::shell::encode_query(v))).collect::<Vec<_>>().join("&")
 }
@@ -553,7 +553,7 @@ fn random(n: usize) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
-/// Défi PKCE : SHA-256 du vérificateur, en base64 pour adresse
+/// PKCE challenge: SHA-256 of the verifier, in URL-safe base64
 fn challenge(verifier: &str) -> Result<String, String> {
     let mut hash = [0u8; 32];
     unsafe { BCryptHash(BCRYPT_SHA256_ALG_HANDLE, None, verifier.as_bytes(), &mut hash) }
@@ -562,14 +562,14 @@ fn challenge(verifier: &str) -> Result<String, String> {
     Ok(b64(&hash))
 }
 
-/* ── Jetons ── */
+/* ── Tokens ── */
 
-/// Échec auprès du point d'accès des jetons
+/// Failure with the token endpoint
 enum TokenError {
-    /// Refusé par Spotify (autorisation retirée, jeton périmé, app supprimée…) : il faut se
-    /// reconnecter
+    /// Refused by Spotify (authorization revoked, expired token, app deleted…): one has to
+    /// reconnect
     Refused(String),
-    /// Réseau, Spotify indisponible… : on réessaiera
+    /// Network, Spotify unavailable…: will retry
     Other(String),
 }
 
@@ -592,9 +592,9 @@ fn post_token(params: &[(&str, &str)]) -> Result<Value, TokenError> {
     }
 }
 
-/// Garde le jeton d'accès (et le nouveau jeton de renouvellement s'il y en a un). `sent` : le
-/// jeton de renouvellement utilisé ; si Spotify a été déconnecté (ou reconnecté) pendant la
-/// requête, la réponse est ignorée.
+/// Keeps the access token (and the new refresh token if there is one). `sent`: the
+/// refresh token used; if Spotify was disconnected (or reconnected) during the
+/// request, the answer is ignored.
 fn store(app: &AppHandle, json: &Value, sent: Option<&str>) -> Result<String, String> {
     let token = json["access_token"].as_str().ok_or(tr("réponse de Spotify sans jeton.", "Spotify's answer has no token."))?.to_string();
     let seconds = json["expires_in"].as_u64().unwrap_or(3600);
@@ -605,13 +605,13 @@ fn store(app: &AppHandle, json: &Value, sent: Option<&str>) -> Result<String, St
         if sent.is_some() && auth.saved.refresh_token.as_deref() != sent {
             return Err(tr("Spotify n'est plus connecté.", "Spotify is no longer connected.").into());
         }
-        // Une minute de marge
+        // One minute of margin
         auth.access = Some((token.clone(), Instant::now() + Duration::from_secs(seconds.saturating_sub(60))));
         if let Some(refresh) = json["refresh_token"].as_str() {
             auth.saved.refresh_token = Some(refresh.to_string());
             save(app, &auth.saved);
         }
-        // Portées accordées : sans celles des playlists, la page propose de se reconnecter
+        // Granted scopes: without the playlist ones, the page offers to reconnect
         if granted.is_some() {
             auth.granted = granted;
         }
@@ -630,7 +630,7 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
     }
     let _one_at_a_time = spotify.refreshing.lock().unwrap();
     if let Some(token) = cached() {
-        return Ok(token); // renouvelé pendant l'attente
+        return Ok(token); // refreshed during the wait
     }
     let (client_id, refresh) = {
         let auth = spotify.auth.lock().unwrap();
@@ -638,7 +638,7 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
     };
     match post_token(&[("grant_type", "refresh_token"), ("refresh_token", &refresh), ("client_id", &client_id)]) {
         Ok(json) => store(app, &json, Some(&refresh)),
-        // Autorisation retirée, app supprimée… : le curseur repasse au volume de Windows
+        // Authorization revoked, app deleted…: the slider goes back to the Windows volume
         Err(TokenError::Refused(e)) => {
             eprintln!("[lanceur] Spotify : {e}");
             let expired = tr(
@@ -652,34 +652,34 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
     }
 }
 
-/* ── Lecteur : volume, aléatoire, répétition ── */
+/* ── Player: volume, shuffle, repeat ── */
 
 #[derive(Serialize)]
 pub struct Volume {
-    /// « app » : volume de Spotify lui-même (API web) ; « windows » : celui du mélangeur
+    /// "app": Spotify's own volume (web API); "windows": the mixer's one
     source: &'static str,
-    /// Programme de Spotify pour set_app_volume (source « windows »)
+    /// Spotify's program for set_app_volume ("windows" source)
     key: String,
     volume: u8,
 }
 
 #[derive(Serialize)]
 pub struct PlayerState {
-    /// None : Spotify connecté sans appareil actif (ou injoignable), ou pas de session audio
+    /// None: Spotify connected without an active device (or unreachable), or no audio session
     volume: Option<Volume>,
-    /// Aléatoire (« off », « on » ou « smart » : l'aléatoire intelligent de Spotify) et
-    /// répétition (« off », « context », « track ») : connecté seulement
+    /// Shuffle ("off", "on" or "smart": Spotify's Smart Shuffle) and
+    /// repeat ("off", "context", "track"): connected only
     shuffle: Option<&'static str>,
     repeat: Option<String>,
-    /// Dernier échec de connexion, pour les notifications
+    /// Last connection failure, for the notifications
     problem: Option<String>,
-    /// Connexion d'avant les playlists (Status::Outdated) : notification « Reconnecter »
+    /// Connection older than the playlists (Status::Outdated): "Reconnect" notification
     reconnect: bool,
-    /// Pas connecté (pas d'identifiant, ou déconnecté) : notification « Connecter », Spotify ouvert
+    /// Not connected (no id, or disconnected): "Connect" notification, Spotify open
     connect: bool,
 }
 
-/// Appareil où Spotify joue (ce PC, ou le téléphone par Spotify Connect) ; None sans appareil actif
+/// Device where Spotify plays (this PC, or the phone through Spotify Connect); None without an active device
 struct Player {
     volume: Option<u8>,
     shuffle: &'static str,
@@ -706,7 +706,7 @@ pub async fn spotify_state(app: AppHandle) -> PlayerState {
                 .map(|(key, volume)| Volume { source: "windows", key, volume });
         }
         state.problem = app.state::<Spotify>().auth.lock().unwrap().problem.clone();
-        // Connu après le premier jeton (ses portées) : la lecture ci-dessus en demande un
+        // Known after the first token (its scopes): the read above asks for one
         let status = status(&app);
         state.reconnect = status == Status::Outdated;
         state.connect = matches!(status, Status::NoClient | Status::Disconnected);
@@ -716,7 +716,7 @@ pub async fn spotify_state(app: AppHandle) -> PlayerState {
     .unwrap_or(PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false, connect: false })
 }
 
-/// Volume de Spotify lui-même (connecté seulement ; sinon le front passe par le mélangeur)
+/// Spotify's own volume (connected only; otherwise the front goes through the mixer)
 #[tauri::command]
 pub async fn set_spotify_volume(app: AppHandle, level: u8) -> Result<(), String> {
     crate::blocking(move || put(&app, &format!("/me/player/volume?volume_percent={}", level.min(100)))).await?
@@ -727,7 +727,7 @@ pub async fn set_spotify_shuffle(app: AppHandle, on: bool) -> Result<(), String>
     crate::blocking(move || put(&app, &format!("/me/player/shuffle?state={on}"))).await?
 }
 
-/// `mode` : « off », « context » (la playlist ou l'album) ou « track » (le titre)
+/// `mode`: "off", "context" (the playlist or album) or "track" (the song)
 #[tauri::command]
 pub async fn set_spotify_repeat(app: AppHandle, mode: String) -> Result<(), String> {
     if !matches!(mode.as_str(), "off" | "context" | "track") {
@@ -736,7 +736,7 @@ pub async fn set_spotify_repeat(app: AppHandle, mode: String) -> Result<(), Stri
     crate::blocking(move || put(&app, &format!("/me/player/repeat?state={mode}"))).await?
 }
 
-/// Commande du lecteur sans corps (volume, aléatoire, répétition)
+/// Player command without a body (volume, shuffle, repeat)
 fn put(app: &AppHandle, path: &str) -> Result<(), String> {
     let token = access_token(app)?;
     let (status, body) = http("PUT", &format!("{API}{path}"), Some(&token), Some(("", "application/json")))?;
@@ -748,7 +748,7 @@ fn player(app: &AppHandle) -> Result<Option<Player>, String> {
     let (status, body) = http("GET", &format!("{API}/me/player"), Some(&token), None)?;
     let json = parse(&body);
     match status {
-        204 => Ok(None), // aucun appareil actif
+        204 => Ok(None), // no active device
         200 => {
             log_shuffle(&json);
             Ok(Some(Player {
@@ -761,8 +761,8 @@ fn player(app: &AppHandle) -> Result<Option<Player>, String> {
     }
 }
 
-/// Aléatoire intelligent (Smart Shuffle) : champ `smart_shuffle` de l'état du lecteur, absent
-/// de la documentation ; l'API ne permet pas de l'activer (seulement aléatoire oui ou non)
+/// Smart Shuffle: `smart_shuffle` field of the player state, missing from
+/// the documentation; the API can't turn it on (only shuffle on or off)
 fn shuffle_mode(json: &Value) -> &'static str {
     match (json["shuffle_state"].as_bool(), json["smart_shuffle"].as_bool()) {
         (_, Some(true)) => "smart",
@@ -771,8 +771,8 @@ fn shuffle_mode(json: &Value) -> &'static str {
     }
 }
 
-/// Développement : les champs de l'aléatoire tels que Spotify les donne, à chaque changement
-/// (vérification de `smart_shuffle` chez Funsaiki)
+/// Development: the shuffle fields as Spotify gives them, at each change
+/// (checking `smart_shuffle` on Funsaiki's PC)
 fn log_shuffle(json: &Value) {
     static LAST: Mutex<String> = Mutex::new(String::new());
     if !cfg!(debug_assertions) {
@@ -786,17 +786,17 @@ fn log_shuffle(json: &Value) {
     }
 }
 
-/* ── Playlists : groupe auto « spotify » de apps.json (config.rs) ── */
+/* ── Playlists: auto "spotify" group of apps.json (config.rs) ── */
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Playlist {
     pub name: String,
-    /// « spotify:playlist:… », ou « spotify:user:…:collection » pour les titres likés
+    /// "spotify:playlist:…", or "spotify:user:…:collection" for the liked songs
     pub uri: String,
 }
 
-/// Titres likés puis playlists de Funsaiki (MAX_PLAYLISTS au plus). Vide sans connexion ;
-/// None si Spotify est injoignable (le groupe garde alors la liste précédente).
+/// Liked Songs then Funsaiki's playlists (MAX_PLAYLISTS at most). Empty without a connection;
+/// None if Spotify is unreachable (the group then keeps the previous list).
 pub fn playlists(app: &AppHandle) -> Option<Vec<Playlist>> {
     if !connected(app) {
         return Some(Vec::new());
@@ -806,8 +806,8 @@ pub fn playlists(app: &AppHandle) -> Option<Vec<Playlist>> {
 
 fn fetch_playlists(app: &AppHandle) -> Result<Vec<Playlist>, String> {
     let token = access_token(app)?;
-    // Le jeton dit quelles portées sont accordées : connexion d'avant les playlists, Spotify
-    // refuserait ; la page Paramètres propose de se reconnecter
+    // The token tells which scopes are granted: connection older than the playlists, Spotify
+    // would refuse; the Settings page offers to reconnect
     if status(app) == Status::Outdated {
         return Ok(Vec::new());
     }
@@ -835,18 +835,18 @@ fn fetch_playlists(app: &AppHandle) -> Result<Vec<Playlist>, String> {
     Ok(list)
 }
 
-/// Cible d'une playlist du groupe : lancée par play plutôt qu'ouverte (shell.rs)
+/// Target of a playlist of the group: launched by play rather than opened (shell.rs)
 pub fn is_playable(target: &str) -> bool {
     target.starts_with("spotify:playlist:") || (target.starts_with("spotify:user:") && target.ends_with(":collection"))
 }
 
-/// Joue une playlist (ou les titres likés). Spotify ouvert quelque part : tout de suite.
-/// Sinon elle s'ouvre dans l'app Spotify de ce PC et démarre dès qu'il est prêt.
+/// Plays a playlist (or the liked songs). Spotify open somewhere: right away.
+/// Otherwise it opens in this PC's Spotify app and starts as soon as it is ready.
 pub fn play(app: &AppHandle, context: &str) -> Result<(), String> {
     if connected(app) && start(app, context, None)? {
         return Ok(());
     }
-    // Pas d'appareil actif (ou pas connecté) : l'app Spotify s'ouvre sur la playlist
+    // No active device (or not connected): the Spotify app opens on the playlist
     let uri = if context.ends_with(":collection") { "spotify:collection:tracks" } else { context };
     crate::shell::open_as_is(uri)?;
     if connected(app) {
@@ -856,7 +856,7 @@ pub fn play(app: &AppHandle, context: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Lecture lancée ; Ok(false) : pas d'appareil actif
+/// Playback started; Ok(false): no active device
 fn start(app: &AppHandle, context: &str, device: Option<&str>) -> Result<bool, String> {
     let token = access_token(app)?;
     let url = match device {
@@ -872,8 +872,8 @@ fn start(app: &AppHandle, context: &str, device: Option<&str>) -> Result<bool, S
     }
 }
 
-/// Spotify vient de s'ouvrir : attend qu'il se présente comme appareil (8 s au plus), puis y
-/// lance la lecture
+/// Spotify just opened: waits for it to show up as a device (8 s at most), then starts
+/// playback on it
 fn play_when_ready(app: &AppHandle, context: &str) {
     for _ in 0..16 {
         std::thread::sleep(Duration::from_millis(500));
@@ -890,7 +890,7 @@ fn play_when_ready(app: &AppHandle, context: &str) {
     }
 }
 
-/// Appareil Spotify de ce PC : un ordinateur, de préférence au nom du PC
+/// This PC's Spotify device: a computer, preferably with the PC's name
 fn this_pc(app: &AppHandle) -> Result<Option<String>, String> {
     let token = access_token(app)?;
     let (status, body) = http("GET", &format!("{API}/me/player/devices"), Some(&token), None)?;
@@ -912,8 +912,8 @@ fn parse(body: &str) -> Value {
     serde_json::from_str(body).unwrap_or(Value::Null)
 }
 
-/// Message dans la langue de Pastille pour les erreurs de Spotify (API : {"error": {"message", "reason"}} ;
-/// jetons : {"error": "invalid_grant", "error_description"})
+/// Message in Pastille's language for Spotify's errors (API: {"error": {"message", "reason"}};
+/// tokens: {"error": "invalid_grant", "error_description"})
 fn api_error(status: u16, json: &Value) -> String {
     let reason = json["error"]["reason"].as_str().unwrap_or_default();
     let message =
@@ -922,8 +922,8 @@ fn api_error(status: u16, json: &Value) -> String {
         (404, _) | (_, "NO_ACTIVE_DEVICE") => {
             tr("Spotify n'a pas d'appareil actif : lance la lecture.", "Spotify has no active device: start playback.").into()
         }
-        // Depuis 2026, le propriétaire de l'app Spotify (chacun a la sienne) doit aussi avoir
-        // Premium : message sans `reason` connu
+        // Since 2026, the owner of the Spotify app (everyone has their own) must also have
+        // Premium: message without a known `reason`
         (_, "PREMIUM_REQUIRED") => premium(),
         (403, _) if message.to_ascii_lowercase().contains("premium") => premium(),
         (429, _) => tr("Spotify reçoit trop de demandes, réessaie dans un instant.", "Spotify gets too many requests, try again in a moment.").into(),
@@ -940,8 +940,8 @@ fn premium() -> String {
 
 /* ── HTTP ── */
 
-/// Client HTTP de Windows, gardé d'une requête à l'autre (connexions réutilisées : le curseur
-/// répond plus vite) ; l'appartement COM reste en vie (com::keep_mta)
+/// Windows HTTP client, kept from one request to the next (connections reused: the slider
+/// responds faster); the COM apartment stays alive (com::keep_mta)
 static CLIENT: Mutex<Option<HttpClient>> = Mutex::new(None);
 
 fn client() -> windows::core::Result<HttpClient> {
@@ -956,8 +956,8 @@ fn client() -> windows::core::Result<HttpClient> {
     Ok(created)
 }
 
-/// Requête HTTPS par le client HTTP de Windows (WinRT), sans cache, TIMEOUT au plus par étape.
-/// `body` : (contenu, type : formulaire ou JSON)
+/// HTTPS request through the Windows HTTP client (WinRT), without cache, TIMEOUT at most per step.
+/// `body`: (content, type: form or JSON)
 fn http(method: &str, url: &str, bearer: Option<&str>, body: Option<(&str, &str)>) -> Result<(u16, String), String> {
     let send = || -> windows::core::Result<(u16, String)> {
         let request =
@@ -982,7 +982,7 @@ fn http(method: &str, url: &str, bearer: Option<&str>, body: Option<(&str, &str)
     crate::com::with_com(send).map_err(|e| tr(format!("Spotify injoignable : {}", e.message().trim_end()), format!("Spotify unreachable: {}", e.message().trim_end())))
 }
 
-/// Attend une opération WinRT, TIMEOUT au plus ; au-delà, elle est annulée
+/// Waits for a WinRT operation, TIMEOUT at most; beyond that, it is canceled
 fn wait<T: RuntimeType + 'static, P: RuntimeType + 'static>(
     operation: IAsyncOperationWithProgress<T, P>,
 ) -> windows::core::Result<T> {
@@ -1001,7 +1001,7 @@ fn wait<T: RuntimeType + 'static, P: RuntimeType + 'static>(
 mod tests {
     use super::*;
 
-    /// Exemple de la RFC 7636 (annexe B)
+    /// Example from RFC 7636 (appendix B)
     #[test]
     fn pkce_challenge() {
         assert_eq!(challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk").unwrap(), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
@@ -1041,11 +1041,11 @@ mod tests {
         assert!(!is_playable("steam://rungameid/1"));
     }
 
-    /// Une erreur dans le client d'essai n'attend pas les 3 minutes de WAIT
+    /// An error in the test client doesn't wait the 3 minutes of WAIT
     const TEST_WAIT: Duration = Duration::from_secs(10);
 
-    /// Le retour de Spotify est attendu malgré une icône d'onglet, un ancien onglet et une
-    /// requête arrivée en deux morceaux (boucle locale, port choisi par le système)
+    /// Spotify's redirect is waited for despite a tab icon, an old tab and a
+    /// request that arrives in two pieces (loopback, port chosen by the system)
     #[test]
     fn callback_waits_for_the_right_answer() {
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
@@ -1073,8 +1073,8 @@ mod tests {
         assert!(client.join().unwrap().starts_with("HTTP/1.1 200"));
     }
 
-    /// Premier branchement : la page de configuration (avec le bon jeton seulement), un
-    /// identifiant refusé puis un bon, qui part vers Spotify, puis le retour de Spotify
+    /// First setup: the setup page (with the right token only), an
+    /// id refused then a good one, which goes to Spotify, then Spotify's redirect
     #[test]
     fn setup_page_takes_the_client_id() {
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
@@ -1126,8 +1126,8 @@ mod tests {
         assert_eq!(client_id_of("0123456789abcdef 0123456789abcdef"), None);
     }
 
-    /// Aperçu de la page de configuration, à ouvrir dans un navigateur
-    /// cargo test write_setup_page -- --ignored (fichier dans le dossier temporaire)
+    /// Preview of the setup page, to open in a browser
+    /// cargo test write_setup_page -- --ignored (file in the temp folder)
     #[test]
     #[ignore]
     fn write_setup_page() {
@@ -1161,8 +1161,8 @@ mod tests {
         assert!(page(&Err("<b>".into())).contains("&lt;b&gt;"));
     }
 
-    /// Diagnostic : le client HTTP de Windows joint l'API de Spotify (sans jeton : 401), deux
-    /// fois avec le même client
+    /// Diagnostic: the Windows HTTP client reaches Spotify's API (without a token: 401), twice
+    /// with the same client
     /// cargo test real_spotify_api -- --ignored --nocapture
     #[test]
     #[ignore]

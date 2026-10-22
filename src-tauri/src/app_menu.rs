@@ -1,12 +1,12 @@
-//! Clic droit sur une application de la vue applications (demande de Funsaiki, 17/10/2026) :
-//! Exécuter en administrateur, Emplacement du fichier, Épingler à la pilule (sans l'ouvrir
-//! d'abord) et, pour les applications du menu Démarrer, Masquer. Le front n'envoie que l'id de
-//! la tuile ; Rust retrouve sa cible (config.rs) et revérifie ce qu'elle permet avant d'agir.
+//! Right-click on an app in the apps view (requested by Funsaiki, 2026-10-17):
+//! Run as admin, Open file location, Pin to the pill (without opening it
+//! first) and, for Start menu apps, Hide. The front sends only the tile's id;
+//! Rust finds its target (config.rs) and checks again what it allows before acting.
 //!
-//! Épinglables : un programme (.exe) lancé sans arguments. Pas une app du Store (le programme de
-//! ses fenêtres ne se devine pas : Spotify se lance par SpotifyMigrator.exe), ni un raccourci
-//! avec arguments (le lanceur de Riot ouvre League of Legends ou Valorant) : la pilule ne
-//! saurait pas les relancer. Celles-là s'épinglent depuis leur tuile de fenêtre dans la pilule.
+//! Pinnable: a program (.exe) launched without arguments. Not a Store app (the program of
+//! its windows can't be guessed: Spotify launches through SpotifyMigrator.exe), nor a shortcut
+//! with arguments (the Riot launcher opens League of Legends or Valorant): the pill wouldn't
+//! know how to relaunch them. Those get pinned from their window tile in the pill.
 
 use std::path::Path;
 
@@ -18,30 +18,30 @@ use crate::config::{self, MenuItem};
 use crate::i18n::tr;
 use crate::{bar, shell, start_menu, tray_apps, usage};
 
-/// Entrées du menu, en plus d'Ouvrir
+/// Menu entries, besides Open
 #[derive(Serialize)]
 pub struct AppMenu {
     admin: bool,
     location: bool,
-    /// Épinglée ou non ; absent : barre pastel coupée, ou rien à épingler
+    /// Pinned or not; missing: pastel bar off, or nothing to pin
     pinned: Option<bool>,
-    /// Masquée ou non ; absent : pas une application du menu Démarrer
+    /// Hidden or not; missing: not a Start menu app
     hidden: Option<bool>,
 }
 
-/// Ce que lance une tuile
+/// What a tile launches
 struct Program {
-    /// Fichier existant : programme, script ou document
+    /// Existing file: program, script or document
     file: Option<String>,
-    /// « Exécuter en tant qu'administrateur » proposé par Windows
+    /// "Run as administrator" offered by Windows
     admin: bool,
-    /// Pour la pilule : programme lancé sans arguments
+    /// For the pill: program launched without arguments
     pin: Option<Pin>,
 }
 
 impl Program {
-    /// Avec COM (propriétés des raccourcis du menu Démarrer : groupe `auto: "start"` et tuiles
-    /// `app`)
+    /// With COM (properties of Start menu shortcuts: `auto: "start"` group and `app`
+    /// tiles)
     fn of(item: &MenuItem) -> Program {
         if item.target.starts_with(start_menu::PREFIX) {
             let Some(shortcut) = start_menu::shortcut(&item.target) else { return Program::none() };
@@ -59,7 +59,7 @@ impl Program {
         let path = target.replace('/', "\\");
         let file = Path::new(&path).is_file().then_some(path.clone());
         Program {
-            // « wt.exe » sans chemin aussi : Windows le trouve
+            // "wt.exe" without a path too: Windows finds it
             admin: is_program(&path),
             pin: file.as_deref().filter(|_| item.args.is_empty()).and_then(pin_of),
             file,
@@ -71,7 +71,7 @@ impl Program {
     }
 }
 
-/// Ce que Windows exécute en administrateur
+/// What Windows runs as administrator
 fn is_program(path: &str) -> bool {
     let extension = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     matches!(extension.as_str(), "exe" | "bat" | "cmd" | "msc")
@@ -106,9 +106,9 @@ pub async fn app_menu(app: AppHandle, id: String) -> Result<AppMenu, String> {
     })
 }
 
-/// Épinglée, à épingler, ou rien : barre pastel coupée, rien à épingler, ou un autre programme
-/// du même nom déjà épinglé (« launcher.exe » de HoYoPlay et de Wuthering Waves : la pilule
-/// reconnaît les fenêtres au nom du programme, elle les confondrait)
+/// Pinned, to pin, or nothing: pastel bar off, nothing to pin, or another program
+/// of the same name already pinned ("launcher.exe" of HoYoPlay and Wuthering Waves: the pill
+/// recognizes windows by program name, it would mix them up)
 fn pin_state(app: &AppHandle, pin: Option<&Pin>) -> Option<bool> {
     let pin = pin.filter(|_| bar::is_active(app))?;
     match bar::pins(app).iter().find(|p| p.exe == pin.exe) {
@@ -117,14 +117,14 @@ fn pin_state(app: &AppHandle, pin: Option<&Pin>) -> Option<bool> {
     }
 }
 
-/// `action` : admin, location, pin, unpin, hide, show
+/// `action`: admin, location, pin, unpin, hide, show
 #[tauri::command]
 pub async fn app_action(app: AppHandle, id: String, action: String) -> Result<(), String> {
     let (item, program) = program(item_of(&app, &id)?).await?;
     match action.as_str() {
         "admin" if program.admin => {
             let (target, args) = (item.target.clone(), item.args.clone());
-            // Hors du fil principal : l'invite UAC attend la réponse de Funsaiki
+            // Off the main thread: the UAC prompt waits for Funsaiki's answer
             crate::blocking(move || shell::open_as_admin(&target, &args)).await??;
             usage::record(&app, usage::key(&item.target, &item.args));
             Ok(())
@@ -159,25 +159,25 @@ mod tests {
     #[test]
     fn what_a_tile_allows() {
         let windir = std::env::var("SystemRoot").unwrap();
-        // Programme sans arguments : tout
+        // Program without arguments: everything
         let notepad = Program::of(&item("%SystemRoot%/System32/notepad.exe", &[]));
         assert_eq!(notepad.file.as_deref(), Some(format!(r"{windir}\System32\notepad.exe").as_str()));
         assert!(notepad.admin);
         assert_eq!(notepad.pin.map(|p| p.exe).as_deref(), Some("notepad.exe"));
-        // Avec arguments : pas épinglable
+        // With arguments: not pinnable
         let with_args = Program::of(&item("%SystemRoot%/System32/notepad.exe", &["a.txt"]));
         assert!(with_args.admin && with_args.file.is_some() && with_args.pin.is_none());
-        // Sans chemin : Windows le trouve, mais pas d'emplacement
+        // Without a path: Windows finds it, but no file location
         let bare = Program::of(&item("wt.exe", &[]));
         assert!(bare.admin && bare.file.is_none() && bare.pin.is_none());
-        // Adresse, dossier : Ouvrir seulement (le dossier, Emplacement)
+        // Address, folder: Open only (no Open file location for a folder either)
         let uri = Program::of(&item("steam://open/main", &[]));
         assert!(!uri.admin && uri.file.is_none() && uri.pin.is_none());
         let folder = Program::of(&item("%USERPROFILE%", &[]));
         assert!(!folder.admin && folder.file.is_none());
     }
 
-    /// Diagnostic sur le PC (lecture seule, rien n'est lancé) :
+    /// Diagnostic on the PC (read-only, nothing is launched):
     /// cargo test real_start_menu_programs -- --ignored --nocapture
     #[test]
     #[ignore]

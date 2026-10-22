@@ -1,4 +1,4 @@
-/* Petits outils de page partagés par le téléphone (ui.ts) et la barre (bar.ts) */
+/* Small page helpers shared by the phone (ui.ts) and the bar (bar.ts) */
 import type { AppIcon } from './host';
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -8,8 +8,8 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: st
   return n;
 }
 
-/* Un envoi à la fois, le dernier niveau demandé gagne : les commandes de Tauri peuvent
-   s'exécuter dans le désordre pendant qu'on fait glisser un curseur */
+/* One send at a time, the last level asked for wins: Tauri commands can run
+   out of order while a slider is being dragged */
 export function latestOnly(send: (level: number) => Promise<void>) {
   let wanted: number | null = null;
   let sending = false;
@@ -26,7 +26,7 @@ export function latestOnly(send: (level: number) => Promise<void>) {
   };
 }
 
-/* Icône d'un programme : pixels RGBA envoyés par Rust (icon.rs), dessinés tels quels */
+/* A program's icon: RGBA pixels sent by Rust (icon.rs), drawn as they are */
 export function iconCanvas(i: AppIcon) {
   const canvas = el('canvas');
   canvas.width = i.width;
