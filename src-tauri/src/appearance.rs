@@ -4,7 +4,8 @@
 //! (charm.png…). The front sends the whole appearance; Rust keeps only what it recognizes.
 //! Until 2026-10-22, French names: apparence.json, breloque.png, keys and charms
 //! (config::rename_old_files, serde aliases, OLD_CHARMS).
-//! The pastel bar pages receive the new appearance (accent and ink).
+//! The pastel bar pages receive the new appearance (accent and ink). The phone's tilt
+//! since 2026-10-23 (`tilt`, ignored by an older version).
 
 use std::{
     fs,
@@ -47,6 +48,15 @@ pub struct Appearance {
     /// Three colors, top to bottom
     #[serde(default, alias = "perles", skip_serializing_if = "Option::is_none")]
     beads: Option<Vec<String>>,
+    /// Phone's tilt, % of the mockup's (since 2026-10-23); missing: 100
+    #[serde(default, deserialize_with = "tilt_value", skip_serializing_if = "Option::is_none")]
+    tilt: Option<u8>,
+}
+
+/// A number from 0 to 100, otherwise dropped (not the whole file, as a wrong type would)
+fn tilt_value<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u8>, D::Error> {
+    let value = Option::<serde_json::Value>::deserialize(d)?;
+    Ok(value.and_then(|v| v.as_f64()).filter(|t| (0.0..=100.0).contains(t)).map(|t| t.round() as u8))
 }
 
 /// Charms known to the front, except the Pastille one (default)
@@ -72,6 +82,8 @@ impl Appearance {
             .beads
             .filter(|p| p.len() == 3 && p.iter().all(|c| is_color(c)))
             .map(|p| p.into_iter().map(|c| c.to_ascii_lowercase()).collect());
+        // The mockup's tilt is not kept
+        self.tilt = self.tilt.filter(|t| *t < 100);
         self
     }
 }
@@ -297,6 +309,22 @@ mod tests {
         assert_eq!(clean.accent.as_deref(), Some("#abcdef"));
         assert!(clean.case.is_none() && clean.ink.is_none() && clean.charm.is_none() && clean.beads.is_none());
         assert_eq!(serde_json::to_string(&clean).unwrap(), r##"{"accent":"#abcdef"}"##);
+    }
+
+    #[test]
+    fn tilt_from_0_to_99_is_kept() {
+        let tilt = |json: &str| serde_json::from_str::<Appearance>(json).unwrap().cleaned().tilt;
+        assert_eq!(tilt(r#"{ "tilt": 40 }"#), Some(40));
+        assert_eq!(tilt(r#"{ "tilt": 0 }"#), Some(0));
+        assert_eq!(tilt(r#"{ "tilt": 12.6 }"#), Some(13));
+        // The mockup's, out of range or not a number: the mockup's, and the rest is still read
+        assert_eq!(tilt(r#"{ "tilt": 100 }"#), None);
+        assert_eq!(tilt(r#"{ "tilt": 250 }"#), None);
+        assert_eq!(tilt(r#"{ "tilt": -5 }"#), None);
+        let read: Appearance = serde_json::from_str(r##"{ "accent": "#abcdef", "tilt": "flat" }"##).unwrap();
+        assert_eq!(serde_json::to_string(&read.cleaned()).unwrap(), r##"{"accent":"#abcdef"}"##);
+        let read: Appearance = serde_json::from_str(r#"{ "tilt": 35 }"#).unwrap();
+        assert_eq!(serde_json::to_string(&read.cleaned()).unwrap(), r#"{"tilt":35}"#);
     }
 
     #[test]
