@@ -993,7 +993,8 @@ function trayTile(app: TrayApp, i: number) {
     return b;
   }
   // The launcher hides when the app comes to the foreground (its window, its menu);
-  // it stays open for the second click of an app that waits for a double click
+  // it stays open for the second click of an app that waits for a double click, and
+  // under the app's menu after a right-click (launcher.rs)
   const send = (kind: TrayClick) => host.trayClick(app.key, kind).catch((e) => report(LAUNCH, e));
   b.addEventListener('click', (e) => send(e.detail === 0 ? 'key' : e.detail > 1 ? 'double' : 'left'));
   b.addEventListener('mousedown', (e) => {

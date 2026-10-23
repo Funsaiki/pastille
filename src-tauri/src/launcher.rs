@@ -14,7 +14,7 @@ use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     UI::{
         Shell::{DefSubclassProc, SetWindowSubclass},
-        WindowsAndMessaging::{SC_KEYMENU, WM_SYSCOMMAND},
+        WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, IsWindowVisible, SC_KEYMENU, WM_SYSCOMMAND},
     },
 };
 
@@ -26,6 +26,17 @@ static DIALOG: AtomicBool = AtomicBool::new(false);
 
 pub fn set_dialog(open: bool) {
     DIALOG.store(open, Ordering::SeqCst);
+}
+
+/// Right-click on a notification area icon (process of its app, when): the app's own menu
+/// takes the focus and opens over the phone, which stays, like the pill (Funsaiki's request,
+/// 2026-10-23; before, it went down with the focus)
+static APP_MENU: Mutex<Option<(u32, Instant)>> = Mutex::new(None);
+/// Time for the app to open its menu
+const APP_MENU_DELAY: Duration = Duration::from_secs(2);
+
+pub fn expect_app_menu(pid: u32) {
+    *APP_MENU.lock().unwrap() = Some((pid, Instant::now()));
 }
 
 /// Last hide request
@@ -180,6 +191,41 @@ pub fn on_blur(app: &AppHandle) {
             return;
         }
     }
+    let menu = APP_MENU.lock().unwrap().take().filter(|(_, at)| at.elapsed() < APP_MENU_DELAY);
+    if let (Some((pid, _)), Ok(hwnd)) = (menu, w.hwnd()) {
+        debug_log("focus lost to an app's menu: stay shown");
+        watch_app_menu(app, hwnd.0 as isize, pid);
+        return;
+    }
     debug_log("focus lost: hide");
     hide(app);
+}
+
+/// While the app's menu is open, the phone stays. It goes down when one of the app's
+/// windows comes forward (an entry of its menu) or when another program takes the focus;
+/// back on the phone (a click on it once the menu is closed), the usual focus loss.
+fn watch_app_menu(app: &AppHandle, own: isize, pid: u32) {
+    let app = app.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(100));
+        let own = HWND(own as *mut _);
+        if !unsafe { IsWindowVisible(own) }.as_bool() {
+            return;
+        }
+        let foreground = unsafe { GetForegroundWindow() };
+        if foreground == own {
+            return;
+        }
+        // No foreground window for a moment (focus changing hands)
+        if foreground.is_invalid() {
+            continue;
+        }
+        let mut owner = 0;
+        unsafe { GetWindowThreadProcessId(foreground, Some(&mut owner)) };
+        if owner != pid || crate::switch::is_app_window(foreground) {
+            debug_log("app's menu closed on a window: hide");
+            hide(&app);
+            return;
+        }
+    });
 }

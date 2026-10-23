@@ -444,7 +444,11 @@ pub fn click(key: &str, kind: &str) -> Result<bool, String> {
     }
     // It may come to the foreground (its menu, its window), as after a click in the Windows
     // taskbar
-    let _ = unsafe { AllowSetForegroundWindow(pid_of_window(hwnd.0 as isize)) };
+    let pid = pid_of_window(hwnd.0 as isize);
+    let _ = unsafe { AllowSetForegroundWindow(pid) };
+    if kind == "right" {
+        crate::launcher::expect_app_menu(pid);
+    }
     for (wparam, lparam) in messages(kind, version, uid, at)? {
         // Without waiting: a busy app doesn't freeze Pastille
         unsafe { SendNotifyMessageW(hwnd, callback, wparam, lparam) }.map_err(|e| e.message())?;
