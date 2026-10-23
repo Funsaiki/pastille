@@ -4,11 +4,12 @@
 //! (charm.png…). The front sends the whole appearance; Rust keeps only what it recognizes.
 //! Until 2026-10-22, French names: apparence.json, breloque.png, keys and charms
 //! (config::rename_old_files, serde aliases, OLD_CHARMS).
-//! The pastel bar pages receive the new appearance (accent and ink). The phone's tilt
-//! since 2026-10-23 (`tilt`, ignored by an older version).
+//! The pastel bar pages receive the new appearance (accent and ink). The phone's tilt,
+//! size and position since 2026-10-23 (`tilt`, `size`, `position`, ignored by an older version).
 
 use std::{
     fs,
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -51,13 +52,37 @@ pub struct Appearance {
     /// Phone's tilt, % of the mockup's (since 2026-10-23); missing: 100
     #[serde(default, deserialize_with = "tilt_value", skip_serializing_if = "Option::is_none")]
     tilt: Option<u8>,
+    /// Phone's size, % of the mockup's (since 2026-10-23); missing: 100
+    #[serde(default, deserialize_with = "size_value", skip_serializing_if = "Option::is_none")]
+    size: Option<u8>,
+    /// Phone's place on the screen, left or right (since 2026-10-23); missing: the middle
+    #[serde(default, deserialize_with = "text_value", skip_serializing_if = "Option::is_none")]
+    position: Option<String>,
 }
 
-/// A number from 0 to 100, otherwise dropped (not the whole file, as a wrong type would)
-fn tilt_value<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u8>, D::Error> {
+/// A number in `range`, otherwise dropped (not the whole file, as a wrong type would)
+fn number_in<'de, D: serde::Deserializer<'de>>(d: D, range: RangeInclusive<f64>) -> Result<Option<u8>, D::Error> {
     let value = Option::<serde_json::Value>::deserialize(d)?;
-    Ok(value.and_then(|v| v.as_f64()).filter(|t| (0.0..=100.0).contains(t)).map(|t| t.round() as u8))
+    Ok(value.and_then(|v| v.as_f64()).filter(|t| range.contains(t)).map(|t| t.round() as u8))
 }
+
+fn tilt_value<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u8>, D::Error> {
+    number_in(d, 0.0..=100.0)
+}
+
+/// From 70 to 120: beyond, the top of the phone would leave the screen
+fn size_value<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u8>, D::Error> {
+    number_in(d, 70.0..=120.0)
+}
+
+/// A text, otherwise dropped
+fn text_value<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let value = Option::<serde_json::Value>::deserialize(d)?;
+    Ok(value.and_then(|v| v.as_str().map(str::to_string)))
+}
+
+/// Positions known to the front, except the middle (default)
+const POSITIONS: [&str; 2] = ["left", "right"];
 
 /// Charms known to the front, except the Pastille one (default)
 const CHARMS: [&str; 5] = ["star", "heart", "cat", "image", "none"];
@@ -82,8 +107,10 @@ impl Appearance {
             .beads
             .filter(|p| p.len() == 3 && p.iter().all(|c| is_color(c)))
             .map(|p| p.into_iter().map(|c| c.to_ascii_lowercase()).collect());
-        // The mockup's tilt is not kept
+        // The mockup's tilt and size are not kept
         self.tilt = self.tilt.filter(|t| *t < 100);
+        self.size = self.size.filter(|s| *s != 100);
+        self.position = self.position.filter(|p| POSITIONS.contains(&p.as_str()));
         self
     }
 }
@@ -325,6 +352,29 @@ mod tests {
         assert_eq!(serde_json::to_string(&read.cleaned()).unwrap(), r##"{"accent":"#abcdef"}"##);
         let read: Appearance = serde_json::from_str(r#"{ "tilt": 35 }"#).unwrap();
         assert_eq!(serde_json::to_string(&read.cleaned()).unwrap(), r#"{"tilt":35}"#);
+    }
+
+    #[test]
+    fn size_and_position_are_kept() {
+        let size = |json: &str| serde_json::from_str::<Appearance>(json).unwrap().cleaned().size;
+        assert_eq!(size(r#"{ "size": 70 }"#), Some(70));
+        assert_eq!(size(r#"{ "size": 120 }"#), Some(120));
+        assert_eq!(size(r#"{ "size": 84.6 }"#), Some(85));
+        // The mockup's, out of range or not a number: the mockup's
+        assert_eq!(size(r#"{ "size": 100 }"#), None);
+        assert_eq!(size(r#"{ "size": 65 }"#), None);
+        assert_eq!(size(r#"{ "size": 200 }"#), None);
+        assert_eq!(size(r#"{ "size": "big" }"#), None);
+        let position = |json: &str| serde_json::from_str::<Appearance>(json).unwrap().cleaned().position;
+        assert_eq!(position(r#"{ "position": "left" }"#).as_deref(), Some("left"));
+        assert_eq!(position(r#"{ "position": "right" }"#).as_deref(), Some("right"));
+        // The middle (default), unknown or not a text: the middle, and the rest is still read
+        assert_eq!(position(r#"{ "position": "center" }"#), None);
+        assert_eq!(position(r#"{ "position": "top" }"#), None);
+        let read: Appearance = serde_json::from_str(r##"{ "accent": "#abcdef", "position": 2 }"##).unwrap();
+        assert_eq!(serde_json::to_string(&read.cleaned()).unwrap(), r##"{"accent":"#abcdef"}"##);
+        let read: Appearance = serde_json::from_str(r#"{ "size": 90, "position": "left" }"#).unwrap();
+        assert_eq!(serde_json::to_string(&read.cleaned()).unwrap(), r#"{"size":90,"position":"left"}"#);
     }
 
     #[test]
