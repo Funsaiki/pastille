@@ -41,6 +41,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 **Customize** (in the settings page)
 - Accent, case, screen and ink colors, from a palette or any custom color.
 - The strap charm (or your own image) and the bead colors. The pastel bar uses the same accent and ink.
+- The phone's tilt, from face-on to the original angle.
 
 ## Installation
 
