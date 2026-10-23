@@ -1835,7 +1835,12 @@ const STAGE_WIDTH = 1440;
 const STAGE_HEIGHT = 900;
 
 function fitStage() {
-  $('stage').style.setProperty('zoom', String(Math.min(innerWidth / STAGE_WIDTH, innerHeight / STAGE_HEIGHT)));
+  const zoom = Math.min(innerWidth / STAGE_WIDTH, innerHeight / STAGE_HEIGHT);
+  const stage = $('stage');
+  stage.style.setProperty('zoom', String(zoom));
+  // As wide as the screen: on a wider screen than the mockup's, the phone placed on the left
+  // or right (Appearance section) goes to the screen's edge; in the middle, it doesn't move
+  stage.style.width = innerWidth / zoom + 'px';
 }
 
 /* ── Opening: to call each time the window is shown. The stage goes through

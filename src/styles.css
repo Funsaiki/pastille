@@ -43,12 +43,13 @@ button, input { font-family: 'Nunito', sans-serif; }
 
 /* ── Animations ── */
 /* Entrance (reworked by Funsaiki): no fade, the phone comes out from below the screen edge
-   (740 px: entirely below the stage, which clips it), rises 10 px too high and drops back fast,
+   (740 px: entirely below the stage, which clips it; more for a phone bigger than the mockup's,
+   Appearance section), rises 10 px too high and drops back fast,
    straightening from a slight rotation coming from the right (tp-turn, separate for its curve).
    translate and rotate properties rather than transform: the rotation turns around the center
    of the phone, without pushing it sideways. */
 @keyframes tp-rise {
-  from { translate: 0 740px; animation-timing-function: cubic-bezier(.25, .8, .35, 1); }
+  from { translate: 0 calc(740px * max(1, var(--size, 1))); animation-timing-function: cubic-bezier(.25, .8, .35, 1); }
   82% { translate: 0 -10px; animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
   to { translate: 0 0; }
 }
@@ -71,7 +72,7 @@ button, input { font-family: 'Nunito', sans-serif; }
 @keyframes tp-sink {
   from { translate: 0 0; animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
   18% { translate: 0 -10px; animation-timing-function: cubic-bezier(.65, 0, .75, .2); }
-  to { translate: 0 740px; }
+  to { translate: 0 calc(740px * max(1, var(--size, 1))); }
 }
 /* tp-turn reversed (own name: reusing tp-turn would keep the finished animation, which would jump to 5°) */
 @keyframes tp-unturn { from { rotate: 0deg; } to { rotate: 5deg; } }
@@ -124,7 +125,8 @@ button, input { font-family: 'Nunito', sans-serif; }
   74% { rotate: -2deg; animation-timing-function: ease-in-out; }
 }
 
-/* ── Stage: 1440 × 900, scaled up or down to the screen (zoom set by ui.ts) ── */
+/* ── Stage: 1440 × 900, scaled up or down to the screen (zoom set by ui.ts); wider on a wider
+   screen (ui.ts), the phone can go to its left or right ── */
 .scene { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; }
 .stage { flex: none; position: relative; width: 1440px; height: 900px; overflow: hidden; }
 /* Browser preview: the mockup's fake wallpaper */
@@ -140,17 +142,35 @@ button, input { font-family: 'Nunito', sans-serif; }
 
 /* ── Phone: tilted and upright, or flat and on its side (.landscape on the stage) ──
    Laid flat, it is enlarged by 10% (Funsaiki's request) and raised by 140 px instead of 130:
-   the strap's charm stays above the screen edge. Tilt: share of the mockup's, from 0 (face-on)
-   to 1 (`--tilt`, Appearance section, customize.ts). */
-.phone { position: absolute; left: 500px; top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%; }
+   the strap's charm stays above the screen edge. Appearance section (customize.ts): tilt, share
+   of the mockup's from 0 (face-on) to 1 (`--tilt`); size, from .7 to 1.2 (`--size`), around the
+   point where the phone crosses the screen edge (289 px below its center): the same part of it
+   stays below the edge, in both views; position (`data-position` on the root). */
+.phone {
+  position: absolute; left: calc(50% - 220px); top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%;
+  transition: left .7s var(--turn);
+}
+/* Left or right: the same gap to the screen edge whatever the size and the tilt (from the
+   center: the strap juts out 241 px on the left face-on, 206 tilted; the side edge 205 px on
+   the right face-on, 226 tilted) */
+[data-position="left"] .phone { left: calc(64px - 205px + (241px - 35px * var(--tilt, 1)) * var(--size, 1)); }
+[data-position="right"] .phone { left: calc(100% - 64px - 205px - (205px + 21px * var(--tilt, 1)) * var(--size, 1)); }
 .phone-tilt {
   position: relative; width: 410px; height: 830px;
-  transform: translateY(0px) scale(1) rotateZ(calc(6deg * var(--tilt, 1))) rotateX(calc(13deg * var(--tilt, 1))) rotateY(calc(-36deg * var(--tilt, 1)));
+  transform: translateY(calc(289px * (1 - var(--size, 1)))) scale3d(var(--size, 1), var(--size, 1), var(--size, 1))
+    translateX(0px) translateY(0px) scale(1) rotateZ(calc(6deg * var(--tilt, 1))) rotateX(calc(13deg * var(--tilt, 1))) rotateY(calc(-36deg * var(--tilt, 1)));
   transform-style: preserve-3d; transition: transform .7s var(--turn);
 }
-/* While the tilt slider is dragged: the phone follows it closely */
-.tilting .phone-tilt { transition-duration: .2s; }
-.landscape .phone-tilt { transform: translateY(-140px) scale(1.1) rotateZ(0deg) rotateX(0deg) rotateY(0deg); }
+/* While a slider of the Phone tab is dragged: the phone follows it closely */
+.sliding .phone, .sliding .phone-tilt { transition-duration: .2s; }
+.landscape .phone-tilt {
+  transform: translateY(calc(289px * (1 - var(--size, 1)))) scale3d(var(--size, 1), var(--size, 1), var(--size, 1))
+    translateX(var(--flat-x, 0px)) translateY(-140px) scale(1.1) rotateZ(0deg) rotateX(0deg) rotateY(0deg);
+}
+/* Laid flat on the left or right: 456.5 px on each side of its center, it moves towards the
+   middle to keep the same gap to the edge (before the size, which multiplies it) */
+[data-position="left"] .phone-tilt { --flat-x: calc(456.5px - 241px + 35px * var(--tilt, 1)); }
+[data-position="right"] .phone-tilt { --flat-x: calc(205px + 21px * var(--tilt, 1) - 456.5px); }
 .phone-orient {
   position: absolute; left: 0; top: 0; width: 410px; height: 830px;
   transform: rotateZ(0deg); transform-style: preserve-3d; transition: transform .7s var(--turn);
@@ -162,8 +182,10 @@ button, input { font-family: 'Nunito', sans-serif; }
 .landscape.settled .phone { perspective: none; }
 .landscape.settled .phone-tilt, .landscape.settled .phone-orient { transform-style: flat; }
 /* Pure 2D transform: rotations at 0 (rotateX, rotateY) are still 3D for the
-   browser, which makes a separate layer of them */
-.landscape.settled .phone-tilt { transform: translateY(-140px) scale(1.1); }
+   browser, which makes a separate layer of them (scale3d too) */
+.landscape.settled .phone-tilt {
+  transform: translateY(calc(289px * (1 - var(--size, 1)))) scale(var(--size, 1)) translateX(var(--flat-x, 0px)) translateY(-140px) scale(1.1);
+}
 /* 3D ↔ flat switch (setSettled, ui.ts): no transition, identical to the eye; on the way back, the
    rotation starts again from the original 3D form and follows the same path as before */
 .settling .phone-tilt, .settling .strap { transition: none !important; }
@@ -588,8 +610,8 @@ button.prefs-row > svg:last-child { flex: none; }
   border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
 }
 .prefs-lang .notifs-tab { padding: 0 5px; }
-.prefs-lang .notifs-tab[aria-checked="true"] { color: var(--ink); cursor: default; }
-.prefs-lang .notifs-tab[aria-checked="false"]:hover { color: var(--ink); }
+.prefs-lang .notifs-tab[aria-checked="true"], .phone-place .notifs-tab[aria-checked="true"] { color: var(--ink); cursor: default; }
+.prefs-lang .notifs-tab[aria-checked="false"]:hover, .phone-place .notifs-tab[aria-checked="false"]:hover { color: var(--ink); }
 .prefs-lang.off { opacity: .4; pointer-events: none; }
 
 /* Small pill button (Connect, Check…), accent background for the suggested action */
@@ -648,6 +670,20 @@ button.prefs-row > svg:last-child { flex: none; }
 }
 .tilt-end:hover { color: var(--ink); }
 .tilt-end:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
+/* Position: the label then the tab pill on the same row, like the language; three equal parts,
+   the thumb's leading edge first (customize.ts sets the direction) */
+.custom-inline { flex-direction: row; align-items: center; justify-content: space-between; }
+.phone-place {
+  position: relative; width: 192px; height: 28px; flex: none; box-sizing: border-box; align-items: center;
+  grid-template-columns: repeat(3, 1fr);
+  border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
+}
+.phone-place .notifs-tab { padding: 0 5px; }
+.phone-place[data-pane="left"] .tabs-thumb { left: 2px; right: calc(2px + (100% - 4px) * 2 / 3); }
+.phone-place[data-pane="center"] .tabs-thumb { left: calc(2px + (100% - 4px) / 3); right: calc(2px + (100% - 4px) / 3); }
+.phone-place[data-pane="right"] .tabs-thumb { left: calc(2px + (100% - 4px) * 2 / 3); right: 2px; }
+.phone-place[data-dir="left"] .tabs-thumb { transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
+.phone-place[data-dir="right"] .tabs-thumb { transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
 
 /* Swatches: 32 px dots, the chosen one ringed in ink; the last one, "Other color",
    in pastel rainbow with a +, in its color once chosen */

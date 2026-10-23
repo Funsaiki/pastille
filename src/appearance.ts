@@ -1,14 +1,16 @@
 /* ══════════════════════════════════════════════════════════
    Appearance (requested by Funsaiki on 2026-10-19): accent, case, screen and ink of the
    phone, beads and charm of the strap, chosen in the Customize card
-   (customize.ts); the phone's tilt since 2026-10-23. A chosen color gives every shade of the mockup that depends on
-   it; with no choice, the mockup (styles.css) stays as it is.
+   (customize.ts); the phone's tilt, size and position since 2026-10-23. A chosen color
+   gives every shade of the mockup that depends on it; with no choice, the mockup
+   (styles.css) stays as it is.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG } from './config';
 import { tr } from './i18n';
 
 export type Charm = 'pill' | 'star' | 'heart' | 'cat' | 'image' | 'none';
 export type ColorKey = 'accent' | 'case' | 'screen' | 'ink';
+export type Position = 'left' | 'center' | 'right';
 
 /* What is saved (colors as #rrggbb); a missing field: the original one. The original
    accent is the one from apps.json. The charm's image is saved separately. */
@@ -20,6 +22,8 @@ export interface Appearance {
   charm?: Charm;
   beads?: string[];   // three colors, top to bottom
   tilt?: number;      // phone's tilt, % of the mockup's (0: face-on)
+  size?: number;      // phone's size, % of the mockup's (70 to 120)
+  position?: 'left' | 'right';   // phone's place on the screen (missing: the middle)
 }
 
 export interface Swatch {

@@ -4,9 +4,9 @@
    an "Other color" dot that opens hue, lightness and code. Everything changes live
    and is saved (host.setAppearance: appearance.json). First a separate card, then the
    Appearance section of the Settings page (2026-10-21, prefs.ts). Third tab, Phone
-   (2026-10-23): its tilt.
+   (2026-10-23): its tilt, size and position.
    ══════════════════════════════════════════════════════════ */
-import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Swatch } from './appearance';
+import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Position, type Swatch } from './appearance';
 import { CONFIG } from './config';
 import { el } from './dom';
 import { icon } from './icons';
@@ -101,14 +101,18 @@ export function applyStrap() {
   $('strap-charm').replaceChildren(charmNode(charm));
 }
 
-/* Phone's tilt (quick settings view), % of the mockup's */
-const tiltOf = () => appearance().tilt ?? 100;
+/* Phone's tilt (quick settings view) and size, % of the mockup's (100 if missing); its position */
+const positionOf = (): Position => appearance().position ?? 'center';
 
-function applyTilt() {
-  const tilt = appearance().tilt;
-  const root = document.documentElement.style;
-  if (tilt === undefined) root.removeProperty('--tilt');
-  else root.setProperty('--tilt', String(tilt / 100));
+function applyPhone() {
+  const { tilt, size, position } = appearance();
+  const root = document.documentElement;
+  for (const [name, value] of [['--tilt', tilt], ['--size', size]] as const) {
+    if (value === undefined) root.style.removeProperty(name);
+    else root.style.setProperty(name, String(value / 100));
+  }
+  if (position) root.dataset.position = position;
+  else delete root.dataset.position;
 }
 
 /* ── Changes: applied, card updated, saved ── */
@@ -118,7 +122,7 @@ let shownPalette = '';
 function changed() {
   applyColors();
   applyStrap();
-  applyTilt();
+  applyPhone();
   updateAll();
   const next = palette().join();
   if (next !== shownPalette) {
@@ -154,11 +158,20 @@ function setCharm(key: Charm) {
   changed();
 }
 
-/* The mockup's tilt (100) is not saved */
-function setTilt(tilt: number) {
+/* The mockup's tilt and size (100) are not saved */
+function setPercent(key: 'tilt' | 'size', value: number) {
   const a = { ...appearance() };
-  if (tilt === 100) delete a.tilt;
-  else a.tilt = tilt;
+  if (value === 100) delete a[key];
+  else a[key] = value;
+  setAppearance(a);
+  changed();
+}
+
+/* Nor the middle */
+function setPosition(position: Position) {
+  const a = { ...appearance() };
+  if (position === 'center') delete a.position;
+  else a.position = position;
   setAppearance(a);
   changed();
 }
@@ -389,39 +402,100 @@ function beadRow(): Row {
   };
 }
 
-/* Tilt: the volume slider, from face-on (0) to the mockup (100); the phone turns
-   while it is dragged. The two ends, below, are buttons. */
-function tiltRow(): Row {
+/* Phone tab's sliders: the volume one, in %; the phone changes while it is dragged */
+function percentRow(key: 'tilt' | 'size', name: string, label: string, min: number, max: number, step: number): Row {
   const node = el('div', 'custom-row');
-  const { label, value } = rowLabel(tr('Inclinaison', 'Tilt'));
+  const { label: title, value: shown } = rowLabel(name);
   const range = el('input', 'tp-range');
   range.type = 'range';
-  range.min = '0';
-  range.max = '100';
-  range.setAttribute('aria-label', tr('Inclinaison du téléphone', 'Phone tilt'));
-  range.addEventListener('input', () => setTilt(Number(range.value)));
+  range.min = String(min);
+  range.max = String(max);
+  range.step = String(step);
+  range.setAttribute('aria-label', label);
+  range.addEventListener('input', () => setPercent(key, Number(range.value)));
   range.addEventListener('pointerdown', () => {
-    $('stage').classList.add('tilting');
-    const done = () => $('stage').classList.remove('tilting');
+    $('stage').classList.add('sliding');
+    const done = () => $('stage').classList.remove('sliding');
     addEventListener('pointerup', done, { once: true });
     addEventListener('pointercancel', done, { once: true });
   });
+  node.append(title, range);
+  return {
+    node,
+    update() {
+      const v = appearance()[key] ?? 100;
+      shown.textContent = percent(v);
+      range.value = String(v);
+      range.style.setProperty('--pct', ((v - min) / (max - min)) * 100 + '%');
+    },
+  };
+}
+
+/* Tilt: from face-on (0) to the mockup (100). The two ends, below, are buttons. */
+function tiltRow(): Row {
+  const row = percentRow('tilt', tr('Inclinaison', 'Tilt'), tr('Inclinaison du téléphone', 'Phone tilt'), 0, 100, 1);
   const ends = el('div', 'tilt-ends');
   const end = (text: string, tilt: number) => {
     const b = el('button', 'tilt-end', text);
     b.type = 'button';
-    b.addEventListener('click', () => setTilt(tilt));
+    b.addEventListener('click', () => setPercent('tilt', tilt));
     return b;
   };
   ends.append(end(tr('De face', 'Face-on'), 0), end(tr('Incliné', 'Tilted'), 100));
-  node.append(label, range, ends);
+  row.node.append(ends);
+  return row;
+}
+
+/* Size: 70 to 120% of the mockup's, by 5 (100 is easy to find again); beyond 120, the top of
+   the phone would leave the screen */
+const sizeRow = () => percentRow('size', tr('Taille', 'Size'), tr('Taille du téléphone', 'Phone size'), 70, 120, 5);
+
+/* Position: a tabs pill in three equal parts, on the label's row (like the language) */
+const POSITIONS: { key: Position; name: string }[] = [
+  { key: 'left', name: tr('Gauche', 'Left') },
+  { key: 'center', name: tr('Centre', 'Center') },
+  { key: 'right', name: tr('Droite', 'Right') },
+];
+
+function positionRow(): Row {
+  const node = el('div', 'custom-row custom-inline');
+  const { label, value } = rowLabel('Position');
+  value.remove();   // the pill shows it
+  const group = el('div', 'notifs-tabs phone-place');
+  group.setAttribute('role', 'radiogroup');
+  group.setAttribute('aria-label', tr('Position du téléphone', 'Phone position'));
+  group.append(el('span', 'tabs-thumb'));
+  const buttons = POSITIONS.map((p) => {
+    const b = el('button', 'notifs-tab', p.name);
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.addEventListener('click', () => setPosition(p.key));
+    return b;
+  });
+  group.append(...buttons);
+  group.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const i = POSITIONS.findIndex((p) => p.key === positionOf()) + (e.key === 'ArrowRight' ? 1 : -1);
+    const next = Math.max(0, Math.min(POSITIONS.length - 1, i));
+    setPosition(POSITIONS[next].key);
+    buttons[next].focus();
+  });
+  node.append(label, group);
   return {
     node,
     update() {
-      const tilt = tiltOf();
-      value.textContent = percent(tilt);
-      range.value = String(tilt);
-      range.style.setProperty('--pct', tilt + '%');
+      const current = positionOf();
+      // The thumb's leading edge first, like the tabs
+      const before = POSITIONS.findIndex((p) => p.key === group.dataset.pane);
+      const now = POSITIONS.findIndex((p) => p.key === current);
+      if (before >= 0 && before !== now) group.dataset.dir = now < before ? 'left' : 'right';
+      group.dataset.pane = current;
+      buttons.forEach((b, i) => {
+        const on = POSITIONS[i].key === current;
+        b.setAttribute('aria-checked', String(on));
+        b.tabIndex = on ? 0 : -1;
+      });
     },
   };
 }
@@ -475,7 +549,11 @@ function reset() {
   else if (tab === 'strap') {
     delete a.charm;
     delete a.beads;
-  } else delete a.tilt;
+  } else {
+    delete a.tilt;
+    delete a.size;
+    delete a.position;
+  }
   editing = null;
   setAppearance(a);
   changed();
@@ -498,11 +576,11 @@ export function initCustom(onPalette: () => void, onError: (e: unknown) => void)
   shownPalette = palette().join();
   const colors = (Object.keys(LABELS) as ColorKey[]).map(colorRow);
   const strap = [charmRow(), beadRow()];
-  const phone = tiltRow();
-  rows = [...colors, ...strap, phone];
+  const phone = [tiltRow(), sizeRow(), positionRow()];
+  rows = [...colors, ...strap, ...phone];
   $('custom-colors').replaceChildren(...colors.map((r) => r.node));
   $('custom-strap').replaceChildren(...strap.map((r) => r.node));
-  $('custom-phone').replaceChildren(phone.node);
+  $('custom-phone').replaceChildren(...phone.map((r) => r.node));
   for (const t of TABS) $(`custom-tab-${t}`).addEventListener('click', () => showTab(t, true));
   $('custom-tabs').addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -524,6 +602,6 @@ export async function loadAppearance() {
   image = saved.image;
   applyColors();
   applyStrap();
-  applyTilt();
+  applyPhone();
   shownPalette = palette().join();
 }
