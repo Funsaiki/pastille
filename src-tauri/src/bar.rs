@@ -19,8 +19,7 @@
 //! apps.json, with the pinned apps: bar_pins.rs); the Windows taskbar
 //! is then hidden (taskbar.rs).
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::sync::mpsc::Receiver;
 use std::sync::Mutex;
@@ -62,26 +61,14 @@ pub struct Settings {
     pub pinned: Vec<Pin>,
 }
 
-fn file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("bar.json"))
-}
-
 /// File missing or unreadable: bar off
 fn settings(app: &AppHandle) -> Settings {
-    file(app)
-        .and_then(|path| fs::read_to_string(config::to_read(path)).ok())
-        .and_then(|text| serde_json::from_str(text.trim_start_matches('\u{feff}')).ok())
-        .unwrap_or_default()
+    config::read_settings(app, "bar.json").unwrap_or_default()
 }
 
-/// Temporary file then rename, like spotify.json
 fn save(app: &AppHandle, settings: &Settings) {
-    let Some(path) = file(app) else { return };
-    let temp = path.with_extension("json.tmp");
-    let written = fs::write(&temp, serde_json::to_string_pretty(settings).unwrap_or_default())
-        .and_then(|_| fs::rename(&temp, &path));
-    if let Err(e) = written {
-        eprintln!("[pastille] bar: {} not saved: {e}", path.display());
+    if let Err(e) = config::write_settings(app, "bar.json", settings) {
+        eprintln!("[pastille] bar: {e}");
     }
 }
 

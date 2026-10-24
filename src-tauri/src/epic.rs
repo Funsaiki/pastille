@@ -42,7 +42,7 @@ pub fn installed_games() -> Vec<Game> {
         .filter_map(|e| fs::read_to_string(e.path()).ok())
         .filter_map(|text| parse(&text))
         .collect();
-    games.sort_by_key(|g| normalize(&g.name));
+    games.sort_by_cached_key(|g| normalize(&g.name));
     // A game can have two manifests (seen in practice): same name, neighbors
     games.dedup_by(|a, b| a.target == b.target);
     games

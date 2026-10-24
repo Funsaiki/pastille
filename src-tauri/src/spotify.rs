@@ -11,10 +11,8 @@
 
 use std::{
     collections::HashMap,
-    fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::PathBuf,
     sync::{Mutex, OnceLock},
     time::{Duration, Instant},
 };
@@ -91,19 +89,15 @@ struct Auth {
     problem: Option<String>,
 }
 
-fn file(app: &AppHandle) -> Option<PathBuf> {
+fn file_name() -> &'static str {
     // Simulated first launch (config::example_mode): Spotify not set up yet, as on
     // another PC; Funsaiki's connection stays intact
-    let name = if crate::config::example_mode() { "spotify-example.json" } else { "spotify.json" };
-    app.path().app_config_dir().ok().map(|dir| dir.join(name))
+    if crate::config::example_mode() { "spotify-example.json" } else { "spotify.json" }
 }
 
 /// File missing or unreadable: no connection
 fn read_saved(app: &AppHandle) -> Saved {
-    file(app)
-        .and_then(|path| fs::read_to_string(path).ok())
-        .and_then(|text| serde_json::from_str(text.trim_start_matches('\u{feff}')).ok())
-        .unwrap_or_default()
+    crate::config::read_settings(app, file_name()).unwrap_or_default()
 }
 
 /// At startup
@@ -124,14 +118,9 @@ pub fn reload(app: &AppHandle) {
     }
 }
 
-/// Temporary file then rename: a shutdown in the middle of writing doesn't lose the id
 fn save(app: &AppHandle, saved: &Saved) {
-    let Some(path) = file(app) else { return };
-    let temp = path.with_extension("json.tmp");
-    let written = fs::write(&temp, serde_json::to_string_pretty(saved).unwrap_or_default())
-        .and_then(|_| fs::rename(&temp, &path));
-    if let Err(e) = written {
-        eprintln!("[pastille] Spotify: {} not saved: {e}", path.display());
+    if let Err(e) = crate::config::write_settings(app, file_name(), saved) {
+        eprintln!("[pastille] Spotify: {e}");
     }
 }
 
@@ -1144,10 +1133,10 @@ mod tests {
         let dir = std::env::temp_dir();
         let write = |suffix: &str| {
             let file = |name: &str| dir.join(format!("pastille-spotify{name}{suffix}.html"));
-            fs::write(file(""), setup_page("token", "", None)).unwrap();
-            fs::write(file("-error"), setup_page("token", "abc", Some(&client_id_error("abc")))).unwrap();
-            fs::write(file("-ok"), page(&Ok(()))).unwrap();
-            fs::write(file("-failed"), page(&Err(tr("autorisation refusée.", "authorization denied.").into()))).unwrap();
+            std::fs::write(file(""), setup_page("token", "", None)).unwrap();
+            std::fs::write(file("-error"), setup_page("token", "abc", Some(&client_id_error("abc")))).unwrap();
+            std::fs::write(file("-ok"), page(&Ok(()))).unwrap();
+            std::fs::write(file("-failed"), page(&Err(tr("autorisation refusée.", "authorization denied.").into()))).unwrap();
         };
         write("");
         crate::i18n::in_english(|| write("-en"));

@@ -550,7 +550,8 @@ export const host = {
      disconnect depending on the state; quit: Pastille quits during the call */
   async prefAction(action: PrefAction) {
     if (!PREVIEW) {
-      await invoke('pref_action', { action });
+      // apps.json opens off the main thread: the editor can take a moment to start
+      await (action === 'edit-config' ? invoke('edit_config') : invoke('pref_action', { action }));
       return;
     }
     console.info('[preview] settings:', action);

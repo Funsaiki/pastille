@@ -6,11 +6,8 @@
 //! would refuse it). With no choice, the Windows language: French if Windows is in
 //! French, otherwise English. Rust follows it (i18n.rs); the pages keep a copy (i18n.ts).
 
-use std::fs;
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_autostart::ManagerExt;
 use windows::Win32::Globalization::GetUserDefaultUILanguage;
 
@@ -34,24 +31,12 @@ struct Settings {
     language: Option<Language>,
 }
 
-fn file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("settings.json"))
-}
-
 fn settings(app: &AppHandle) -> Settings {
-    file(app)
-        .and_then(|path| fs::read_to_string(config::to_read(path)).ok())
-        .and_then(|text| serde_json::from_str(text.trim_start_matches('\u{feff}')).ok())
-        .unwrap_or_default()
+    config::read_settings(app, "settings.json").unwrap_or_default()
 }
 
-/// Temporary file then rename, like bar.json
 fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
-    let path = file(app).ok_or(tr("Dossier de config introuvable.", "Config folder not found."))?;
-    let temp = path.with_extension("json.tmp");
-    fs::write(&temp, serde_json::to_string_pretty(settings).unwrap_or_default())
-        .and_then(|_| fs::rename(&temp, &path))
-        .map_err(|e| tr(format!("{} non enregistré : {e}", path.display()), format!("{} not saved: {e}", path.display())))
+    config::write_settings(app, "settings.json", settings)
 }
 
 /// Windows language (that of its interface): French for all its variants
@@ -140,7 +125,7 @@ pub fn set_language(app: AppHandle, language: Language) -> Result<(), String> {
     current.language = Some(language);
     save(&app, &current)?;
     i18n::set_english(language == Language::En);
-    tray::relabel(&app);
+    tray::relabel();
     config::reload(&app);
     config::rescan(&app);
     let _ = app.emit("language:changed", language);
@@ -168,7 +153,6 @@ pub fn pref_action(app: AppHandle, action: String) -> Result<(), String> {
     match action.as_str() {
         // Connecting in the browser, disconnecting, or reopening the page of the connection in progress
         "spotify" => spotify::toggle(&app),
-        "edit-config" => return edit_config(&app),
         "reload" => {
             config::reload(&app);
             spotify::reload(&app);
@@ -179,14 +163,19 @@ pub fn pref_action(app: AppHandle, action: String) -> Result<(), String> {
     Ok(())
 }
 
-/// apps.json in the editor associated with .json files, otherwise in Notepad
-fn edit_config(app: &AppHandle) -> Result<(), String> {
-    config::path(app)
-        .and_then(|path| {
-            let path = path.to_string_lossy().into_owned();
-            shell::open(&path, &[]).or_else(|_| shell::open("notepad.exe", &[path]))
-        })
-        .map_err(|e| tr(format!("Ouverture de apps.json impossible : {e}"), format!("Couldn't open apps.json: {e}")))
+/// apps.json in the editor associated with .json files, otherwise in Notepad. Not on the
+/// main thread: the editor can take a moment to start, the pages would wait for it.
+#[tauri::command]
+pub async fn edit_config(app: AppHandle) -> Result<(), String> {
+    crate::blocking(move || {
+        config::path(&app)
+            .and_then(|path| {
+                let path = path.to_string_lossy().into_owned();
+                shell::open(&path, &[]).or_else(|_| shell::open("notepad.exe", &[path]))
+            })
+            .map_err(|e| tr(format!("Ouverture de apps.json impossible : {e}"), format!("Couldn't open apps.json: {e}")))
+    })
+    .await?
 }
 
 #[cfg(test)]

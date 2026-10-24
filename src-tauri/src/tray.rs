@@ -9,7 +9,7 @@ use tauri::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, IsWindowVisible, SetForegroundWindow};
 
-use crate::{config, i18n::tr, launcher};
+use crate::{i18n::tr, launcher};
 
 /// Show, Settings and Quit: the rest is in the phone's Settings page (prefs.rs,
 /// requested by Funsaiki on 2026-10-21)
@@ -81,15 +81,14 @@ pub fn popup_menu(app: &AppHandle) {
     }
 }
 
-/// Language changed (Settings page): menu and tooltip in the new one
-pub fn relabel(app: &AppHandle) {
+/// Language changed (Settings page): the menu in the new one (the tooltip: config::reload,
+/// called right after)
+pub fn relabel() {
     if let Some(items) = ITEMS.get() {
         for (item, label) in items.iter().zip(labels()) {
             let _ = item.set_text(label);
         }
     }
-    let tooltip = config::tooltip(&app.state::<config::SharedConfig>().lock().unwrap());
-    set_tooltip(app, &tooltip);
 }
 
 pub fn set_tooltip(app: &AppHandle, tooltip: &str) {

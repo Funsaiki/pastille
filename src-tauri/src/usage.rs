@@ -4,8 +4,6 @@
 
 use std::{
     collections::HashMap,
-    fs,
-    path::PathBuf,
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -27,17 +25,9 @@ pub fn key(target: &str, args: &[String]) -> String {
     std::iter::once(target).chain(args.iter().map(String::as_str)).collect::<Vec<_>>().join("\u{1f}")
 }
 
-fn file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("usage.json"))
-}
-
 /// At startup; file missing or unreadable: start from scratch
 pub fn load(app: &AppHandle) -> Usage {
-    let map = file(app)
-        .and_then(|path| fs::read_to_string(path).ok())
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default();
-    Usage(Mutex::new(map))
+    Usage(Mutex::new(crate::config::read_settings(app, "usage.json").unwrap_or_default()))
 }
 
 pub fn record(app: &AppHandle, key: String) {
@@ -47,10 +37,8 @@ pub fn record(app: &AppHandle, key: String) {
     entry.count += 1;
     entry.last = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     // Under the lock: two launches close together don't write the file at the same time
-    if let (Some(path), Ok(text)) = (file(app), serde_json::to_string(&*map)) {
-        if let Err(e) = fs::write(path, text) {
-            eprintln!("[pastille] usage.json: {e}");
-        }
+    if let Err(e) = crate::config::write_settings(app, "usage.json", &*map) {
+        eprintln!("[pastille] {e}");
     }
 }
 

@@ -99,6 +99,7 @@ pub fn run() {
             prefs::set_language,
             prefs::set_pref_switch,
             prefs::pref_action,
+            prefs::edit_config,
             update::check_update,
             launcher::first_show,
             launcher::hide_window,

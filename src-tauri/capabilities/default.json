@@ -4,7 +4,6 @@
   "description": "Capability for the launcher and the bar windows",
   "windows": ["main", "bar-*"],
   "permissions": [
-    "core:default",
-    "core:window:allow-hide"
+    "core:default"
   ]
 }

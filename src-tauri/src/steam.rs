@@ -52,8 +52,10 @@ pub fn installed_games() -> Vec<Game> {
 }
 
 fn sort_games(games: &mut Vec<Game>) {
-    games.sort_by_key(|g| (Reverse(g.last_played), normalize(&g.name)));
-    games.dedup_by_key(|g| g.appid); // a game in two libraries (same keys: neighbors)
+    games.sort_by_cached_key(|g| (Reverse(g.last_played), normalize(&g.name)));
+    // A game in two libraries: the one played last stays
+    let mut seen = HashSet::new();
+    games.retain(|g| seen.insert(g.appid));
 }
 
 /// A game's download: update in progress, paused, or finished less than 24 h ago

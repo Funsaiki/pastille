@@ -121,29 +121,14 @@ fn dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// File missing or unreadable: the original appearance
 fn load(app: &AppHandle) -> Appearance {
-    let Ok(text) = dir(app).and_then(|dir| fs::read_to_string(config::to_read(dir.join("appearance.json"))).map_err(|e| e.to_string()))
-    else {
-        return Appearance::default();
-    };
-    serde_json::from_str::<Appearance>(text.trim_start_matches('\u{feff}'))
-        .map(Appearance::cleaned)
-        .unwrap_or_else(|e| {
-            eprintln!("[pastille] appearance.json unreadable: {e}");
-            Appearance::default()
-        })
+    config::read_settings::<Appearance>(app, "appearance.json").map(Appearance::cleaned).unwrap_or_default()
 }
 
-/// Temporary file then rename, like bar.json; one write at a time
+/// One write at a time
 fn save(app: &AppHandle, appearance: &Appearance) -> Result<(), String> {
     static WRITING: Mutex<()> = Mutex::new(());
     let _writing = WRITING.lock().unwrap();
-    let dir = dir(app)?;
-    let path = dir.join("appearance.json");
-    let temp = path.with_extension("json.tmp");
-    fs::create_dir_all(&dir)
-        .and_then(|_| fs::write(&temp, serde_json::to_string_pretty(appearance).unwrap_or_default()))
-        .and_then(|_| fs::rename(&temp, &path))
-        .map_err(|e| tr(format!("Apparence non enregistrée : {e}."), format!("Appearance not saved: {e}.")))
+    config::write_settings(app, "appearance.json", appearance)
 }
 
 /* ── Charm image ── */
@@ -290,14 +275,17 @@ pub async fn set_appearance(app: AppHandle, appearance: Appearance) -> Result<()
 }
 
 /// Your image: the Windows "Open" dialog, then the image copied next to apps.json; None if
-/// nothing is chosen. The launcher stays shown meanwhile (launcher::set_dialog).
+/// nothing is chosen (or the dialog is already open). The launcher stays shown meanwhile
+/// (launcher::open_dialog).
 #[tauri::command]
 pub async fn pick_charm_image(app: AppHandle) -> Result<Option<String>, String> {
+    if !launcher::open_dialog() {
+        return Ok(None);
+    }
     let main = app.get_webview_window("main");
     let owner = main.as_ref().and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize);
-    launcher::set_dialog(true);
     let picked = crate::blocking(move || pick_file(owner)).await;
-    launcher::set_dialog(false);
+    launcher::close_dialog();
     // Focus returns to the launcher (a click elsewhere during the dialog would have left it without)
     if let Some(w) = main.filter(|w| w.is_visible().unwrap_or(false)) {
         let _ = w.set_focus();

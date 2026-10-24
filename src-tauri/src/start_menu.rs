@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use windows::core::{w, Interface, GUID, HSTRING, PWSTR};
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::System::Com::CoTaskMemFree;
@@ -185,32 +185,22 @@ struct Settings {
     hidden: Vec<String>,
 }
 
-fn settings_file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("start-menu.json"))
-}
-
 /// Hidden targets (`PREFIX` + name). File missing or unreadable: none.
 pub fn hidden(app: &AppHandle) -> Vec<String> {
-    settings_file(app)
-        .and_then(|path| fs::read_to_string(crate::config::to_read(path)).ok())
-        .and_then(|text| serde_json::from_str::<Settings>(text.trim_start_matches('\u{feff}')).ok())
+    crate::config::read_settings::<Settings>(app, "start-menu.json")
         .map(|settings| settings.hidden.iter().map(|name| format!("{PREFIX}{name}")).collect())
         .unwrap_or_default()
 }
 
-/// Hides or shows `target` again. Temporary file then rename, like bar.json.
+/// Hides or shows `target` again
 pub fn set_hidden(app: &AppHandle, target: &str, hide: bool) -> Result<(), String> {
     let name = target.strip_prefix(PREFIX).ok_or(tr("Pas une application du menu Démarrer.", "Not a Start menu app."))?;
-    let path = settings_file(app).ok_or(tr("Dossier de config introuvable.", "Config folder not found."))?;
     let mut names: Vec<String> = hidden(app).iter().filter_map(|t| t.strip_prefix(PREFIX)).map(String::from).collect();
     names.retain(|n| n != name);
     if hide {
         names.push(name.to_string());
     }
-    let temp = path.with_extension("json.tmp");
-    fs::write(&temp, serde_json::to_string_pretty(&Settings { hidden: names }).unwrap_or_default())
-        .and_then(|_| fs::rename(&temp, &path))
-        .map_err(|e| tr(format!("{} non enregistré : {e}", path.display()), format!("{} not saved: {e}", path.display())))
+    crate::config::write_settings(app, "start-menu.json", &Settings { hidden: names })
 }
 
 /// Start menu web shortcuts (.url): icon file by address. The Start menu

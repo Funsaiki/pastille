@@ -24,8 +24,13 @@ use crate::config;
 /// hiding, and the shortcut waits until it is closed
 static DIALOG: AtomicBool = AtomicBool::new(false);
 
-pub fn set_dialog(open: bool) {
-    DIALOG.store(open, Ordering::SeqCst);
+/// False if one is already open (double click): only one at a time
+pub fn open_dialog() -> bool {
+    !DIALOG.swap(true, Ordering::SeqCst)
+}
+
+pub fn close_dialog() {
+    DIALOG.store(false, Ordering::SeqCst);
 }
 
 /// Right-click on a notification area icon (process of its app, when): the app's own menu

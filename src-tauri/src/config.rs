@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -148,6 +148,8 @@ pub struct ConfigState {
     games: Detected,
     games_scanned: Instant,
     scanning: bool,
+    /// Rescan asked for during a scan (connected to Spotify, language changed): done once it ends
+    rescan: bool,
     /// Shown in the launcher (invalid config, shortcut unavailable…)
     pub problems: Vec<String>,
     /// Shortcut currently registered
@@ -176,13 +178,13 @@ struct Detected {
     defaults: Vec<(String, String)>,
 }
 
-/// `previous`: Spotify unreachable, the playlists already known stay. The Start menu
-/// (~1 s) is only read if apps.json needs it (`items`).
-fn detect(app: &AppHandle, previous: &Detected, items: &[AppItem]) -> Detected {
+/// `previous`: Spotify unreachable, the playlists already known stay. Each source is only
+/// read if apps.json uses it (`items`): the Start menu takes ~1 s, Spotify goes over the network.
+fn detect(app: &AppHandle, previous: Vec<spotify::Playlist>, items: &[AppItem]) -> Detected {
     Detected {
-        steam: steam::installed_games(),
-        epic: epic::installed_games(),
-        playlists: spotify::playlists(app).unwrap_or_else(|| previous.playlists.clone()),
+        steam: if has_auto(items, "steam") { steam::installed_games() } else { Vec::new() },
+        epic: if has_auto(items, "epic") { epic::installed_games() } else { Vec::new() },
+        playlists: if has_auto(items, "spotify") { spotify::playlists(app).unwrap_or(previous) } else { Vec::new() },
         start: if needs_start_menu(items) { crate::com::with_com(start_menu::installed_apps) } else { Vec::new() },
         hidden: Vec::new(),
         defaults: wanted_defaults(items)
@@ -190,6 +192,11 @@ fn detect(app: &AppHandle, previous: &Detected, items: &[AppItem]) -> Detected {
             .filter_map(|kind| shell::default_program(&kind).map(|program| (kind, program)))
             .collect(),
     }
+}
+
+/// An `auto` group of this kind, at any depth
+fn has_auto(items: &[AppItem], kind: &str) -> bool {
+    items.iter().any(|it| it.auto.as_deref() == Some(kind) || it.children.as_deref().is_some_and(|c| has_auto(c, kind)))
 }
 
 /// An `auto: "start"` group or an `app` tile, at any depth
@@ -216,10 +223,13 @@ fn wanted_defaults(items: &[AppItem]) -> Vec<String> {
     found
 }
 
-/// apps.json asks for what the last scan didn't read (`auto: "start"` group, `app`
-/// or `default` tile added since)
+/// apps.json asks for what the last scan didn't read (`auto` group, `app` or `default`
+/// tile added since)
 fn scan_needed(items: &[AppItem], games: &Detected) -> bool {
     needs_start_menu(items) && games.start.is_empty()
+        || has_auto(items, "steam") && games.steam.is_empty()
+        || has_auto(items, "epic") && games.epic.is_empty()
+        || has_auto(items, "spotify") && games.playlists.is_empty()
         || wanted_defaults(items).iter().any(|kind| !games.defaults.iter().any(|(k, _)| k == kind))
 }
 
@@ -239,6 +249,7 @@ fn parse(text: &str) -> Result<Config, String> {
             format!("accent \"{}\": expected a #rrggbb color.", config.accent),
         ));
     }
+    config.accent = long_hex(&config.accent);
     if Shortcut::from_str(&config.shortcut).is_err() {
         return Err(tr(format!("shortcut « {} » non reconnu.", config.shortcut), format!("shortcut \"{}\" not recognized.", config.shortcut)));
     }
@@ -312,6 +323,16 @@ fn is_hex_color(s: &str) -> bool {
     s.strip_prefix('#').is_some_and(|h| {
         matches!(h.len(), 3 | 4 | 6 | 8) && h.chars().all(|c| c.is_ascii_hexdigit())
     })
+}
+
+/// "#FC8" → "#ffcc88": the front reads colors as #rrggbb (Customize card); the alpha of
+/// #rgba and #rrggbbaa stays
+fn long_hex(color: &str) -> String {
+    let hex = color[1..].to_ascii_lowercase();
+    if hex.len() > 4 {
+        return format!("#{hex}");
+    }
+    "#".chars().chain(hex.chars().flat_map(|c| [c, c])).collect()
 }
 
 /// Fills the `auto` groups with the detected games (except those already added by hand),
@@ -457,6 +478,29 @@ const RENAMED: [(&str, &str); 4] = [
     ("start-menu.json", "demarrer.json"),
     ("settings.json", "reglages.json"),
 ];
+
+/* ── Settings files next to apps.json (bar.json, settings.json…), not in apps.json:
+   an older version would reject an unknown field ── */
+
+/// Reads one (its old name while the new one doesn't exist, `to_read`); missing or
+/// unreadable: `None`
+pub fn read_settings<T: DeserializeOwned>(app: &AppHandle, name: &str) -> Option<T> {
+    let path = app.path().app_config_dir().ok()?.join(name);
+    let text = fs::read_to_string(to_read(path)).ok()?;
+    serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| eprintln!("[pastille] {name} unreadable: {e}")).ok()
+}
+
+/// Writes one through a temporary file then a rename: a write cut short (crash, power
+/// cut) never leaves it half written
+pub fn write_settings<T: Serialize>(app: &AppHandle, name: &str, value: &T) -> Result<(), String> {
+    let dir = app.path().app_config_dir().map_err(|e| tr(format!("Dossier de config introuvable : {e}."), format!("Config folder not found: {e}.")))?;
+    let path = dir.join(name);
+    let temp = path.with_extension("json.tmp");
+    fs::create_dir_all(&dir)
+        .and_then(|_| fs::write(&temp, serde_json::to_string_pretty(value).unwrap_or_default()))
+        .and_then(|_| fs::rename(&temp, &path))
+        .map_err(|e| tr(format!("{} non enregistré : {e}", path.display()), format!("{} not saved: {e}", path.display())))
+}
 
 /// The file to read for `path` (one of RENAMED, written under its new name): the old
 /// name as long as only that one exists. Development: the installed version still uses it.
@@ -635,6 +679,7 @@ pub fn init(app: &AppHandle) {
         games: Detected::default(),
         games_scanned: Instant::now(),
         scanning: true,
+        rescan: false,
         problems,
         registered: None,
         modified: modified(app),
@@ -712,6 +757,8 @@ pub fn rescan(app: &AppHandle) {
         let state = app.state::<SharedConfig>();
         let mut s = state.lock().unwrap();
         if s.scanning {
+            // The scan running may have read what changed too early: once more after it
+            s.rescan = true;
             return;
         }
         s.scanning = true;
@@ -723,23 +770,28 @@ pub fn rescan(app: &AppHandle) {
 /// apps) on another thread; the front is only notified if something changed
 fn scan_games(app: &AppHandle) {
     let app = app.clone();
-    thread::spawn(move || {
+    thread::spawn(move || loop {
         let (previous, items) = {
             let state = app.state::<SharedConfig>();
-            let s = state.lock().unwrap();
-            (s.games.clone(), s.base.apps.clone())
+            let mut s = state.lock().unwrap();
+            s.rescan = false;
+            (s.games.playlists.clone(), s.base.apps.clone())
         };
-        let mut games = detect(&app, &previous, &items);
+        let mut games = detect(&app, previous, &items);
         let state = app.state::<SharedConfig>();
         let mut s = state.lock().unwrap();
         games.hidden = start_menu::hidden(&app);
-        s.scanning = false;
+        let again = s.rescan;
+        s.scanning = again;
         s.games_scanned = Instant::now();
         if games != s.games {
             s.config = merge(&s.base, &games);
             s.games = games;
             drop(s);
             let _ = app.emit("config:changed", ());
+        }
+        if !again {
+            break;
         }
     });
 }
@@ -1083,5 +1135,9 @@ mod tests {
         assert!(parse(r##"{ "accent": "doré", "apps": [] }"##).is_err());
         assert!(parse(r#"{ "shortcut": "Alt+Patate", "apps": [] }"#).is_err());
         assert!(parse(r##"{ "accent": "#abc", "shortcut": "Ctrl+Shift+K", "apps": [] }"##).is_ok());
+        // Short forms are written in full for the front
+        assert_eq!(parse(r##"{ "accent": "#FC8", "apps": [] }"##).unwrap().accent, "#ffcc88");
+        assert_eq!(long_hex("#abcd"), "#aabbccdd");
+        assert_eq!(long_hex("#9FE0DC"), "#9fe0dc");
     }
 }
