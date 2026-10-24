@@ -95,10 +95,7 @@ pub fn bar_unpin(app: AppHandle, exe: String) {
 /// Pin for the program `path`, named like its windows in the bar (`follow` compares them)
 pub fn program_pin(path: &str, app_id: Option<String>) -> Option<Pin> {
     let exe = exe_of(path)?;
-    let name = crate::mixer::description(path).unwrap_or_else(|| {
-        Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| exe.clone())
-    });
-    Some(Pin { exe, name, path: path.to_string(), app_id })
+    Some(Pin { exe, name: crate::mixer::program_name(path), path: path.to_string(), app_id })
 }
 
 /// At the end, unless this program is already pinned; also from the launcher's right-click menu (app_menu.rs)

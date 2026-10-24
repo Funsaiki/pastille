@@ -19,7 +19,6 @@
 //! apps.json, with the pinned apps: bar_pins.rs); the Windows taskbar
 //! is then hidden (taskbar.rs).
 
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::sync::mpsc::Receiver;
 use std::sync::Mutex;
@@ -34,7 +33,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowPlacement, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+    GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowPlacement, GetWindowRect, IsIconic,
     IsWindowVisible, IsZoomed, PostMessageW, SetWindowPlacement, SetWindowPos, ShowWindow, ShowWindowAsync,
     MONITORINFOF_PRIMARY, SWP_NOACTIVATE, SWP_NOZORDER, SW_MAXIMIZE, SW_MINIMIZE, SW_SHOWNORMAL, WINDOWPLACEMENT, WM_CLOSE,
 };
@@ -399,7 +398,7 @@ fn read_signals(signals: &Receiver<Event>, foreground: HWND) -> (bool, Option<RE
             // Repeated while it flashes: only the first one counts
             Event::Flash(h) => {
                 let hwnd = HWND(h as *mut _);
-                if hwnd != foreground && !attention.contains(&h) && switch::is_app_window(hwnd) && pid_of(hwnd) != own {
+                if hwnd != foreground && !attention.contains(&h) && switch::is_app_window(hwnd) && switch::pid_of(hwnd) != own {
                     attention.push(h);
                     peek = monitor_info(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }).map(|d| d.area);
                     changed = true;
@@ -417,16 +416,11 @@ fn contains(r: &RECT, p: POINT) -> bool {
     p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom
 }
 
-fn pid_of(hwnd: HWND) -> u32 {
-    let mut pid = 0u32;
-    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
-    pid
-}
 
 /// Foreground window; kept in ACTIVE if it isn't the launcher's
 fn remember_foreground() -> HWND {
     let foreground = unsafe { GetForegroundWindow() };
-    if !foreground.is_invalid() && pid_of(foreground) != std::process::id() {
+    if !foreground.is_invalid() && switch::pid_of(foreground) != std::process::id() {
         *ACTIVE.lock().unwrap() = foreground.0 as isize;
     }
     foreground
@@ -440,7 +434,7 @@ fn blocked(foreground: HWND, monitor: &RECT) -> bool {
         return false;
     }
     // The phone is shown; when hidden, its window may stay in the foreground (tray icon menu)
-    if pid_of(foreground) == std::process::id() {
+    if switch::pid_of(foreground) == std::process::id() {
         return unsafe { IsWindowVisible(foreground) }.as_bool();
     }
     let mut r = RECT::default();
@@ -539,13 +533,7 @@ fn list(known: &[String]) -> Vec<BarWindow> {
             // One tile per window, named by its title
             let lower = path.to_lowercase();
             let hosted = is_hosted(&path);
-            let app = if hosted {
-                title.clone()
-            } else {
-                crate::mixer::description(&path).unwrap_or_else(|| {
-                    Path::new(&path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
-                })
-            };
+            let app = if hosted { title.clone() } else { crate::mixer::program_name(&path) };
             let key = if hosted { format!("{lower}|{title}") } else { lower };
             let icon = if known.contains(&key) { None } else { crate::icon::of(&path) };
             let exe = if hosted { String::new() } else { bar_pins::exe_of(&path).unwrap_or_default() };

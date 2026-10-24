@@ -21,13 +21,15 @@ use windows::Win32::System::DataExchange::COPYDATASTRUCT;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
     AllowSetForegroundWindow, ChangeWindowMessageFilterEx, CreateWindowExW, DefWindowProcW, DestroyWindow,
-    EnumWindows, FindWindowExW, FindWindowW, GetCursorPos, GetWindowRect, GetWindowThreadProcessId, IsWindow,
+    EnumWindows, FindWindowExW, FindWindowW, GetCursorPos, GetShellWindow, GetWindowRect, IsWindow,
     KillTimer, RegisterClassW, RegisterWindowMessageW, SendMessageTimeoutW, SendNotifyMessageW, SetTimer,
     SetWindowPos, HWND_TOPMOST, MSGFLT_ALLOW, SET_WINDOW_POS_FLAGS, SMTO_ABORTIFHUNG, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_SHOWWINDOW, WINDOWPOS, WM_CLOSE, WM_COMMAND, WM_CONTEXTMENU, WM_COPYDATA, WM_LBUTTONDBLCLK,
+    SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, WINDOWPOS, WM_CLOSE, WM_COMMAND, WM_CONTEXTMENU, WM_COPYDATA, WM_LBUTTONDBLCLK,
     WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_TIMER, WM_USER,
     WM_WINDOWPOSCHANGING, WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
+
+use crate::switch;
 
 /// Pastille's "Shell_TrayWnd" window (0: pastel bar off)
 static HOST: AtomicIsize = AtomicIsize::new(0);
@@ -188,7 +190,7 @@ fn notify(n: &Notify) -> bool {
                 // A modified icon we didn't know about (added before Pastille) is taken too
                 None if n.hwnd != 0 => {
                     if cfg!(debug_assertions) {
-                        eprintln!("[pastille] notification area: icon from {} ({})", pid_of_window(n.hwnd), n.tip.lines().next().unwrap_or(""));
+                        eprintln!("[pastille] notification area: icon from {} ({})", switch::pid_of(HWND(n.hwnd as *mut _)), n.tip.lines().next().unwrap_or(""));
                     }
                     let id = NEXT_ID.fetch_add(1, SeqCst);
                     let entry = Entry {
@@ -270,32 +272,47 @@ pub fn stop() {
     ICONS.lock().unwrap().clear();
 }
 
-/// Pastille's window stays the first one found (Explorer sometimes brings its own back up).
-/// Checked every 250 ms by taskbar.rs: ~7 µs.
+/// Pastille's window stays the first one found (Explorer sometimes brings its own back up),
+/// with the Windows taskbar's rectangle (which follows the resolution and the main screen).
+/// Checked every 250 ms by taskbar.rs: ~10 µs.
 pub fn keep_first() {
     let host = HOST.load(SeqCst);
     if host == 0 {
         return;
     }
+    let ours = HWND(host as *mut _);
     let first = unsafe { FindWindowW(TRAY_CLASS, PCWSTR::null()) }.map_or(0, |h| h.0 as isize);
     if first != host {
         let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
-        let _ = unsafe { SetWindowPos(HWND(host as *mut _), Some(HWND_TOPMOST), 0, 0, 0, 0, flags) };
+        let _ = unsafe { SetWindowPos(ours, Some(HWND_TOPMOST), 0, 0, 0, 0, flags) };
+    }
+    let (mut theirs, mut now) = (RECT::default(), RECT::default());
+    if let Some(bar) = windows_tray()
+        && unsafe { GetWindowRect(bar, &mut theirs).is_ok() && GetWindowRect(ours, &mut now).is_ok() }
+        && theirs != now
+    {
+        let (width, height) = (theirs.right - theirs.left, theirs.bottom - theirs.top);
+        let _ = unsafe { SetWindowPos(ours, None, theirs.left, theirs.top, width, height, SWP_NOZORDER | SWP_NOACTIVATE) };
     }
 }
 
 /// Pastille's window (its "Shell_TrayWnd"): taskbar.rs neither hides nor shows it
 pub fn own(hwnd: HWND) -> bool {
-    let mut pid = 0;
-    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
-    pid == std::process::id()
+    switch::pid_of(hwnd) == std::process::id()
 }
 
-/// The Windows taskbar: a "Shell_TrayWnd" that isn't Pastille's
+/// The Windows taskbar: the "Shell_TrayWnd" of Explorer, the shell's process. Not just one
+/// that isn't Pastille's: another program that takes the notification area over (a second
+/// Pastille, RetroBar…) would send the messages back, endlessly.
 fn windows_tray() -> Option<HWND> {
+    let shell = unsafe { GetShellWindow() };
+    if shell.is_invalid() {
+        return None; // Explorer restarting
+    }
+    let explorer = switch::pid_of(shell);
     let mut after = None;
     while let Ok(bar) = unsafe { FindWindowExW(None, after, TRAY_CLASS, None) } {
-        if !own(bar) {
+        if switch::pid_of(bar) == explorer {
             return Some(bar);
         }
         after = Some(bar);
@@ -326,9 +343,7 @@ fn announce() {
 
 unsafe extern "system" fn tell(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let (message, pids) = unsafe { &*(lparam.0 as *const (u32, HashSet<u32>)) };
-    let mut pid = 0;
-    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
-    if pids.contains(&pid) {
+    if pids.contains(&switch::pid_of(hwnd)) {
         // Without waiting for the answer: each one gives its icon back when it wants
         let _ = unsafe { SendNotifyMessageW(hwnd, *message, WPARAM(0), LPARAM(0)) };
     }
@@ -338,6 +353,9 @@ unsafe extern "system" fn tell(hwnd: HWND, lparam: LPARAM) -> BOOL {
 unsafe extern "system" fn on_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_COPYDATA => {
+            if lparam.0 == 0 {
+                return LRESULT(0);
+            }
             let copy = unsafe { &*(lparam.0 as *const COPYDATASTRUCT) };
             let data = match copy.lpData.is_null() {
                 true => &[][..],
@@ -403,7 +421,7 @@ pub fn icons() -> Option<Vec<Live>> {
     let live = icons
         .iter()
         .filter(|e| !e.hidden)
-        .map(|e| Live { key: key_of(e.id), pid: pid_of_window(e.hwnd), tip: e.tip.clone(), clicks: e.callback != 0 })
+        .map(|e| Live { key: key_of(e.id), pid: switch::pid_of(HWND(e.hwnd as *mut _)), tip: e.tip.clone(), clicks: e.callback != 0 })
         .collect();
     Some(live)
 }
@@ -412,16 +430,16 @@ fn key_of(id: u32) -> String {
     format!("#{id}")
 }
 
-fn pid_of_window(hwnd: isize) -> u32 {
-    let mut pid = 0;
-    unsafe { GetWindowThreadProcessId(HWND(hwnd as *mut _), Some(&mut pid)) };
-    pid
+/// "#12" → 12
+fn id_of(key: &str) -> Option<u32> {
+    key.strip_prefix('#')?.parse().ok()
 }
 
 /// Process of an icon in the list
 pub fn pid_of(key: &str) -> Option<u32> {
+    let id = id_of(key)?;
     let icons = ICONS.lock().unwrap();
-    icons.iter().find(|e| key_of(e.id) == key).map(|e| pid_of_window(e.hwnd)).filter(|&pid| pid != 0)
+    icons.iter().find(|e| e.id == id).map(|e| switch::pid_of(HWND(e.hwnd as *mut _))).filter(|&pid| pid != 0)
 }
 
 /// The messages of a click on the icon, sent to its app. `kind`: left, double (the
@@ -430,7 +448,8 @@ pub fn pid_of(key: &str) -> Option<u32> {
 pub fn click(key: &str, kind: &str) -> Result<bool, String> {
     let mut at = POINT::default();
     let _ = unsafe { GetCursorPos(&mut at) };
-    let found = ICONS.lock().unwrap().iter_mut().find(|e| key_of(e.id) == key).map(|e| {
+    let id = id_of(key);
+    let found = ICONS.lock().unwrap().iter_mut().find(|e| Some(e.id) == id).map(|e| {
         e.clicked = Some(at);
         (e.hwnd, e.uid, e.callback, e.version)
     });
@@ -444,7 +463,7 @@ pub fn click(key: &str, kind: &str) -> Result<bool, String> {
     }
     // It may come to the foreground (its menu, its window), as after a click in the Windows
     // taskbar
-    let pid = pid_of_window(hwnd.0 as isize);
+    let pid = switch::pid_of(hwnd);
     let _ = unsafe { AllowSetForegroundWindow(pid) };
     if kind == "right" {
         crate::launcher::expect_app_menu(pid);

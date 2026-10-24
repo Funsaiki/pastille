@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Mutex;
 
 use serde::Serialize;
 use windows::core::{w, Interface, HSTRING, PWSTR};
@@ -156,9 +157,22 @@ fn name_of(key: &str) -> String {
     if key == SYSTEM {
         return crate::i18n::tr("Sons système", "System sounds").into();
     }
-    description(key).unwrap_or_else(|| {
-        Path::new(key).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
-    })
+    program_name(key)
+}
+
+/// Name of a program: its description ("Google Chrome"), otherwise its file name. Kept by
+/// path: the bar names its windows on every read (every 5 s), and the version information
+/// is read from the program's file.
+pub fn program_name(path: &str) -> String {
+    static NAMES: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+    if let Some(name) = NAMES.lock().unwrap().get_or_insert_with(HashMap::new).get(path) {
+        return name.clone();
+    }
+    let name = description(path).unwrap_or_else(|| {
+        Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
+    });
+    NAMES.lock().unwrap().get_or_insert_with(HashMap::new).insert(path.to_string(), name.clone());
+    name
 }
 
 /// FileDescription from the program's version information (also for tray_apps.rs)

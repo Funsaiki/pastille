@@ -11,7 +11,7 @@
 
 use std::{
     collections::HashMap,
-    io::{Read, Write},
+    io::{ErrorKind, Read, Write},
     net::{TcpListener, TcpStream},
     sync::{Mutex, OnceLock},
     time::{Duration, Instant},
@@ -24,7 +24,8 @@ use tauri::{AppHandle, Manager};
 use windows::core::{h, RuntimeType, HSTRING};
 use windows::Foundation::Uri;
 use windows::Storage::Streams::UnicodeEncoding;
-use windows::Web::Http::Filters::{HttpBaseProtocolFilter, HttpCacheReadBehavior};
+use windows::Web::Http::Filters::{HttpBaseProtocolFilter, HttpCacheReadBehavior, HttpCacheWriteBehavior};
+use windows::Win32::System::SystemInformation::{ComputerNameDnsHostname, GetComputerNameExW};
 use windows::Web::Http::Headers::HttpCredentialsHeaderValue;
 use windows::Web::Http::{HttpClient, HttpMethod, HttpRequestMessage, HttpStringContent};
 use windows::Win32::Foundation::ERROR_TIMEOUT;
@@ -190,7 +191,10 @@ pub fn toggle(app: &AppHandle) {
         return;
     }
     match status(app) {
-        Status::Connected => disconnect(app, None),
+        Status::Connected => {
+            disconnect(app, None);
+            crate::config::rescan(app);   // the playlists leave the apps view
+        }
         Status::NoClient | Status::Disconnected | Status::Outdated => start_connect(app),
     }
 }
@@ -233,14 +237,15 @@ fn finish(app: &AppHandle, result: Result<(), String>) {
 
 /// `problem`: why, if it isn't Funsaiki who chose to disconnect
 fn disconnect(app: &AppHandle, problem: Option<String>) {
-    {
-        let spotify = app.state::<Spotify>();
-        let mut auth = spotify.auth.lock().unwrap();
-        auth.saved.refresh_token = None;
-        auth.access = None;
-        auth.problem = problem;
-        save(app, &auth.saved);
-    }
+    let spotify = app.state::<Spotify>();
+    forget(app, &mut spotify.auth.lock().unwrap(), problem);
+}
+
+fn forget(app: &AppHandle, auth: &mut Auth, problem: Option<String>) {
+    auth.saved.refresh_token = None;
+    auth.access = None;
+    auth.problem = problem;
+    save(app, &auth.saved);
 }
 
 /* ── Connection (PKCE) ── */
@@ -353,6 +358,8 @@ fn wait_for_callback(
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(100)),
+            // A connection the browser dropped before it was accepted: the wait goes on
+            Err(e) if matches!(e.kind(), ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted | ErrorKind::Interrupted) => {}
             Err(e) => return Err(e.to_string()),
         }
     }
@@ -442,13 +449,15 @@ fn fonts() -> &'static str {
     })
 }
 
-/// Target of the request ("/callback?code=…"), read up to the end of its first line
+/// Target of the request ("/callback?code=…"). The whole request is read (up to the end of
+/// its headers): closing with unread data would reset the connection, and the browser
+/// could drop the page.
 fn request_target(stream: &mut TcpStream) -> String {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
     let mut request = Vec::new();
     let mut buf = [0u8; 2048];
-    while !request.windows(2).any(|w| w == b"\r\n") && request.len() < 16 * 1024 {
+    while !request.windows(4).any(|w| w == b"\r\n\r\n") && request.len() < 16 * 1024 {
         match stream.read(&mut buf) {
             Ok(0) | Err(_) => break,
             Ok(n) => request.extend_from_slice(&buf[..n]),
@@ -556,8 +565,8 @@ fn challenge(verifier: &str) -> Result<String, String> {
 /// Failure with the token endpoint
 enum TokenError {
     /// Refused by Spotify (authorization revoked, expired token, app deleted…): one has to
-    /// reconnect
-    Refused(String),
+    /// reconnect. `client`: the app id itself was refused (app deleted on developer.spotify.com).
+    Refused { message: String, client: bool },
     /// Network, Spotify unavailable…: will retry
     Other(String),
 }
@@ -565,7 +574,7 @@ enum TokenError {
 impl TokenError {
     fn message(self) -> String {
         match self {
-            TokenError::Refused(message) | TokenError::Other(message) => message,
+            TokenError::Refused { message, .. } | TokenError::Other(message) => message,
         }
     }
 }
@@ -576,7 +585,7 @@ fn post_token(params: &[(&str, &str)]) -> Result<Value, TokenError> {
     let json = parse(&body);
     match status {
         200 => Ok(json),
-        400 | 401 => Err(TokenError::Refused(api_error(status, &json))),
+        400 | 401 => Err(TokenError::Refused { message: api_error(status, &json), client: json["error"] == "invalid_client" }),
         _ => Err(TokenError::Other(api_error(status, &json))),
     }
 }
@@ -628,13 +637,22 @@ fn access_token(app: &AppHandle) -> Result<String, String> {
     match post_token(&[("grant_type", "refresh_token"), ("refresh_token", &refresh), ("client_id", &client_id)]) {
         Ok(json) => store(app, &json, Some(&refresh)),
         // Authorization revoked, app deleted…: the slider goes back to the Windows volume
-        Err(TokenError::Refused(e)) => {
-            eprintln!("[pastille] Spotify: {e}");
+        Err(TokenError::Refused { message, client }) => {
+            eprintln!("[pastille] Spotify: {message}");
             let expired = tr(
                 "Connexion à Spotify expirée : reconnecte-le depuis les Paramètres de Pastille.",
                 "Spotify connection expired: reconnect it from Pastille's Settings.",
             );
-            disconnect(app, Some(expired.into()));
+            let mut auth = spotify.auth.lock().unwrap();
+            // A new connection made during the request stays
+            if auth.saved.refresh_token.as_deref() == Some(refresh.as_str()) {
+                // App deleted: the next connection starts with the setup page (with the old
+                // id, Spotify's page would stop at its error)
+                if client {
+                    auth.saved.client_id.clear();
+                }
+                forget(app, &mut auth, Some(expired.into()));
+            }
             Err(expired.into())
         }
         Err(TokenError::Other(e)) => Err(e),
@@ -652,7 +670,7 @@ pub struct Volume {
     volume: u8,
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize)]
 pub struct PlayerState {
     /// None: Spotify connected without an active device (or unreachable), or no audio session
     volume: Option<Volume>,
@@ -678,8 +696,7 @@ struct Player {
 #[tauri::command]
 pub async fn spotify_state(app: AppHandle) -> PlayerState {
     crate::blocking(move || {
-        let mut state =
-            PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false, connect: false };
+        let mut state = PlayerState::default();
         if connected(&app) {
             match player(&app) {
                 Ok(Some(player)) => {
@@ -702,7 +719,7 @@ pub async fn spotify_state(app: AppHandle) -> PlayerState {
         state
     })
     .await
-    .unwrap_or(PlayerState { volume: None, shuffle: None, repeat: None, problem: None, reconnect: false, connect: false })
+    .unwrap_or_default()
 }
 
 /// Spotify's own volume (connected only; otherwise the front goes through the mixer)
@@ -739,7 +756,6 @@ fn player(app: &AppHandle) -> Result<Option<Player>, String> {
     match status {
         204 => Ok(None), // no active device
         200 => {
-            log_shuffle(&json);
             Ok(Some(Player {
                 volume: json["device"]["volume_percent"].as_u64().map(|v| v.min(100) as u8),
                 shuffle: shuffle_mode(&json),
@@ -760,21 +776,6 @@ fn shuffle_mode(json: &Value) -> &'static str {
     }
 }
 
-/// Development: the shuffle fields as Spotify gives them, at each change
-/// (checking `smart_shuffle` on Funsaiki's PC)
-fn log_shuffle(json: &Value) {
-    static LAST: Mutex<String> = Mutex::new(String::new());
-    if !cfg!(debug_assertions) {
-        return;
-    }
-    let now = format!("shuffle_state={} smart_shuffle={}", json["shuffle_state"], json["smart_shuffle"]);
-    let mut last = LAST.lock().unwrap();
-    if *last != now {
-        eprintln!("[pastille] Spotify: {now}");
-        *last = now;
-    }
-}
-
 /* ── Playlists: auto "spotify" group of apps.json (config.rs) ── */
 
 #[derive(Clone, Debug, PartialEq)]
@@ -790,7 +791,14 @@ pub fn playlists(app: &AppHandle) -> Option<Vec<Playlist>> {
     if !connected(app) {
         return Some(Vec::new());
     }
-    fetch_playlists(app).map_err(|e| eprintln!("[pastille] Spotify, playlists: {e}")).ok()
+    match fetch_playlists(app) {
+        Ok(list) => Some(list),
+        Err(e) => {
+            eprintln!("[pastille] Spotify, playlists: {e}");
+            // Disconnected during the read (authorization withdrawn): none left
+            (!connected(app)).then(Vec::new)
+        }
+    }
 }
 
 fn fetch_playlists(app: &AppHandle) -> Result<Vec<Playlist>, String> {
@@ -864,37 +872,56 @@ fn start(app: &AppHandle, context: &str, device: Option<&str>) -> Result<bool, S
 /// Spotify just opened: waits for it to show up as a device (8 s at most), then starts
 /// playback on it
 fn play_when_ready(app: &AppHandle, context: &str) {
+    // Computers already there (a web player, another PC): not the app that is opening
+    let before = computers(app).unwrap_or_default();
+    let names = pc_names();
     for _ in 0..16 {
         std::thread::sleep(Duration::from_millis(500));
-        match this_pc(app) {
-            Ok(Some(device)) => {
-                if let Err(e) = start(app, context, Some(&device)) {
-                    eprintln!("[pastille] Spotify: {e}");
+        match computers(app) {
+            Ok(now) => {
+                let named = now.iter().find(|(_, name)| names.iter().any(|n| name.eq_ignore_ascii_case(n)));
+                let new = now.iter().find(|(id, _)| !before.iter().any(|(known, _)| known == id));
+                if let Some((device, _)) = named.or(new) {
+                    if let Err(e) = start(app, context, Some(device)) {
+                        eprintln!("[pastille] Spotify: {e}");
+                    }
+                    return;
                 }
-                return;
             }
-            Ok(None) => {}
             Err(e) => return eprintln!("[pastille] Spotify: {e}"),
         }
     }
 }
 
-/// This PC's Spotify device: a computer, preferably with the PC's name
-fn this_pc(app: &AppHandle) -> Result<Option<String>, String> {
+/// Spotify devices that are computers: (id, name)
+fn computers(app: &AppHandle) -> Result<Vec<(String, String)>, String> {
     let token = access_token(app)?;
     let (status, body) = http("GET", &format!("{API}/me/player/devices"), Some(&token), None)?;
     let json = parse(&body);
     if status != 200 {
         return Err(api_error(status, &json));
     }
-    let name = std::env::var("COMPUTERNAME").unwrap_or_default();
-    let computers: Vec<&Value> =
-        json["devices"].as_array().into_iter().flatten().filter(|d| d["type"] == "Computer").collect();
-    let device = computers
-        .iter()
-        .find(|d| d["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(&name)))
-        .or(computers.first());
-    Ok(device.and_then(|d| d["id"].as_str()).map(String::from))
+    Ok(json["devices"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|d| d["type"] == "Computer")
+        .filter_map(|d| Some((d["id"].as_str()?.to_string(), d["name"].as_str().unwrap_or_default().to_string())))
+        .collect())
+}
+
+/// Names Spotify may give this PC: its host name, and COMPUTERNAME (cut at 15 characters)
+fn pc_names() -> Vec<String> {
+    let mut names: Vec<String> = std::env::var("COMPUTERNAME").into_iter().collect();
+    let mut size = 0u32;
+    unsafe {
+        let _ = GetComputerNameExW(ComputerNameDnsHostname, None, &mut size);
+        let mut buf = vec![0u16; size as usize];
+        if GetComputerNameExW(ComputerNameDnsHostname, Some(windows::core::PWSTR(buf.as_mut_ptr())), &mut size).is_ok() {
+            names.push(String::from_utf16_lossy(&buf[..size as usize]));
+        }
+    }
+    names
 }
 
 fn parse(body: &str) -> Value {
@@ -939,7 +966,9 @@ fn client() -> windows::core::Result<HttpClient> {
         return Ok(client.clone());
     }
     let filter = HttpBaseProtocolFilter::new()?;
-    filter.CacheControl()?.SetReadBehavior(HttpCacheReadBehavior::NoCache)?;
+    let cache = filter.CacheControl()?;
+    cache.SetReadBehavior(HttpCacheReadBehavior::NoCache)?;
+    cache.SetWriteBehavior(HttpCacheWriteBehavior::NoCache)?;
     let created = HttpClient::Create(&filter)?;
     *client = Some(created.clone());
     Ok(created)

@@ -2,8 +2,6 @@
 //! Discord's window, like an Alt+Tab with search. The taskbar windows
 //! (switch.rs), except the launcher's.
 
-use std::path::Path;
-
 use serde::Serialize;
 use windows::core::GUID;
 use windows::Win32::Foundation::{HWND, PROPERTYKEY};
@@ -78,9 +76,7 @@ fn list() -> Vec<OpenWindow> {
             if pid == own {
                 return None;
             }
-            let app = crate::mixer::description(&path).unwrap_or_else(|| {
-                Path::new(&path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
-            });
+            let app = crate::mixer::program_name(&path);
             Some(OpenWindow { id: (hwnd.0 as isize).to_string(), title: title(hwnd), app, icon: crate::icon::of(&path) })
         })
         .collect()

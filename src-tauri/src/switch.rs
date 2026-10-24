@@ -77,21 +77,30 @@ unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
 /// window, with a title, and not cloaked by Windows (on another virtual desktop, for example)
 pub fn is_app_window(hwnd: HWND) -> bool {
     unsafe {
-        let mut cloaked = 0u32;
-        let _ = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, (&mut cloaked as *mut u32).cast(), 4);
+        // Cloaking last: it asks the window manager, the other tests rule out most windows
         IsWindowVisible(hwnd).as_bool()
             && GetWindow(hwnd, GW_OWNER).is_err()
             && GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW.0 as isize == 0
             && GetWindowTextLengthW(hwnd) > 0
-            && cloaked == 0
+            && {
+                let mut cloaked = 0u32;
+                let _ = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, (&mut cloaked as *mut u32).cast(), 4);
+                cloaked == 0
+            }
     }
 }
 
 /// (program, process id) of a window
 pub fn process_of(hwnd: HWND) -> (Option<String>, u32) {
+    let pid = pid_of(hwnd);
+    (exe_path(pid), pid)
+}
+
+/// Process id of a window (0 if it is gone)
+pub fn pid_of(hwnd: HWND) -> u32 {
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
-    (exe_path(pid), pid)
+    pid
 }
 
 #[cfg(test)]

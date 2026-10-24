@@ -14,7 +14,7 @@ use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     UI::{
         Shell::{DefSubclassProc, SetWindowSubclass},
-        WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, IsWindowVisible, SC_KEYMENU, WM_SYSCOMMAND},
+        WindowsAndMessaging::{GetForegroundWindow, IsWindowVisible, SC_KEYMENU, WM_SYSCOMMAND},
     },
 };
 
@@ -225,9 +225,7 @@ fn watch_app_menu(app: &AppHandle, own: isize, pid: u32) {
         if foreground.is_invalid() {
             continue;
         }
-        let mut owner = 0;
-        unsafe { GetWindowThreadProcessId(foreground, Some(&mut owner)) };
-        if owner != pid || crate::switch::is_app_window(foreground) {
+        if crate::switch::pid_of(foreground) != pid || crate::switch::is_app_window(foreground) {
             debug_log("app's menu closed on a window: hide");
             hide(&app);
             return;
