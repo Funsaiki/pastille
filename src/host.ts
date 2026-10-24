@@ -695,13 +695,11 @@ export const host = {
     const { data } = (image.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, image.width, image.height);
     await invoke('note_copy', new Uint8Array(data.buffer, data.byteOffset, data.byteLength), { headers: { width: String(image.width) } });
   },
-  /* Saved as PNG in Pictures\Pastille, named after the date and time; preview: a download */
-  async noteSave(image: HTMLCanvasElement) {
+  /* Saved as PNG in Pictures\Pastille, named after the date and time: its path; preview:
+     a download */
+  async noteSave(image: HTMLCanvasElement): Promise<string> {
     const png = await pngOf(image);
-    if (!PREVIEW) {
-      await invoke('note_save', new Uint8Array(await png.arrayBuffer()));
-      return;
-    }
+    if (!PREVIEW) return invoke<string>('note_save', new Uint8Array(await png.arrayBuffer()));
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const a = document.createElement('a');
@@ -709,6 +707,7 @@ export const host = {
     a.download = `${tr('Post-it', 'Sticky note')} ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    return `${tr('Téléchargements', 'Downloads')}\\${a.download}`;
   },
   /* Starts the program of the window `id` again; Rust finds its path */
   async newWindow(id: string) {

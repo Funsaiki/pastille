@@ -7,10 +7,10 @@
    (note.rs). The bar's window never takes the keyboard: Ctrl+Z and Ctrl+Y only work in the
    browser preview, the buttons everywhere.
    ══════════════════════════════════════════════════════════ */
-import { playOnce } from './dom';
+import { el, playOnce } from './dom';
 import { isHex } from './appearance';
 import { host } from './host';
-import { LEFT, PLUS, RIGHT, icon } from './icons';
+import { CLOSE, LEFT, PLUS, RIGHT, icon } from './icons';
 import { tr } from './i18n';
 
 /* c: the pen's color, null for the eraser; w: width; p: points x, y in CSS pixels of the sheet */
@@ -24,6 +24,7 @@ const UNDO_MAX = 100;
 const ERASER = 3;          // the eraser is three times as wide as the pen
 const SAVE_MS = 300;
 const DONE_MS = 1200;      // check mark after copying or saving
+const TOAST_MS = 4000;     // message once saved, or after a failure
 const PNG_SCALE = 2;
 
 /* Ink (the interface's, at the time of the stroke), then the palette's pastels, stronger: a
@@ -393,14 +394,40 @@ function image(): HTMLCanvasElement {
   return out;
 }
 
-/* Check mark on the button for a moment once done; errors in the console, like the bar's */
+/* Message over the bottom of the sheet (Funsaiki's request): where the image was saved, or
+   why copying or saving failed; gone after 4 s */
+let toastTimer = 0;
+
+function toast(title: string, detail: string, failed = false) {
+  const t = $('note-toast');
+  t.classList.toggle('failed', failed);
+  $('note-toast-dot').replaceChildren(icon(failed ? CLOSE : CHECK, 14, 3));
+  $('note-toast-title').textContent = title;
+  // A path breaks after its separators, the file's name kept in one piece
+  const cut = detail.lastIndexOf('\\') + 1;
+  $('note-toast-detail').replaceChildren(
+    detail.slice(0, cut).replace(/\\/g, '\\​'),
+    ...(cut ? [el('span', 'note-toast-file', detail.slice(cut))] : [detail]),
+  );
+  t.classList.add('shown');
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(hideToast, TOAST_MS);
+}
+
+function hideToast() {
+  clearTimeout(toastTimer);
+  $('note-toast').classList.remove('shown');
+}
+
+/* Check mark on the button for a moment once done */
 const doneTimers = new WeakMap<HTMLElement, number>();
 
-async function withCheck(button: HTMLElement, d: string, run: () => Promise<void>) {
+async function withCheck(button: HTMLElement, d: string, failure: string, run: () => Promise<void>) {
   try {
     await run();
   } catch (e) {
     console.error(e);
+    toast(failure, e instanceof Error ? e.message : String(e), true);
     return;
   }
   clearTimeout(doneTimers.get(button));
@@ -420,6 +447,7 @@ export function noteShown() {
 }
 
 export function noteHidden() {
+  hideToast();
   endStroke();
   prune();
   save();
@@ -442,8 +470,10 @@ export function initNote() {
   iconButton('note-redo', REDO, redo);
   iconButton('note-eraser', ERASE, toggleEraser);
   iconButton('note-clear', TRASH, clear);
-  iconButton('note-copy', COPY, () => withCheck($('note-copy'), COPY, () => host.noteCopy(image())));
-  iconButton('note-save', SAVE, () => withCheck($('note-save'), SAVE, () => host.noteSave(image())));
+  iconButton('note-copy', COPY, () => withCheck($('note-copy'), COPY, tr('Copie impossible', "Couldn't copy"), () => host.noteCopy(image())));
+  iconButton('note-save', SAVE, () => withCheck($('note-save'), SAVE, tr('Enregistrement impossible', "Couldn't save"), async () => {
+    toast(tr('Enregistré', 'Saved'), await host.noteSave(image()));
+  }));
 
   $('note-pens').append(...PENS.map((p, i) => {
     const b = document.createElement('button');
