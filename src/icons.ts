@@ -52,7 +52,9 @@ export const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
 export const MIC = 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM5 11a7 7 0 0014 0M12 18v3';
 export const MIC_OFF = MIC + 'M3 3l18 18';
 
-/* Phone (power, notifications) and Settings page */
+/* Phone (power, notifications), Settings and What's new pages; the wrench opens the
+   Settings page */
+export const WRENCH = 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z';
 export const POWER = 'M12 3v9M7 6a8 8 0 1010 0';
 export const RESTART = 'M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5';
 export const ALERT = 'M12 7v6M12 17h.01';

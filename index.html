@@ -259,6 +259,22 @@
             </section>
           </div>
         </div>
+
+        <!-- What's new (requested by Funsaiki on 2026-10-24, not in the mockup): a page like
+             the Settings page, opened by its notification after an update or from Settings
+             (Pastille section). Sections added by news.ts. -->
+        <div class="prefs" id="news" role="region" aria-labelledby="news-title">
+          <div class="prefs-head">
+            <button class="tp-press back" id="news-back" aria-label="Retour" data-en-label="Back">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+            </button>
+            <div class="apps-title">
+              <span class="apps-sup">Pastille</span>
+              <span class="apps-name" id="news-title" data-en="What’s new">Nouveautés</span>
+            </div>
+          </div>
+          <div class="prefs-body" id="news-body"></div>
+        </div>
       </div>
 
       <!-- Apps view, phone laid flat -->

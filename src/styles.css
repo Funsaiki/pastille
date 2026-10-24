@@ -557,7 +557,8 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
    like a phone page, it comes in from the right while the rest of the view leaves to the
    left; the status bar stays. Header of the apps view (back, overline and title), sections
    titled like Folders, rows like the notifications. The bottom of the phone is off the
-   screen: the page scrolls, with room to bring the last row above the edge. ══ */
+   screen: the page scrolls, with room to bring the last row above the edge. What's new
+   (2026-10-24) is a page like it: opened from Settings, Settings leaves to the left. ══ */
 .view-settings > :not(.status, .prefs) { transition: opacity .18s ease, translate .3s var(--ease); }
 .view-settings.prefs-open > :not(.status, .prefs) {
   opacity: 0; translate: -36px 0; visibility: hidden;
@@ -568,7 +569,8 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   opacity: 0; visibility: hidden; translate: 36px 0;
   transition: opacity .18s ease, translate .3s var(--ease), visibility 0s .3s;
 }
-.prefs-open .prefs { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease .05s, translate .3s var(--ease); }
+.prefs.open { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .18s ease .05s, translate .3s var(--ease); }
+.prefs.behind { translate: -36px 0; }
 .prefs-head { display: flex; align-items: center; gap: 12px; height: 46px; flex: none; padding: 0 20px; }
 .prefs-body {
   position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;
@@ -584,6 +586,8 @@ div.prefs-row:has(> .switch:not(:disabled)) { cursor: pointer; }
 button.prefs-row > svg:last-child { flex: none; }
 /* Quit: the first click asks for confirmation, the row turns pink */
 .prefs-row.confirm { background: #f6c6da; }
+/* What's new: the text goes on two lines rather than being cut */
+.news-row .notif-body { white-space: normal; }
 
 /* Switch: knob that slides with a slight bounce, accent background and white knob once
    on (like the tiles) */

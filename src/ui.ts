@@ -7,12 +7,13 @@
    and notifications (PC alerts, Steam, downloads) are real.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
-import { ALERT, EYE, ICONS, MIC, MIC_OFF, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { ALERT, EYE, ICONS, MIC, MIC_OFF, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, WRENCH, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
-import { el, iconCanvas, latestOnly } from './dom';
+import { el, iconCanvas, latestOnly, notifParts } from './dom';
 import { applyColors, palette } from './appearance';
 import { initCustom, loadAppearance } from './customize';
-import { closePrefs, initPrefs, keyLabel, openPrefs, prefsOpen, showPrefsProblem } from './prefs';
+import { initNews, unseenNews } from './news';
+import { closePrefs, initPrefs, keyLabel, openNews, openPrefs, prefsBack, prefsOpen, showPrefsProblem } from './prefs';
 import { LANGUAGE, LOCALE, percent, rememberLanguage, tr, translatePage, type Language } from './i18n';
 import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type AppVolume, type AudioState, type FeedEvent, type MediaAction, type NowPlaying, type PowerAction, type Profile, type RepeatMode, type ShuffleMode, type SpotifyVolume, type Stats, type TrayAction, type TrayApp, type TrayClick, type Welcome } from './host';
 
@@ -71,7 +72,6 @@ let media: NowPlaying | null = null;
    choice: it looked like a sun; as strokes, it would be confused with Apps).
    Color of the circle on hover. */
 const WINDOWS = '|M3.5 3.5h8v8h-8zM12.5 3.5h8v8h-8zM3.5 12.5h8v8h-8zM12.5 12.5h8v8h-8z';
-const WRENCH = 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z';
 /* Title of launch failures (notifications, header of the apps view) */
 const LAUNCH = tr('Lancement', 'Launch');
 const POWER_LABEL = tr('Alimentation', 'Power');
@@ -428,6 +428,13 @@ function showPrefs(tab?: 'colors' | 'strap') {
   openPrefs(tab);
 }
 
+/* What's new (news.ts), from its notification */
+function showNews() {
+  closeMixer();
+  closeTrayMenu(false);
+  openNews();
+}
+
 /* Palette colors changed (the accent took a pastel's color): initial tiles and
    folders rebuilt; the rest follows the accent on its own (var(--fill)) */
 function refreshPalette() {
@@ -759,6 +766,11 @@ function allNotifs(): Notif[] {
       problems.push({ id: 'welcome:autostart', title: tr('Démarrer avec Windows', 'Start with Windows'), when: '', body: tr('Cliquer pour l’activer', 'Click to turn it on'), d: POWER, bg: '#c9d8ff', open: enableAutostart, stay: true });
     }
   }
+  // After an update (asked for by Funsaiki): what's new, on its page, until it is opened
+  const news = unseenNews();
+  if (news) {
+    problems.push({ id: 'news:' + news, title: 'Pastille', when: '', body: tr(`${news} installée · Voir les nouveautés`, `${news} installed · See what’s new`), d: ICONS.star, bg: 'var(--fill)', open: async () => showNews(), stay: true });
+  }
   return [...problems, ...feed.map(feedNotif)];
 }
 
@@ -805,21 +817,13 @@ function saveDismissed() {
 }
 
 function notifRow(n: Notif) {
-  const row = el(n.open ? 'button' : 'div', 'notif');
+  const row = el(n.open ? 'button' : 'div');
   if (n.open) row.addEventListener('click', () => (n.stay ? n.open!().catch((e) => report(n.title, e)) : runAction(LAUNCH, n.open!)));
-  const badge = el('span', 'notif-icon');
-  badge.setAttribute('aria-hidden', 'true');
-  badge.style.background = n.bg;
-  const svg = icon(n.d, 15, 2.2);
-  svg.style.stroke = 'var(--ink)';
-  badge.append(svg);
-  const title = el('span', 'notif-title', n.title + ' ');
+  const { title, body } = notifParts(row, n.d, n.bg);
+  title.textContent = n.title + ' ';
   if (n.when) title.append(el('span', 'notif-when', '· ' + n.when));
-  const body = el('span', 'notif-body', n.body);
+  body.textContent = n.body;
   body.title = n.body;   // full text on hover if it is cut
-  const text = el('span', 'notif-text');
-  text.append(title, body);
-  row.append(badge, text);
   return row;
 }
 
@@ -1771,7 +1775,7 @@ function bindEvents() {
     if (prefsOpen()) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        closePrefs(true);
+        prefsBack();
       }
       return;   // no search while typing a color code
     }
@@ -1857,9 +1861,10 @@ function playEntrance() {
   closePowerMenu(false);
   closeMixer();
   closePrefs();
-  // A config problem shows right away, the welcome at the first opening; also closes
-  // the right-click menu
-  const greet = welcome !== null && !greeted;
+  // A config problem shows right away, the welcome and what's new at the first opening;
+  // also closes the right-click menu
+  const news = unseenNews();
+  const greet = (welcome !== null || (news !== null && !dismissed.has('news:' + news))) && !greeted;
   greeted ||= greet;
   showPane(greet || configProblems.some((p) => !dismissed.has('config:' + p)) ? 'notifs' : savedPane());
   $('strap-swing').style.removeProperty('animation');   // the opening swing, not the hover one
@@ -2010,6 +2015,8 @@ export async function init() {
   host.profile().then(renderProfile).catch(console.error);
   addEventListener('resize', fitStage);   // Rust sizes the window to the screen at each opening
   await loadConfig();
+  initNews(welcome !== null, renderNotifs);
+  renderNotifs();
   host.onConfigChanged(() => {
     configLoading = loadConfig().catch(console.error);
   });

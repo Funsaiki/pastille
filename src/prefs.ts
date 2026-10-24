@@ -5,12 +5,14 @@
    it slides in from the right in place of the rest of the quick settings view; ui.ts opens it
    (button right of the name, click on the strap) and closes it (back, Esc, launcher closing).
    Rows in the style of the notifications; an error shows at the top of the page.
+   What's new (news.ts, 2026-10-24) is a second page, opened from here or by its notification.
    ══════════════════════════════════════════════════════════ */
 import { refreshCustom, type Tab } from './customize';
-import { el } from './dom';
+import { el, notifParts } from './dom';
 import { ALERT, ICONS, POWER, RESTART, icon } from './icons';
 import { host, type Language, type PrefSwitch, type Prefs, type SpotifyLink } from './host';
 import { tr } from './i18n';
+import { NEWS, markNewsSeen } from './news';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -57,19 +59,8 @@ function update() {
 }
 
 function parts(node: HTMLElement, d: string, bg: string) {
-  node.classList.add('notif', 'prefs-row');
-  const badge = el('span', 'notif-icon');
-  badge.setAttribute('aria-hidden', 'true');
-  badge.style.background = bg;
-  const svg = icon(d, 15, 2.2);
-  svg.style.stroke = 'var(--ink)';
-  badge.append(svg);
-  const title = el('span', 'notif-title');
-  const body = el('span', 'notif-body');
-  const text = el('span', 'notif-text');
-  text.append(title, body);
-  node.append(badge, text);
-  return { badge, title, body };
+  node.classList.add('prefs-row');
+  return notifParts(node, d, bg);
 }
 
 /* Small pill-shaped button on the right of a row; `primary`: accent background */
@@ -266,6 +257,16 @@ function reloadRow() {
   });
 }
 
+/* What's new: its page */
+let newsButton: HTMLElement;
+
+function newsRow() {
+  const latest = NEWS[0].version;
+  const row = buttonRow(ICONS.star, '#ffe08a', tr('Nouveautés', 'What’s new'), () => tr(`Ce qui change avec la ${latest}`, `What changed in ${latest}`), openNews);
+  newsButton = row.node;
+  return row;
+}
+
 /* Version: check for an update, then install it (Pastille restarts) */
 function versionRow(): Row {
   const node = el('div');
@@ -366,15 +367,20 @@ async function reload() {
   update();
 }
 
-/* ── Opening and closing ── */
-export const prefsOpen = () => $('settings').classList.contains('prefs-open');
+/* ── Opening and closing: the Settings page, or What's new on its own (its notification)
+   or over Settings (back returns there) ── */
+export const prefsOpen = () => $('settings').classList.contains('prefs-open');   // either page
+const isOpen = (id: string) => $(id).classList.contains('open');
 
 /* `tab`: opened on the Appearance section, at this tab (click on the strap) */
 export function openPrefs(tab?: Tab) {
-  const already = prefsOpen();
+  const already = isOpen('prefs');
   refreshCustom(tab, already);
   if (!already) {
     problem = null;
+    $('news').classList.remove('open');
+    $('prefs').classList.remove('behind');
+    $('prefs').classList.add('open');
     $('settings').classList.add('prefs-open');
     $('prefs-toggle')?.setAttribute('aria-expanded', 'true');
   }
@@ -385,13 +391,41 @@ export function openPrefs(tab?: Tab) {
   reload();
 }
 
+export function openNews() {
+  if (isOpen('news')) return;
+  const over = isOpen('prefs');
+  $('prefs').classList.toggle('behind', over);
+  $('prefs').classList.remove('open');
+  if (quitArmed) disarmQuit();
+  $('news').classList.add('open');
+  $('settings').classList.add('prefs-open');
+  $('news-body').scrollTo({ top: 0, behavior: 'instant' });
+  $('news-back').focus({ preventScroll: true });
+  markNewsSeen();
+}
+
+/* Both pages */
 export function closePrefs(refocus = false) {
   if (!prefsOpen()) return;
   $('settings').classList.remove('prefs-open');
+  $('prefs').classList.remove('open', 'behind');
+  $('news').classList.remove('open');
   $('prefs-toggle')?.setAttribute('aria-expanded', 'false');
   if (quitArmed) disarmQuit();
   refreshCustom();
   if (refocus) $('prefs-toggle')?.focus({ preventScroll: true });
+}
+
+/* Back (button, Esc): What's new returns to Settings if it was opened from there */
+export function prefsBack() {
+  if (!isOpen('news') || !$('prefs').classList.contains('behind')) {
+    closePrefs(true);
+    return;
+  }
+  $('news').classList.remove('open');
+  $('prefs').classList.remove('behind');
+  $('prefs').classList.add('open');
+  newsButton.focus({ preventScroll: true });
 }
 
 /* Page built once; `onLeave`: hide the launcher */
@@ -402,7 +436,7 @@ export function initPrefs(onLeave: () => void) {
     switchRow('bar', BAR, '#f6c6da', tr('Barre pastel', 'Pastel bar'), () => tr('À la place de la barre des tâches', 'Instead of the taskbar')), shortcutRow()];
   const spotify = [spotifyRow()];
   const apps = [editRow(), reloadRow()];
-  const about = [versionRow(), quitRow()];
+  const about = [versionRow(), newsRow(), quitRow()];
   rows = [...general, ...spotify, ...apps, ...about];
   $('prefs-general').replaceChildren(...general.map((r) => r.node));
   $('prefs-spotify').replaceChildren(...spotify.map((r) => r.node));
@@ -412,5 +446,6 @@ export function initPrefs(onLeave: () => void) {
   alert.style.stroke = 'var(--ink)';
   $('prefs-problem-icon').append(alert);
   $('prefs-back').addEventListener('click', () => closePrefs(true));
+  $('news-back').addEventListener('click', prefsBack);
   update();
 }

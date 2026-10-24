@@ -1,11 +1,30 @@
 /* Small page helpers shared by the phone (ui.ts) and the bar (bar.ts) */
 import type { AppIcon } from './host';
+import { icon } from './icons';
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
   if (className) n.className = className;
   if (text != null) n.textContent = text;
   return n;
+}
+
+/* Row in the style of a notification: color dot with its icon, title and subtitle
+   (notifications, Settings and What's new pages) */
+export function notifParts(node: HTMLElement, d: string, bg: string) {
+  node.classList.add('notif');
+  const badge = el('span', 'notif-icon');
+  badge.setAttribute('aria-hidden', 'true');
+  badge.style.background = bg;
+  const svg = icon(d, 15, 2.2);
+  svg.style.stroke = 'var(--ink)';
+  badge.append(svg);
+  const title = el('span', 'notif-title');
+  const body = el('span', 'notif-body');
+  const text = el('span', 'notif-text');
+  text.append(title, body);
+  node.append(badge, text);
+  return { title, body };
 }
 
 /* One send at a time, the last level asked for wins: Tauri commands can run
