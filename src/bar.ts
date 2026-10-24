@@ -8,11 +8,12 @@
    edge, says when the mouse is on the pill or clicks elsewhere, and only takes the mouse on
    the rectangles sent by `reportRects`. Browser preview: bar.html (?screen=2).
    ══════════════════════════════════════════════════════════ */
-import { CLOSE, ICONS, MIC, MIC_OFF, OPEN, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { CLOSE, ICONS, LEFT, MIC, MIC_OFF, OPEN, PIN, PLUS, RIGHT, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
 import { applyColors, palette, setAppearance } from './appearance';
 import { CONFIG, setConfig } from './config';
 import { LANGUAGE, LOCALE, percent, rememberLanguage, tr, translatePage } from './i18n';
+import { NOTE, initNote, noteHidden, noteShown } from './note';
 import {
   PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type PinnedApp, type RepeatMode,
   type ShuffleMode, type SpotifyVolume, type TrayAction, type TrayApp,
@@ -25,7 +26,6 @@ const SCREEN = host.barScreen();
 const MAIN = SCREEN === 0;
 
 const CHEVRON = 'M6 15l6-6 6 6';
-const PLUS = 'M12 5v14M5 12h14';
 const SCREEN_NEXT = 'M3 5h12v9H3zM6.5 18h5M9 14v4M17 9.5h5M19.5 7l2.5 2.5-2.5 2.5';
 
 /* The program's real icon; in the preview, a line icon; failing that, its initial on
@@ -650,14 +650,18 @@ function placeCard(card: HTMLElement, button: HTMLElement) {
   void card.offsetWidth;
 }
 
-const cardOpen = () => popOpen() || calOpen() || playerOpen() || soundOpen();
+const cardOpen = () => popOpen() || calOpen() || playerOpen() || soundOpen() || noteOpen();
 
 function closeCards() {
   if (popOpen()) togglePop(false);
   if (calOpen()) toggleCal(false);
   if (playerOpen()) togglePlayer(false);
   if (soundOpen()) toggleSound(false);
+  if (noteOpen()) toggleNote(false);
 }
+
+/* What floats above the pill: the cards, the menu and the hover preview */
+const OVERLAYS = ['bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-note', 'bar-menu', 'bar-preview'];
 
 /* ══ Auto-hide: the pill comes up when the mouse touches the bottom of the screen and goes back
    0.7 s after leaving it (it and its cards), not while a menu is open. The cards
@@ -739,7 +743,7 @@ function reportRects() {
     if (shown) {
       const bar = $('bar');
       rects.push([bar.offsetLeft - 8, bar.offsetTop - 8, bar.offsetWidth + 16, innerHeight - bar.offsetTop + 8]);
-      for (const id of ['bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) {
+      for (const id of OVERLAYS) {
         const n = $(id);
         if (n.classList.contains('open')) rects.push([n.offsetLeft - 8, n.offsetTop - 8, n.offsetWidth + 16, n.offsetHeight + 24]);
       }
@@ -1100,13 +1104,30 @@ async function toggleMic() {
   }
 }
 
+/* ══ Post-it: click on the pencil; the drawing is in note.ts ══ */
+const noteOpen = () => $('bar-note').classList.contains('open');
+
+function toggleNote(open = !noteOpen()) {
+  closePreview();
+  closeMenu(false);
+  if (open && !noteOpen()) {
+    closeCards();
+    placeCard($('bar-note'), $('bar-pencil'));
+    noteShown();
+  } else if (!open && noteOpen()) {
+    noteHidden();
+  }
+  $('bar-note').classList.toggle('open', open);
+  $('bar-pencil').setAttribute('aria-expanded', String(open));
+  if (!open) autoHide();
+  reportRects();
+}
+
 /* ══ Calendar: click on the clock. Previous or next month (arrows, wheel), click on the
    month: today; Notifications: the Windows notification center ══ */
 const fmtMonthYear = new Intl.DateTimeFormat(LOCALE, { month: 'long', year: 'numeric' });
 const fmtToday = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
 const WEEKDAYS = tr(['L', 'M', 'M', 'J', 'V', 'S', 'D'], ['M', 'T', 'W', 'T', 'F', 'S', 'S']);
-const LEFT = 'M15 6l-6 6 6 6';
-const RIGHT = 'M9 6l6 6-6 6';
 const CAL_WHEEL_MS = 450;    // one month per gesture, like the phone's pages
 let calMonth = new Date();   // first day of the month shown
 let calWheelAt = 0;
@@ -1252,6 +1273,9 @@ function init() {
     if (!spotifyVolume || Math.abs(e.deltaY) < 4) return;
     setSpotifyVolume(spotifyVolume.volume + (e.deltaY < 0 ? 2 : -2));
   }, { passive: true });
+  $('bar-pencil').append(icon(NOTE, 20, 2.4));
+  $('bar-pencil').addEventListener('click', () => toggleNote());
+  initNote();
   $('bar-sound').addEventListener('click', () => toggleSound());
   $('bar-sound').addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -1294,6 +1318,7 @@ function init() {
     if (calOpen()) place($('bar-cal'), $('bar-clock'), $('bar'));
     if (playerOpen()) place($('bar-player'), $('bar-music'), $('bar'));
     if (soundOpen()) place($('bar-volume'), $('bar-sound'), $('bar'));
+    if (noteOpen()) place($('bar-note'), $('bar-pencil'), $('bar'));
     if (menu) place($('bar-menu'), menu.tile);
     if (preview) {
       place($('bar-preview'), preview.tile);
@@ -1301,7 +1326,7 @@ function init() {
     }
     reportRects();
   });
-  for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) resized.observe($(id));
+  for (const id of ['bar', ...OVERLAYS]) resized.observe($(id));
 
   // Rust may have brought the pill up before the page listened (window just created): with no
   // answer, it would never come up again on this screen. Its state is reset.
@@ -1317,7 +1342,7 @@ function init() {
   });
   // Preview: the bottom of the page stands in for the screen edge, the whole page for the window
   if (PREVIEW) {
-    for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) {
+    for (const id of ['bar', ...OVERLAYS]) {
       $(id).addEventListener('pointerenter', () => setInside(true));
       $(id).addEventListener('pointerleave', () => setInside(false));
     }
@@ -1326,7 +1351,7 @@ function init() {
     });
     document.addEventListener('pointerdown', (e) => {
       const target = e.target as Node;
-      if (!['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview'].some((id) => $(id).contains(target))) clickedOutside();
+      if (!['bar', ...OVERLAYS].some((id) => $(id).contains(target))) clickedOutside();
     });
   }
   document.addEventListener('keydown', (e) => {
@@ -1345,6 +1370,9 @@ function init() {
     } else if (soundOpen()) {
       toggleSound(false);
       $('bar-sound').focus({ preventScroll: true });
+    } else if (noteOpen()) {
+      toggleNote(false);
+      $('bar-pencil').focus({ preventScroll: true });
     }
   });
   // Up and down arrows in the menus, like the power menu

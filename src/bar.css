@@ -240,6 +240,61 @@ button { font-family: inherit; }
 }
 .bar-cal-notif:hover { background: var(--fill); }
 
+/* ── Post-it (requested by Funsaiki on 2026-10-25): card above the pencil, like the
+   calendar; a square sheet with an ink border and a tile's shadow (the next note's edge
+   behind it), round tools below. Pens: the Customize swatches, smaller; sizes and eraser:
+   accent once chosen, like the ^ ── */
+.bar-note { width: 300px; padding: 12.5px 16.5px 16.5px; }
+.note-head { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+.note-title { display: flex; align-items: center; gap: 6px; padding: 0 4px; font-weight: 900; font-size: 14px; white-space: nowrap; }
+.note-count {
+  min-width: 17px; height: 16px; padding: 0 5px; box-sizing: border-box; border-radius: 8px; background: var(--ink);
+  color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 11px;
+}
+.note-gap { flex: 1; }
+.note-btn {
+  width: 32px; height: 32px; flex: none; padding: 0; border: none; border-radius: 50%; background: transparent; color: var(--ink);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, translate .12s, opacity .15s;
+}
+.note-btn:hover, .note-btn.done { background: var(--fill); }
+.note-btn:active { translate: 0 2px; }
+.note-btn:disabled { opacity: .3; background: transparent; translate: none; cursor: default; }
+.note-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.note-clear:hover { background: #f6c6da; }
+.note-sheet { position: relative; height: 267px; }
+.note-paper, .note-stack {
+  position: absolute; inset: 0; box-sizing: border-box; border: 2.5px solid var(--ink); border-radius: 14px; background: var(--paper);
+}
+.note-paper { overflow: hidden; box-shadow: 0 3px 0 var(--ink); }
+.note-stack { rotate: 3deg; translate: 3px 1px; box-shadow: 0 3px 0 var(--ink); }
+.note-paper canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.note-tools { display: flex; align-items: center; margin-top: 12px; }
+.note-pens, .note-sizes, .note-papers { display: flex; align-items: center; }
+.note-pens { gap: 6px; padding: 0 2px; }
+.note-pen, .note-swatch {
+  width: 22px; height: 22px; flex: none; padding: 0; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--ink);
+  background: var(--c); box-shadow: 0 2px 0 var(--ink); cursor: pointer; transition: transform .12s, box-shadow .12s;
+}
+.note-pen:hover, .note-swatch:hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--ink); }
+.note-pen:active, .note-swatch:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--ink); }
+.note-pen[aria-checked="true"], .note-swatch[aria-checked="true"] { transform: none; box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px var(--ink); }
+.note-pen:focus-visible, .note-swatch:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.note-sep { width: 2px; height: 22px; flex: none; margin: 0 8px; border-radius: 2px; background: rgb(from var(--ink) r g b / .16); }
+.note-sizes { gap: 0; margin-right: 2px; }
+.note-size { width: 30px; height: 30px; }
+.note-size::before { content: ''; width: var(--d); height: var(--d); border-radius: 50%; background: var(--c); }
+.note-sizes.erasing .note-size::before { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.note-size[aria-checked="true"], #note-eraser[aria-pressed="true"] { background: var(--fill); }
+#note-eraser { width: 30px; height: 30px; }
+/* Papers: small sheets rather than dots */
+.note-foot { display: flex; align-items: center; gap: 2px; margin-top: 8px; }
+.note-papers { gap: 6px; padding: 0 2px; }
+.note-swatch { width: 20px; height: 20px; border-radius: 6px; }
+@keyframes tp-in-r { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+@keyframes tp-in-l { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
+.tp-in-r { animation: tp-in-r .4s var(--ease) both; }
+.tp-in-l { animation: tp-in-l .4s var(--ease) both; }
+
 /* ── Player: the phone's now playing card (styles.css, same sizes), above the
    Spotify tile like the calendar above the clock ── */
 .bar-player { width: 354px; display: flex; align-items: center; gap: 12px; padding: 11.5px 12.5px 11.5px 11.5px; }

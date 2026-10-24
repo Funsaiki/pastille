@@ -11,7 +11,7 @@
 <span class="wallpaper-hint" aria-hidden="true" data-en="[ YOUR WALLPAPER ]">[ TON FOND D'ÉCRAN ]</span>
 <p class="preview-help" id="preview-help" hidden></p>
 
-<!-- Pill: Apps, open windows (one tile per program), Spotify, sound, notification
+<!-- Pill: Apps, open windows (one tile per program), Spotify, post-it, sound, notification
      area (main screen only), clock -->
 <nav class="bar" id="bar" aria-label="Barre des tâches" data-en-label="Taskbar">
   <button class="bar-tile bar-apps tp-press" id="bar-apps" title="Applications (clic droit : menu du lanceur)" aria-label="Applications"
@@ -25,6 +25,8 @@
       <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="icon-play"><path d="M8 5l11 7-11 7z"></path></svg>
     </span>
   </button>
+  <button class="bar-round" id="bar-pencil" title="Post-it" aria-label="Post-it" data-en-title="Sticky note" data-en-label="Sticky note"
+          aria-expanded="false" aria-controls="bar-note"></button>
   <button class="bar-round" id="bar-sound" aria-expanded="false" aria-controls="bar-volume">
     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path id="bar-sound-icon"></path></svg>
     <span class="bar-level" id="bar-level" aria-hidden="true"></span>
@@ -60,6 +62,35 @@
       <span class="qtile-sub" id="bar-mic-sub"></span>
     </span>
   </button>
+</section>
+
+<!-- Post-it: click on the pencil; a sheet to draw on, notes to flip through (note.ts) -->
+<section class="bar-card bar-note" id="bar-note" aria-label="Post-it" data-en-label="Sticky note">
+  <div class="note-head">
+    <button class="note-btn" id="note-prev" title="Post-it précédent" aria-label="Post-it précédent" data-en-title="Previous note" data-en-label="Previous note"></button>
+    <span class="note-title"><span data-en="Sticky note">Post-it</span><span class="note-count" id="note-count"></span></span>
+    <button class="note-btn" id="note-next"></button>
+    <span class="note-gap"></span>
+    <button class="note-btn" id="note-undo" title="Annuler" aria-label="Annuler" data-en-title="Undo" data-en-label="Undo"></button>
+    <button class="note-btn" id="note-redo" title="Rétablir" aria-label="Rétablir" data-en-title="Redo" data-en-label="Redo"></button>
+  </div>
+  <div class="note-sheet">
+    <span class="note-stack" id="note-stack" aria-hidden="true" hidden></span>
+    <div class="note-paper" id="note-paper"><canvas id="note-canvas" aria-label="Feuille de dessin" data-en-label="Drawing sheet"></canvas></div>
+  </div>
+  <div class="note-tools">
+    <div class="note-pens" id="note-pens" role="radiogroup" aria-label="Couleur" data-en-label="Color"></div>
+    <span class="note-sep" aria-hidden="true"></span>
+    <div class="note-sizes" id="note-sizes" role="radiogroup" aria-label="Épaisseur" data-en-label="Size"></div>
+    <button class="note-btn" id="note-eraser" title="Gomme" aria-label="Gomme" data-en-title="Eraser" data-en-label="Eraser" aria-pressed="false"></button>
+  </div>
+  <div class="note-foot">
+    <div class="note-papers" id="note-papers" role="radiogroup" aria-label="Papier" data-en-label="Paper"></div>
+    <span class="note-gap"></span>
+    <button class="note-btn" id="note-copy" title="Copier l'image" aria-label="Copier l'image" data-en-title="Copy image" data-en-label="Copy image"></button>
+    <button class="note-btn" id="note-save" title="Enregistrer en PNG" aria-label="Enregistrer en PNG" data-en-title="Save as PNG" data-en-label="Save as PNG"></button>
+    <button class="note-btn note-clear" id="note-clear" title="Tout effacer" aria-label="Tout effacer" data-en-title="Clear" data-en-label="Clear"></button>
+  </div>
 </section>
 
 <!-- Calendar: click on the clock -->

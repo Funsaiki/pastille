@@ -49,6 +49,11 @@ export const CLOSE = 'M6 6l12 12M18 6L6 18';
 export const PIN = 'M8 3h8M10 3v5.5L7 12.5h10L14 8.5V3M12 12.5V21';
 export const EYE = 'M2.5 12Q12 2 21.5 12Q12 22 2.5 12zM12 9a3 3 0 100 6 3 3 0 000-6z';
 
+/* Bar: arrows (calendar, post-it), new window or note */
+export const LEFT = 'M15 6l-6 6 6 6';
+export const RIGHT = 'M9 6l6 6-6 6';
+export const PLUS = 'M12 5v14M5 12h14';
+
 /* Sound, for the phone and the bar */
 export const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
 export const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';
