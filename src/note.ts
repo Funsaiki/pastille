@@ -272,6 +272,23 @@ function clear() {
   drawAll(ctx, []);
 }
 
+/* Saved: the sheet is torn off the pad (Funsaiki's request: the drawing left on it looked
+   like it could still change the file). A copy of it flies away, the blank sheet below shows;
+   Undo brings the drawing back, and the blank sheet goes away once left, like any other. */
+function tearOff() {
+  const paper = $('note-paper');
+  const torn = el('div', 'note-paper note-torn');
+  torn.style.setProperty('--paper', sheet().paper);
+  const picture = el('canvas');
+  picture.width = canvas.width;
+  picture.height = canvas.height;
+  (picture.getContext('2d') as CanvasRenderingContext2D).drawImage(canvas, 0, 0);
+  torn.append(picture);
+  torn.addEventListener('animationend', () => torn.remove(), { once: true });
+  paper.after(torn);
+  clear();
+}
+
 /* ── Notes: › on the last one makes a new one (with the next paper), unless it is blank;
    a blank note goes away once left ── */
 function go(step: number) {
@@ -360,6 +377,8 @@ function updateButtons() {
   ($('note-undo') as HTMLButtonElement).disabled = !h.past.length;
   ($('note-redo') as HTMLButtonElement).disabled = !h.future.length;
   ($('note-clear') as HTMLButtonElement).disabled = !sheet().strokes.length;
+  // Nothing to copy or save on a blank sheet
+  for (const id of ['note-copy', 'note-save']) ($(id) as HTMLButtonElement).disabled = blank(sheet());
 }
 
 /* The note shown: paper, the next note's edge behind it, strokes; arriving from the side
@@ -473,6 +492,7 @@ export function initNote() {
   iconButton('note-copy', COPY, () => withCheck($('note-copy'), COPY, tr('Copie impossible', "Couldn't copy"), () => host.noteCopy(image())));
   iconButton('note-save', SAVE, () => withCheck($('note-save'), SAVE, tr('Enregistrement impossible', "Couldn't save"), async () => {
     toast(tr('Enregistré', 'Saved'), await host.noteSave(image()));
+    tearOff();
   }));
 
   $('note-pens').append(...PENS.map((p, i) => {
