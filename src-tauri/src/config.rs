@@ -176,21 +176,28 @@ struct Detected {
     hidden: Vec<String>,
     /// (value of `default`, program): ("https", "C:\…\brave.exe")
     defaults: Vec<(String, String)>,
+    /// `auto` groups (SOURCES) read by this scan: one added to apps.json since is read at once
+    read: Vec<&'static str>,
 }
+
+/// `auto` groups read only if apps.json has them (the Start menu: `needs_start_menu`)
+const SOURCES: [&str; 3] = ["steam", "epic", "spotify"];
 
 /// `previous`: Spotify unreachable, the playlists already known stay. Each source is only
 /// read if apps.json uses it (`items`): the Start menu takes ~1 s, Spotify goes over the network.
 fn detect(app: &AppHandle, previous: Vec<spotify::Playlist>, items: &[AppItem]) -> Detected {
+    let read: Vec<&'static str> = SOURCES.into_iter().filter(|kind| has_auto(items, kind)).collect();
     Detected {
-        steam: if has_auto(items, "steam") { steam::installed_games() } else { Vec::new() },
-        epic: if has_auto(items, "epic") { epic::installed_games() } else { Vec::new() },
-        playlists: if has_auto(items, "spotify") { spotify::playlists(app).unwrap_or(previous) } else { Vec::new() },
+        steam: if read.contains(&"steam") { steam::installed_games() } else { Vec::new() },
+        epic: if read.contains(&"epic") { epic::installed_games() } else { Vec::new() },
+        playlists: if read.contains(&"spotify") { spotify::playlists(app).unwrap_or(previous) } else { Vec::new() },
         start: if needs_start_menu(items) { crate::com::with_com(start_menu::installed_apps) } else { Vec::new() },
         hidden: Vec::new(),
         defaults: wanted_defaults(items)
             .into_iter()
             .filter_map(|kind| shell::default_program(&kind).map(|program| (kind, program)))
             .collect(),
+        read,
     }
 }
 
@@ -227,9 +234,7 @@ fn wanted_defaults(items: &[AppItem]) -> Vec<String> {
 /// tile added since)
 fn scan_needed(items: &[AppItem], games: &Detected) -> bool {
     needs_start_menu(items) && games.start.is_empty()
-        || has_auto(items, "steam") && games.steam.is_empty()
-        || has_auto(items, "epic") && games.epic.is_empty()
-        || has_auto(items, "spotify") && games.playlists.is_empty()
+        || SOURCES.iter().any(|kind| has_auto(items, kind) && !games.read.contains(kind))
         || wanted_defaults(items).iter().any(|kind| !games.defaults.iter().any(|(k, _)| k == kind))
 }
 
@@ -1043,6 +1048,7 @@ mod tests {
         let games = Detected {
             start: vec![start_app("Discord"), start_app("Visual Studio Code")],
             defaults: vec![("https".into(), r"C:\Brave\brave.exe".into())],
+            read: vec!["epic"],
             ..Default::default()
         };
         let config = merge(&base, &games);
@@ -1054,6 +1060,8 @@ mod tests {
         assert_eq!(config.apps[1].target.as_deref(), Some(r"C:\Brave\brave.exe"));
         assert_eq!(discord.id, "a4");
         assert!(!scan_needed(&base.apps, &games));
+        // The Epic group read without games doesn't ask for another scan; not read, it does
+        assert!(scan_needed(&base.apps, &Detected { read: Vec::new(), ..games.clone() }));
         let json = serde_json::to_string(code).unwrap();
         assert!(!json.contains("app\"") && !json.contains("AppsFolder"), "{json}");
     }
