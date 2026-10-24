@@ -8,10 +8,10 @@
    edge, says when the mouse is on the pill or clicks elsewhere, and only takes the mouse on
    the rectangles sent by `reportRects`. Browser preview: bar.html (?screen=2).
    ══════════════════════════════════════════════════════════ */
-import { ICONS, MIC, MIC_OFF, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { CLOSE, ICONS, MIC, MIC_OFF, OPEN, PIN, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
 import { applyColors, palette, setAppearance } from './appearance';
-import { setConfig } from './config';
+import { CONFIG, setConfig } from './config';
 import { LANGUAGE, LOCALE, percent, rememberLanguage, tr, translatePage } from './i18n';
 import {
   PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type PinnedApp, type RepeatMode,
@@ -24,11 +24,8 @@ const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const SCREEN = host.barScreen();
 const MAIN = SCREEN === 0;
 
-const GRID = 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z';
 const CHEVRON = 'M6 15l6-6 6 6';
 const PLUS = 'M12 5v14M5 12h14';
-const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
-const CLOSE = 'M6 6l12 12M18 6L6 18';
 const SCREEN_NEXT = 'M3 5h12v9H3zM6.5 18h5M9 14v4M17 9.5h5M19.5 7l2.5 2.5-2.5 2.5';
 
 /* The program's real icon; in the preview, a line icon; failing that, its initial on
@@ -50,7 +47,8 @@ function popIn(node: HTMLElement) {
   node.addEventListener('animationend', () => node.classList.remove('tp-pop'), { once: true });
 }
 
-/* Errors: in the phone's notifications once the bar is wired up; preview: console */
+/* Errors: in the console (the bar has no notifications). The notification area is read
+   again only if its card is open: nothing else shows it, and opening it reads it. */
 async function act(run: () => Promise<unknown>) {
   closeMenu(false);
   try {
@@ -59,7 +57,7 @@ async function act(run: () => Promise<unknown>) {
     console.error(e);
   }
   refreshWindows();
-  refreshTray();
+  if (popOpen()) refreshTray();
 }
 
 /* ══ Open windows, from all screens (Funsaiki's request), grouped by program;
@@ -115,10 +113,17 @@ function groups(): Group[] {
 
 function renderWindows() {
   const list = groups();
-  const shown = JSON.stringify(list.map((g) => [g.key, g.windows.map((w) => [w.id, w.title, w.active, w.attention])]));
+  // Titles change often (a browser tab, a track, a file): they only feed the labels, updated
+  // in place
+  const shown = JSON.stringify(list.map((g) => [g.key, g.windows.map((w) => [w.id, w.active, w.attention])]));
   // Not while a menu or a hover preview is open: it is attached to its tile (rebuilt when it
   // closes)
-  if (menu || preview || shown === windowsShown) return;
+  if (menu || preview) return;
+  if (shown === windowsShown) {
+    const tiles = $('bar-windows').children;
+    list.forEach((g, i) => g.windows.length && tiles[i]?.setAttribute('aria-label', tileLabel(g)));
+    return;
+  }
   windowsShown = shown;
   const first = seen.size === 0;
   for (const key of seen) if (!list.some((g) => g.key === key)) seen.delete(key);
@@ -150,6 +155,12 @@ function latest(g: Group): BarWindow[] {
   return now.length ? now : g.windows;
 }
 
+/* A window tile's label: its window's title, or the program and its number of windows */
+function tileLabel(g: Group) {
+  const label = g.windows.length > 1 ? tr(`${g.app} : ${g.windows.length} fenêtres`, `${g.app}: ${g.windows.length} windows`) : windowLabel(g.windows[0]);
+  return g.windows.some((w) => w.attention) ? tr(`${label} (demande l'attention)`, `${label} (needs attention)`) : label;
+}
+
 /* Click: brings the window back, or minimizes it if it is already in the foreground; several windows:
    their list (each with its ×). Middle click: new window. Right-click: new window, close. Hover:
    preview of the windows (it replaces the tooltip). */
@@ -161,8 +172,7 @@ function groupTile(g: Group, i: number) {
   const calling = g.windows.some((w) => w.attention);
   b.classList.toggle('active', g.windows.some((w) => w.active));
   b.classList.toggle('attention', calling);
-  const label = many ? tr(`${g.app} : ${g.windows.length} fenêtres`, `${g.app}: ${g.windows.length} windows`) : windowLabel(first);
-  b.setAttribute('aria-label', calling ? tr(`${label} (demande l'attention)`, `${label} (needs attention)`) : label);
+  b.setAttribute('aria-label', tileLabel(g));
   fillTile(b, g.app, first.icon, first.glyph, i, 22);
   if (many) b.append(el('span', 'bar-count', String(g.windows.length)));
   if (calling) b.append(el('span', 'bar-alert'));
@@ -228,15 +238,16 @@ async function refreshPins() {
   renderWindows();
 }
 
+/* Rust tells every page once the pins changed (bar:pins); the preview has no event */
 async function pinWindow(id: string) {
   await host.barPin(id);
-  await refreshPins();
+  if (PREVIEW) await refreshPins();
 }
 
 function unpinItem(pin: PinnedApp) {
   return menuItem(tr('Détacher de la pilule', 'Unpin from the pill'), actionDot(PIN, '#c9d8ff'), () => act(async () => {
     await host.barUnpin(pin.exe);
-    await refreshPins();
+    if (PREVIEW) await refreshPins();
   }));
 }
 
@@ -298,7 +309,8 @@ function leavePreview() {
 
 async function openPreview(g: Group, tile: HTMLElement) {
   const run = ++previewRun;
-  const list = g.windows.slice(0, PREVIEW_MAX);
+  const group = { ...g, windows: latest(g) };
+  const list = group.windows.slice(0, PREVIEW_MAX);
   previewAsked = true;
   const sizes = await host.barPreview(list.map((w) => w.id)).catch(() => null);
   // Another tile hovered, mouse gone, menu or card open, pill hidden in the meantime
@@ -312,7 +324,7 @@ async function openPreview(g: Group, tile: HTMLElement) {
   // Rebuilt with the card open (window closed from the preview): thumbnails placed right away
   const settled = card.classList.contains('open');
   card.replaceChildren(...list.map((w, i) => previewItem(w, sizes[i], i)));
-  preview = { tile, group: g };
+  preview = { tile, group };
   card.classList.add('open');
   place(card, tile);
   reportRects();
@@ -460,7 +472,12 @@ function renderTray() {
   $('bar-pop-count').textContent = String(trayApps.length);
   $('bar-empty').hidden = trayApps.length > 0;
   const shown = trayApps.map((app) => `${app.key}\n${app.name}`).join('\n');
-  if (menu || shown === trayShown) return;
+  if (menu || shown === trayShown) {
+    // Tooltips change without the list changing (EarTrumpet puts the volume in it): in place
+    const tiles = $('bar-grid').children as HTMLCollectionOf<HTMLElement>;
+    if (shown === trayShown) trayApps.forEach((app, i) => tiles[i] && (tiles[i].title = app.tip ?? app.name));
+    return;
+  }
   trayShown = shown;
   $('bar-grid').replaceChildren(...trayApps.map(trayTile));
 }
@@ -756,8 +773,8 @@ function tickClock() {
   const day = fmtDay.format(now);   // "jeu.", "Thu"
   const full = fmtFull.format(now);
   $('bar-time').textContent = fmtTime.format(now);
-  $('bar-date').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${now.getDate()} ${fmtMonth.format(now)}`;
-  const date = `${full.charAt(0).toUpperCase()}${full.slice(1)}, ${fmtTime.format(now)}`;
+  $('bar-date').textContent = `${capital(day)} ${now.getDate()} ${fmtMonth.format(now)}`;
+  const date = `${capital(full)}, ${fmtTime.format(now)}`;
   $('bar-clock').setAttribute('aria-label', tr(`${date} : calendrier`, `${date}: calendar`));
   if (calOpen()) renderCal();   // midnight
   setTimeout(tickClock, 60_000 - (Date.now() % 60_000) + 20);
@@ -1153,10 +1170,11 @@ function paint() {
   renderTray();
 }
 
+/* The apps.json accent (unless one is chosen in the Appearance section) and the appearance */
 function loadColors() {
-  Promise.all([host.getConfig(), host.appearance(false)])
-    .then(([{ config }, { appearance }]) => {
-      setConfig(config);
+  Promise.all([host.configAccent(), host.appearance(false)])
+    .then(([accent, { appearance }]) => {
+      setConfig({ ...CONFIG, accent });
       setAppearance(appearance);
       paint();
     })
@@ -1182,7 +1200,7 @@ function init() {
     paint();
   });
 
-  $('bar-apps').append(icon(GRID, 22, 2.4));
+  $('bar-apps').append(icon(ICONS.applications, 22, 2.4));
   // The phone comes up, the pill goes down at once
   $('bar-apps').addEventListener('click', () => {
     hide(true);
@@ -1276,6 +1294,11 @@ function init() {
     if (calOpen()) place($('bar-cal'), $('bar-clock'), $('bar'));
     if (playerOpen()) place($('bar-player'), $('bar-music'), $('bar'));
     if (soundOpen()) place($('bar-volume'), $('bar-sound'), $('bar'));
+    if (menu) place($('bar-menu'), menu.tile);
+    if (preview) {
+      place($('bar-preview'), preview.tile);
+      placeThumbs();
+    }
     reportRects();
   });
   for (const id of ['bar', 'bar-pop', 'bar-cal', 'bar-player', 'bar-volume', 'bar-menu', 'bar-preview']) resized.observe($(id));

@@ -11,7 +11,7 @@ import { refreshCustom, type Tab } from './customize';
 import { el, notifParts } from './dom';
 import { ALERT, ICONS, POWER, RESTART, icon } from './icons';
 import { host, type Language, type PrefSwitch, type Prefs, type SpotifyLink } from './host';
-import { tr } from './i18n';
+import { LANGUAGE, tr } from './i18n';
 import { NEWS, markNewsSeen } from './news';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -24,6 +24,7 @@ let reloaded = 0;                 // config reloaded (timer of the "Just reloade
 let quitArmed = 0;                // Quit clicked once (confirmation timer)
 let problem: { title: string; text: string } | null = null;
 let leave = () => {};             // ui.ts: hides the launcher (the browser or the editor opens)
+let autostartChanged = (_on: boolean) => {};   // ui.ts: the welcome's notification follows
 
 const EXIT = 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9';
 const PENCIL = 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4';
@@ -142,11 +143,11 @@ function languageRow(): Row {
   return {
     node,
     update() {
-      const current = prefs?.language;
-      group.dataset.pane = current ?? 'fr';
+      const current = prefs?.language ?? LANGUAGE;   // before the first read: the page's
+      group.dataset.pane = current;
       group.classList.toggle('off', !prefs);
       buttons.forEach((b, i) => {
-        const on = LANGUAGES[i].key === (current ?? 'fr');
+        const on = LANGUAGES[i].key === current;
         b.setAttribute('aria-checked', String(on));
         b.tabIndex = on ? 0 : -1;
         b.disabled = !prefs;
@@ -365,6 +366,7 @@ async function reload() {
     return null;
   });
   update();
+  if (prefs?.autostart != null) autostartChanged(prefs.autostart);
 }
 
 /* ── Opening and closing: the Settings page, or What's new on its own (its notification)
@@ -428,9 +430,11 @@ export function prefsBack() {
   newsButton.focus({ preventScroll: true });
 }
 
-/* Page built once; `onLeave`: hide the launcher */
-export function initPrefs(onLeave: () => void) {
+/* Page built once, and read (its switches are in place at the first opening); `onLeave`:
+   hide the launcher; `onAutostart`: Start with Windows read or changed */
+export function initPrefs(onLeave: () => void, onAutostart: (on: boolean) => void) {
   leave = onLeave;
+  autostartChanged = onAutostart;
   const autostart = (on: boolean | null) => (on === null && prefs ? tr('Version installée seulement', 'Installed version only') : tr('À l’ouverture de session', 'When you sign in'));
   const general = [languageRow(), switchRow('autostart', POWER, '#c9d8ff', tr('Démarrer avec Windows', 'Start with Windows'), autostart),
     switchRow('bar', BAR, '#f6c6da', tr('Barre pastel', 'Pastel bar'), () => tr('À la place de la barre des tâches', 'Instead of the taskbar')), shortcutRow()];
@@ -448,4 +452,5 @@ export function initPrefs(onLeave: () => void) {
   $('prefs-back').addEventListener('click', () => closePrefs(true));
   $('news-back').addEventListener('click', prefsBack);
   update();
+  reload();
 }

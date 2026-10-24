@@ -817,6 +817,12 @@ struct Welcome {
     autostart: bool,
 }
 
+/// The apps.json accent alone: the pastel bar's pages only need that, at each reload
+#[tauri::command]
+pub fn config_accent(state: tauri::State<'_, SharedConfig>) -> String {
+    state.lock().unwrap().config.accent.clone()
+}
+
 #[tauri::command]
 pub fn get_config(app: AppHandle, state: tauri::State<'_, SharedConfig>) -> ConfigPayload {
     let s = state.lock().unwrap();

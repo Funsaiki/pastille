@@ -90,6 +90,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             config::get_config,
+            config::config_accent,
             appearance::get_appearance,
             appearance::set_appearance,
             appearance::pick_charm_image,

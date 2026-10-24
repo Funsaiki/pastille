@@ -148,8 +148,10 @@ button, input { font-family: 'Nunito', sans-serif; }
    stays below the edge, in both views; position (`data-position` on the root). */
 .phone {
   position: absolute; left: calc(50% - 220px); top: 196px; width: 410px; height: 830px; perspective: 1100px; perspective-origin: 50% 35%;
-  transition: left .7s var(--turn);
 }
+/* Changed in the Appearance section (.moving for 0.7 s, customize.ts): it glides to its place.
+   Not otherwise: opened on a screen of another width, it is there at once. */
+.moving .phone { transition: left .7s var(--turn); }
 /* Left or right: the same gap to the screen edge whatever the size and the tilt (from the
    center: the strap juts out 241 px on the left face-on, 206 tilted; the side edge 205 px on
    the right face-on, 226 tilted) */
@@ -162,7 +164,7 @@ button, input { font-family: 'Nunito', sans-serif; }
   transform-style: preserve-3d; transition: transform .7s var(--turn);
 }
 /* While a slider of the Phone tab is dragged: the phone follows it closely */
-.sliding .phone, .sliding .phone-tilt { transition-duration: .2s; }
+.moving.sliding .phone, .sliding .phone-tilt { transition-duration: .2s; }
 .landscape .phone-tilt {
   transform: translateY(calc(289px * (1 - var(--size, 1)))) scale3d(var(--size, 1), var(--size, 1), var(--size, 1))
     translateX(var(--flat-x, 0px)) translateY(-140px) scale(1.1) rotateZ(0deg) rotateX(0deg) rotateY(0deg);
@@ -377,15 +379,13 @@ button, input { font-family: 'Nunito', sans-serif; }
 .tp-eq.on i { animation: tp-eq .8s ease-in-out infinite alternate; }
 .tp-eq i:nth-child(2) { animation-delay: -.27s; }
 .tp-eq i:nth-child(3) { animation-delay: -.54s; }
-.media-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+/* Title and artist at a line height of 1.1 (1.2 in the mockup): with Spotify's row under
+   them, the card keeps its height */
+.media-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.1; }
 .media-title { font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .media-artist { font-weight: 700; font-size: 12px; color: var(--soft); }
-/* Spotify volume (requested by Funsaiki, not in the mockup): small slider in the style of
-   the volume one, under the artist; the card keeps its height (the text fits in the cover's
-   46 px) */
-/* With the volume row, the title and artist tighten up (1.1 instead of 1.2): the
-   card keeps its height */
-.media:has(.media-controls) .media-text { line-height: 1.1; }
+/* Spotify's volume, shuffle and repeat (requested by Funsaiki, not in the mockup): a row
+   under the artist; the text fits in the cover's 46 px */
 .media-controls { display: flex; align-items: center; gap: 3px; margin-top: 2px; height: 15px; }
 /* Spotify volume as equalizer steps (Funsaiki found the small slider redundant with the
    volume): ten 4 px bars, taller and taller, in ink like the cover's equalizer, pale
@@ -482,10 +482,14 @@ button.notif:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px;
   border-radius: 11px; border: 2px solid var(--ink); background: var(--fill);
   transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
 }
-.notifs-tabs[data-pane="notifs"] .tabs-thumb, .notifs-tabs[data-pane="strap"] .tabs-thumb, .notifs-tabs[data-pane="en"] .tabs-thumb {
+.notifs-tabs[data-pane="notifs"] .tabs-thumb, .notifs-tabs[data-pane="en"] .tabs-thumb {
   left: 50%; right: 2px;
   transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s;
 }
+/* Pills of three tabs (Appearance section): the leading edge first, whichever way the thumb
+   goes (the middle tab is reached from both sides; customize.ts sets the direction) */
+.notifs-tabs[data-dir="left"] .tabs-thumb { transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
+.notifs-tabs[data-dir="right"] .tabs-thumb { transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
 .notifs-tab {
   position: relative; height: 21px; padding: 0 3px 0 7px; border-radius: 11px; border: none; background: transparent;
   color: rgb(from var(--ink) r g b / .55); display: flex; align-items: center; justify-content: center; gap: 4px;
@@ -651,10 +655,7 @@ button.prefs-row > svg:last-child { flex: none; }
   border-radius: 14px; border: 2.5px solid var(--ink); background: #ffffff; box-shadow: 0 2px 0 var(--ink);
 }
 .custom-tabs .notifs-tab { padding: 0 8px; }
-.custom-tabs .tabs-thumb, .custom-tabs[data-pane] .tabs-thumb { left: var(--thumb-l, 2px); right: var(--thumb-r, 66%); }
-/* The leading edge first, whichever way the thumb goes (the middle tab is reached from both sides) */
-.custom-tabs[data-dir="left"] .tabs-thumb { transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
-.custom-tabs[data-dir="right"] .tabs-thumb { transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
+.custom-tabs .tabs-thumb { left: var(--thumb-l, 2px); right: var(--thumb-r, 66%); }
 .custom-reset {
   height: 26px; padding: 0 4px; background: transparent; border: none; cursor: pointer;
   font-weight: 900; font-size: 12px; color: rgb(from var(--ink) r g b / .8);
@@ -674,8 +675,7 @@ button.prefs-row > svg:last-child { flex: none; }
 }
 .tilt-end:hover { color: var(--ink); }
 .tilt-end:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
-/* Position: the label then the tab pill on the same row, like the language; three equal parts,
-   the thumb's leading edge first (customize.ts sets the direction) */
+/* Position: the label then the tab pill on the same row, like the language; three equal parts */
 .custom-inline { flex-direction: row; align-items: center; justify-content: space-between; }
 .phone-place {
   position: relative; width: 192px; height: 28px; flex: none; box-sizing: border-box; align-items: center;
@@ -686,8 +686,6 @@ button.prefs-row > svg:last-child { flex: none; }
 .phone-place[data-pane="left"] .tabs-thumb { left: 2px; right: calc(2px + (100% - 4px) * 2 / 3); }
 .phone-place[data-pane="center"] .tabs-thumb { left: calc(2px + (100% - 4px) / 3); right: calc(2px + (100% - 4px) / 3); }
 .phone-place[data-pane="right"] .tabs-thumb { left: calc(2px + (100% - 4px) * 2 / 3); right: 2px; }
-.phone-place[data-dir="left"] .tabs-thumb { transition: left .28s cubic-bezier(.3, .7, .4, 1), right .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
-.phone-place[data-dir="right"] .tabs-thumb { transition: right .28s cubic-bezier(.3, .7, .4, 1), left .5s cubic-bezier(.34, 1.56, .64, 1) .05s; }
 
 /* Swatches: 32 px dots, the chosen one ringed in ink; the last one, "Other color",
    in pastel rainbow with a +, in its color once chosen */

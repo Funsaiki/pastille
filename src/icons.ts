@@ -42,7 +42,10 @@ export const ICONS: Record<string, string> = {
   endfield: 'M2.5 3.5h19L12 21.5zM12 3.5v11M9.8 7.4l4.4-1.6M9.8 11.4l4.4-1.6',
 };
 
-/* Right-click menus (phone and bar): pin to the pill, hide and show again */
+/* Right-click menus (phone and bar): open, close or force quit, pin to the pill, hide and
+   show again */
+export const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
+export const CLOSE = 'M6 6l12 12M18 6L6 18';
 export const PIN = 'M8 3h8M10 3v5.5L7 12.5h10L14 8.5V3M12 12.5V21';
 export const EYE = 'M2.5 12Q12 2 21.5 12Q12 22 2.5 12zM12 9a3 3 0 100 6 3 3 0 000-6z';
 

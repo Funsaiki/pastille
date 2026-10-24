@@ -8,7 +8,7 @@
    ══════════════════════════════════════════════════════════ */
 import { BEAD_SWATCHES, SWATCHES, appearance, applyColors, beadColors, colorOf, isHex, palette, setAppearance, toHex, toHsl, type Charm, type ColorKey, type Hsl, type Position, type Swatch } from './appearance';
 import { CONFIG } from './config';
-import { el } from './dom';
+import { el, playOnce } from './dom';
 import { icon } from './icons';
 import { host } from './host';
 import { percent, tr } from './i18n';
@@ -93,9 +93,14 @@ function charmNode(key: Charm): Element {
 
 const charmOf = (): Charm => appearance().charm ?? DEFAULT_CHARM;
 
-/* Phone strap: its charm, or nothing */
-export function applyStrap() {
+/* Phone strap: its charm, or nothing. Redrawn only if it changed: a slider of the section
+   calls this dozens of times per second. */
+let strapShown: { charm: Charm | null; image: string | null } = { charm: null, image: null };
+
+function applyStrap() {
   const charm = charmOf();
+  if (charm === strapShown.charm && image === strapShown.image) return;
+  strapShown = { charm, image };
   $('strap').hidden = charm === 'none';
   $('strap-charm').classList.toggle('own', charm === 'image' && !!image);
   $('strap-charm').replaceChildren(charmNode(charm));
@@ -117,12 +122,17 @@ function applyPhone() {
 
 /* ── Changes: applied, card updated, saved ── */
 let saveTimer = 0;
+let moveTimer = 0;
 let shownPalette = '';
 
 function changed() {
   applyColors();
   applyStrap();
   applyPhone();
+  // On the left or right, the tilt and the size move it too: it glides there
+  $('stage').classList.add('moving');
+  clearTimeout(moveTimer);
+  moveTimer = setTimeout(() => $('stage').classList.remove('moving'), 700);
   updateAll();
   const next = palette().join();
   if (next !== shownPalette) {
@@ -350,6 +360,7 @@ function charmRow(): Row {
   });
   group.append(...tiles);
   node.append(label, group);
+  const drawn: (string | null | undefined)[] = [];   // what each tile shows (the image: its data)
   return {
     node,
     update() {
@@ -359,11 +370,10 @@ function charmRow(): Row {
         const key = CHARMS[i].key;
         b.setAttribute('aria-checked', String(key === charm));
         if (key === 'image') b.title = image ? (charm === 'image' ? tr('Changer d’image', 'Change image') : tr('Ton image', 'Your image')) : tr('Choisir une image…', 'Choose an image…');
-        const drawn = key === 'none' ? icon(NONE, 18, 2.4) : key === 'image' && !image ? icon(PICTURE, 18, 2.2) : charmNode(key);
-        if (b.dataset.shown !== (key === 'image' ? image ?? '' : key)) {
-          b.dataset.shown = key === 'image' ? image ?? '' : key;
-          b.replaceChildren(drawn);
-        }
+        const shown = key === 'image' ? image : key;
+        if (drawn[i] === shown) return;
+        drawn[i] = shown;
+        b.replaceChildren(key === 'none' ? icon(NONE, 18, 2.4) : key === 'image' && !image ? icon(PICTURE, 18, 2.2) : charmNode(key));
       });
     },
   };
@@ -415,9 +425,13 @@ function percentRow(key: 'tilt' | 'size', name: string, label: string, min: numb
   range.addEventListener('input', () => setPercent(key, Number(range.value)));
   range.addEventListener('pointerdown', () => {
     $('stage').classList.add('sliding');
-    const done = () => $('stage').classList.remove('sliding');
-    addEventListener('pointerup', done, { once: true });
-    addEventListener('pointercancel', done, { once: true });
+    const drag = new AbortController();
+    const done = () => {
+      $('stage').classList.remove('sliding');
+      drag.abort();
+    };
+    addEventListener('pointerup', done, { signal: drag.signal });
+    addEventListener('pointercancel', done, { signal: drag.signal });
   });
   node.append(title, range);
   return {
@@ -503,17 +517,17 @@ function positionRow(): Row {
 /* ── Tabs: same pill and thumb as the notifications card ── */
 
 /* Thumb under the open tab (tabs as wide as their name). Not laid out yet (launcher
-   hidden): placed at the next opening. The first time, without sliding. */
-function placeThumb() {
+   hidden): placed at the next opening. The first time, or `instant`, without sliding. */
+function placeThumb(instant = false) {
   const tabs = $('custom-tabs');
   const open = $(`custom-tab-${tab}`);
   if (!open.offsetWidth) return;
-  const first = !tabs.style.getPropertyValue('--thumb-l');
+  const jump = instant || !tabs.style.getPropertyValue('--thumb-l');
   const thumb = tabs.querySelector<HTMLElement>('.tabs-thumb')!;
-  if (first) thumb.style.transition = 'none';
+  if (jump) thumb.style.transition = 'none';
   tabs.style.setProperty('--thumb-l', open.offsetLeft + 'px');
   tabs.style.setProperty('--thumb-r', tabs.clientWidth - open.offsetLeft - open.offsetWidth + 'px');
-  if (first) {
+  if (jump) {
     void thumb.offsetWidth;
     thumb.style.transition = '';
   }
@@ -526,20 +540,15 @@ function showTab(next: Tab, animate: boolean) {
   tab = next;
   $('custom-tabs').dataset.pane = tab;
   if (changedTab) $('custom-tabs').dataset.dir = dir;
-  placeThumb();
+  placeThumb(!animate);
   for (const t of TABS) {
     $(`custom-tab-${t}`).setAttribute('aria-selected', String(t === tab));
     $(`custom-tab-${t}`).tabIndex = t === tab ? 0 : -1;
     $(`custom-${t}`).hidden = t !== tab;
+    // Hidden before the end of its arrival: not replayed when it is shown again
+    if (t !== tab) $(`custom-${t}`).classList.remove('tp-in-l', 'tp-in-r');
   }
-  const shown = $(`custom-${tab}`);
-  if (animate && changedTab) {
-    const name = dir === 'left' ? 'tp-in-l' : 'tp-in-r';
-    shown.classList.remove('tp-in-l', 'tp-in-r');
-    void shown.offsetWidth;
-    shown.classList.add(name);
-    shown.addEventListener('animationend', () => shown.classList.remove(name), { once: true });
-  }
+  if (animate && changedTab) playOnce($(`custom-${tab}`), dir === 'left' ? 'tp-in-l' : 'tp-in-r');
 }
 
 /* Reset: the open tab goes back to the mockup (the chosen image stays offered) */
@@ -563,6 +572,7 @@ function reset() {
    (click on the strap), sliding if the page is already there */
 export function refreshCustom(next?: Tab, animate = false) {
   editing = null;
+  $('stage').classList.remove('sliding');   // a drag cut short (launcher hidden before the release)
   if (next) showTab(next, animate);
   else placeThumb();
   updateAll();

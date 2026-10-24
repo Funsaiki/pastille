@@ -296,6 +296,10 @@ const previewPrefs: Prefs = {
 const previewLanguageListeners: ((language: Language) => void)[] = [];
 
 export const host = {
+  /* The apps.json accent alone (pastel bar) */
+  async configAccent(): Promise<string> {
+    return PREVIEW ? previewConfig().accent : invoke<string>('config_accent');
+  },
   async getConfig(): Promise<ConfigPayload> {
     // ?welcome: first run
     const welcome = new URLSearchParams(location.search).has('welcome') ? { shortcut: 'Alt+Space', autostart: false } : null;
@@ -767,9 +771,10 @@ export const host = {
   onHideRequest(fn: () => void) {
     if (!PREVIEW) listen('launcher:hide', fn);
   },
-  onConfigChanged(fn: () => void) {
+  /* Resolves once listening */
+  async onConfigChanged(fn: () => void) {
     if (PREVIEW) previewConfigListeners.push(fn);
-    else listen('config:changed', fn);
+    else await listen('config:changed', fn);
   },
   /* Appearance changed in the phone (pastel bar) */
   onAppearanceChanged(fn: (appearance: Appearance) => void) {

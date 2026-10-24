@@ -2,6 +2,32 @@
 import type { AppIcon } from './host';
 import { icon } from './icons';
 
+function restartAnimation(node: HTMLElement, className: string) {
+  node.classList.remove(className);
+  void node.offsetWidth;
+  node.classList.add(className);
+}
+
+/* Animation played once: its class is removed at the end, so it does not restart the next
+   time the element is shown. One listener per element: replayed before the end, the old one is
+   removed (otherwise it would cut the new one). If it is interrupted (element hidden), it is
+   up to the caller to remove the class (stopPaneAnimations in ui.ts). */
+const playing = new WeakMap<HTMLElement, (e: AnimationEvent) => void>();
+
+export function playOnce(node: HTMLElement, className: string) {
+  const previous = playing.get(node);
+  if (previous) node.removeEventListener('animationend', previous);
+  const done = (e: AnimationEvent) => {
+    if (e.target !== node) return;   // a child's animation
+    node.classList.remove(className);
+    node.removeEventListener('animationend', done);
+    playing.delete(node);
+  };
+  playing.set(node, done);
+  node.addEventListener('animationend', done);
+  restartAnimation(node, className);
+}
+
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
   if (className) n.className = className;

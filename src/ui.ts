@@ -7,9 +7,9 @@
    and notifications (PC alerts, Steam, downloads) are real.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
-import { ALERT, EYE, ICONS, MIC, MIC_OFF, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, WRENCH, icon } from './icons';
+import { ALERT, CLOSE, EYE, ICONS, MIC, MIC_OFF, OPEN, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, WRENCH, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
-import { el, iconCanvas, latestOnly, notifParts } from './dom';
+import { el, iconCanvas, latestOnly, notifParts, playOnce } from './dom';
 import { applyColors, palette } from './appearance';
 import { initCustom, loadAppearance } from './customize';
 import { initNews, unseenNews } from './news';
@@ -19,32 +19,6 @@ import { PREVIEW, host, type AppAction, type AppIcon, type AppMenuOptions, type 
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const $q = () => $('q') as HTMLInputElement;
-
-function restartAnimation(node: HTMLElement, className: string) {
-  node.classList.remove(className);
-  void node.offsetWidth;
-  node.classList.add(className);
-}
-
-/* Animation played once: its class is removed at the end, so it does not restart the next
-   time the stage is shown. One listener per element: replayed before the end, the old one is
-   removed (otherwise it would cut the new one). If it is interrupted (element hidden), it is
-   up to the caller to remove the class (stopPaneAnimations). */
-const playing = new WeakMap<HTMLElement, (e: AnimationEvent) => void>();
-
-function playOnce(node: HTMLElement, className: string) {
-  const previous = playing.get(node);
-  if (previous) node.removeEventListener('animationend', previous);
-  const done = (e: AnimationEvent) => {
-    if (e.target !== node) return;   // a child's animation
-    node.classList.remove(className);
-    node.removeEventListener('animationend', done);
-    playing.delete(node);
-  };
-  playing.set(node, done);
-  node.addEventListener('animationend', done);
-  restartAnimation(node, className);
-}
 
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
@@ -474,12 +448,14 @@ function renderMedia() {
 
 let mediaRun = 0;    // an answer older than the last request is ignored
 let mediaHold = 0;   // right after a click, Spotify still reports the old state
+let mediaRead = false;   // read once ("Connect" needs Spotify open)
 
 async function refreshMedia() {
   if (performance.now() < mediaHold) return;
   const run = ++mediaRun;
   const now = await host.media().catch(() => media);
   if (run !== mediaRun) return;
+  mediaRead = true;
   const opened = !!now !== !!media;   // Spotify opened or closed: its volume slider follows
   media = now;
   renderMedia();
@@ -542,6 +518,7 @@ let spotifyModes: { shuffle: ShuffleMode; repeat: RepeatMode } | null = null;
 let spotifyProblem: string | null = null;   // connection failure, shown in Notifs
 let spotifyReconnect = false;               // connection from before playlists, shown in Notifs
 let spotifyConnect = false;                 // not connected: "Connect" in Notifs, Spotify open
+let spotifyRead = false;                    // state read once
 let spotifyRun = 0;           // changes at each adjustment: a read started before is ignored
 let spotifyHold = 0;          // right after an adjustment, the Spotify API still reports the old volume
 let spotifyReading = false;   // one read at a time (a slow request does not pile up)
@@ -557,6 +534,7 @@ async function refreshSpotifyVolume() {
   const now = await host.spotifyState().catch(() => null);
   spotifyReading = false;
   if (run !== spotifyRun || !now) return;
+  spotifyRead = true;
   spotifyVolume = now.volume;
   spotifyModes = now.shuffle != null && now.repeat ? { shuffle: now.shuffle, repeat: now.repeat } : null;
   renderSpotifyVolume();
@@ -776,7 +754,13 @@ function allNotifs(): Notif[] {
 
 async function enableAutostart() {
   await host.enableAutostart();
-  welcome!.autostart = true;
+  autostartChanged(true);
+}
+
+/* Turned on from its notification or the Settings page: the notification goes away */
+function autostartChanged(on: boolean) {
+  if (!welcome || welcome.autostart === on) return;
+  welcome.autostart = on;
   renderNotifs();
 }
 
@@ -852,9 +836,11 @@ async function refreshFeed() {
   const events = await host.feed().catch(() => null);
   if (run !== feedRun || !events) return;
   feed = events;
-  // Forget cleared notifications that went away: if they come back, they show again
+  // Forget cleared notifications that went away: if they come back, they show again. Not
+  // Spotify's before its state and now playing are read (after a start, the feed can answer first).
   const ids = new Set(allNotifs().map((n) => n.id));
-  const kept = [...dismissed].filter((id) => ids.has(id));
+  const unknown = (id: string) => id.startsWith('spotify:') && !(spotifyRead && mediaRead);
+  const kept = [...dismissed].filter((id) => ids.has(id) || unknown(id));
   if (kept.length !== dismissed.size) {
     dismissed = new Set(kept);
     saveDismissed();
@@ -923,8 +909,6 @@ function stopPaneAnimations() {
    menus are not reachable, see tray_apps.rs). With the pastel bar on, Pastille holds the
    notification area (tray_host.rs): clicks and right-click go to the app, as on its
    icon; Shift+right-click or the Menu key: the launcher's menu. ── */
-const OPEN = 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5';
-const CLOSE = 'M6 6l12 12M18 6L6 18';
 
 const OPEN_LABEL = tr('Ouvrir', 'Open');
 const LOCATION_LABEL = tr('Emplacement du fichier', 'Open file location');
@@ -962,7 +946,10 @@ function renderTrayApps() {
   $('tray-empty').hidden = !trayApps || trayApps.length > 0;
   const shown = (trayApps ?? []).map((app) => `${app.key}\n${app.name}`).join('\n');
   // Not while the menu is open: it is attached to its icon (rebuilt when it closes)
-  if (trayMenu || shown === trayShown) return;
+  if (trayMenu || shown === trayShown) {
+    updateTrayTips();
+    return;
+  }
   trayShown = shown;
   // Focus stays on the same app, or at the same place if it went away (otherwise it would fall
   // on the page, where Enter opens the apps view)
@@ -974,6 +961,16 @@ function renderTrayApps() {
   const tiles = Array.from(grid.children) as HTMLElement[];
   const next = tiles.find((t) => t.dataset.key === key) ?? tiles[Math.min(focused, tiles.length - 1)] ?? $('tab-apps');
   next.focus({ preventScroll: true });
+}
+
+/* Tooltips change without the list changing (EarTrumpet puts the volume in it): updated in
+   place, a rebuild would draw every icon again */
+function updateTrayTips() {
+  const tips = new Map((trayApps ?? []).map((app) => [app.key, app.tip ?? app.name]));
+  for (const tile of $('tray-grid').children as HTMLCollectionOf<HTMLElement>) {
+    const tip = tips.get(tile.dataset.key!);
+    if (tip !== undefined && tile.title !== tip) tile.title = tip;
+  }
 }
 
 function trayTile(app: TrayApp, i: number) {
@@ -1169,10 +1166,11 @@ async function refreshWindows() {
   if (state.view === 'apps' && state.query) renderApps();
 }
 
-/* Pages: one row of 8 above the folders, two rows in a group */
+/* Pages: one row of 8 above the folders or Recent, two rows in a group. `listed`: what the
+   last render showed (the search and Recent are computed once per render). */
 const COLUMNS = 8;
-const pageSize = () => (showFolders() || showRecents() ? COLUMNS : 2 * COLUMNS);
-const pageCount = () => Math.max(1, Math.ceil(currentList().length / pageSize()));
+let listed = { list: [] as AppItem[], size: 2 * COLUMNS };
+const pageCount = () => Math.max(1, Math.ceil(listed.list.length / listed.size));
 
 const APPS = tr('Applications', 'Apps');
 
@@ -1224,7 +1222,9 @@ function appButton(item: AppItem, index: number) {
 function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
   closeAppMenu(false);   // attached to a tile about to be rebuilt
   const list = currentList();
-  const size = pageSize();
+  const recents = !state.stack.length && !state.query ? recentItems() : [];
+  const size = showFolders() || recents.length ? COLUMNS : 2 * COLUMNS;
+  listed = { list, size };
   state.page = Math.min(state.page, pageCount() - 1);
   const grid = $('grid');
   grid.replaceChildren(...list.slice(state.page * size, (state.page + 1) * size).map((it, i) => appButton(it, state.page * size + i)));
@@ -1242,7 +1242,7 @@ function renderApps(transition: '' | 'tp-in-r' | 'tp-in-l' = '') {
   grid.classList.remove('tp-in-r', 'tp-in-l');
   if (transition) playOnce(grid, transition);   // removed once played (see showApps)
   $('folders').hidden = !showFolders();
-  renderRecents();
+  renderRecents(recents);
   renderHead(list.length);
   loadStartIcons(list.slice((state.page + 1) * size, (state.page + 2) * size));
 }
@@ -1301,15 +1301,11 @@ function recentItems(): AppItem[] {
     .slice(0, MAX_RECENTS);
 }
 
-function showRecents() {
-  return !state.stack.length && !state.query && recentItems().length > 0;
-}
-
-function renderRecents() {
-  const show = showRecents();
-  $('recents').hidden = !show;
-  if (!show) return;
-  $('recent-row').replaceChildren(...recentItems().map((it, i) => {
+/* `recents`: none outside the root or during a search */
+function renderRecents(recents: AppItem[]) {
+  $('recents').hidden = !recents.length;
+  if (!recents.length) return;
+  $('recent-row').replaceChildren(...recents.map((it, i) => {
     const b = el('button', 'tp-press folder');
     b.title = it.label;
     const dot = el('span', 'recent-dot');
@@ -1591,7 +1587,7 @@ function report(title: string, e: unknown) {
   actionError = { title, text: String(e) };
   renderNotifs();
   showPane('notifs');
-  if (state.view === 'apps') renderHead(currentList().length);
+  if (state.view === 'apps') renderHead(listed.list.length);
 }
 
 /* ── Time and date ── */
@@ -2008,18 +2004,25 @@ export async function init() {
   renderActions();
   renderPowerChoices();
   renderTiles();
-  initCustom(refreshPalette, (e) => showPrefsProblem(tr('Personnaliser', 'Customize'), e));
-  initPrefs(hideLauncher);
+  // Appearance not saved: at the top of the Settings page, or in Notifs if it has closed since
+  initCustom(refreshPalette, (e) => {
+    const title = tr('Personnaliser', 'Customize');
+    if (prefsOpen()) showPrefsProblem(title, e);
+    else report(title, e);
+  });
+  initPrefs(hideLauncher, autostartChanged);
   bindEvents();
   await loadAppearance();
   host.profile().then(renderProfile).catch(console.error);
   addEventListener('resize', fitStage);   // Rust sizes the window to the screen at each opening
-  await loadConfig();
+  // Listened to before the first read: a config sent meanwhile (games found at startup) is
+  // not lost; one load at a time
+  await host.onConfigChanged(() => {
+    configLoading = configLoading.then(loadConfig).catch(console.error);
+  });
+  await (configLoading = loadConfig());
   initNews(welcome !== null, renderNotifs);
   renderNotifs();
-  host.onConfigChanged(() => {
-    configLoading = loadConfig().catch(console.error);
-  });
 
   host.onShown(async (page) => {
     shownCount++;
