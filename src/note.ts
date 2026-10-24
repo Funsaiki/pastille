@@ -2,12 +2,14 @@
    Post-it (requested by Funsaiki on 2026-10-25): a small drawing card above the pill's
    pencil. Five pens, three sizes, an eraser, undo and redo; several notes to flip through,
    each with its paper; copy the image, save it as PNG.
-   Strokes are kept as vectors (sharp at any scaling, the PNG is drawn again at 2×), in
-   localStorage, shared by the screens' pages (storage event). The bar's window never takes
-   the keyboard: Ctrl+Z and Ctrl+Y only work in the browser preview, the buttons everywhere.
+   Strokes are kept as vectors (sharp at any scaling, the image is drawn again at 2×), in
+   localStorage, shared by the screens' pages (storage event). Copy and save go through Rust
+   (note.rs). The bar's window never takes the keyboard: Ctrl+Z and Ctrl+Y only work in the
+   browser preview, the buttons everywhere.
    ══════════════════════════════════════════════════════════ */
 import { playOnce } from './dom';
 import { isHex } from './appearance';
+import { host } from './host';
 import { LEFT, PLUS, RIGHT, icon } from './icons';
 import { tr } from './i18n';
 
@@ -375,7 +377,7 @@ function render(arrive?: string) {
 }
 
 /* ── Image: the paper, then the strokes drawn again at 2× ── */
-function png(): Promise<Blob> {
+function image(): HTMLCanvasElement {
   const px = SIZE * PNG_SCALE;
   const strokes = document.createElement('canvas');
   strokes.width = strokes.height = px;
@@ -388,25 +390,7 @@ function png(): Promise<Blob> {
   oc.fillStyle = sheet().paper;
   oc.fillRect(0, 0, px, px);
   oc.drawImage(strokes, 0, 0);
-  return new Promise((resolve, reject) => out.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG'))), 'image/png'));
-}
-
-/* Preview: the browser's clipboard and download; the bar's window will go through Rust
-   (it never has the focus the clipboard asks for) */
-async function copyImage() {
-  const blob = await png();
-  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-}
-
-async function saveImage() {
-  const blob = await png();
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${tr('Post-it', 'Sticky note')} ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}.${pad(now.getMinutes())}.png`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return out;
 }
 
 /* Check mark on the button for a moment once done; errors in the console, like the bar's */
@@ -458,8 +442,8 @@ export function initNote() {
   iconButton('note-redo', REDO, redo);
   iconButton('note-eraser', ERASE, toggleEraser);
   iconButton('note-clear', TRASH, clear);
-  iconButton('note-copy', COPY, () => withCheck($('note-copy'), COPY, copyImage));
-  iconButton('note-save', SAVE, () => withCheck($('note-save'), SAVE, saveImage));
+  iconButton('note-copy', COPY, () => withCheck($('note-copy'), COPY, () => host.noteCopy(image())));
+  iconButton('note-save', SAVE, () => withCheck($('note-save'), SAVE, () => host.noteSave(image())));
 
   $('note-pens').append(...PENS.map((p, i) => {
     const b = document.createElement('button');

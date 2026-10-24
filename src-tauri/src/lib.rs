@@ -13,6 +13,7 @@ mod icon;
 mod launcher;
 mod media;
 mod mixer;
+mod note;
 mod open_windows;
 mod power;
 mod prefs;
@@ -141,6 +142,8 @@ pub fn run() {
             bar::bar_menu,
             bar::bar_screens,
             bar::move_window,
+            note::note_copy,
+            note::note_save,
             bar_pins::bar_pins,
             bar_pins::bar_pin,
             bar_pins::bar_unpin,

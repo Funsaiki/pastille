@@ -192,6 +192,11 @@ function previewWrite(key: string, value: string) {
 }
 
 /* Browser preview: the example, with a few launches for the search and Recent */
+/* Canvas as PNG (post-it) */
+function pngOf(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG'))), 'image/png'));
+}
+
 function previewConfig(): Config {
   const config: Config = structuredClone(EXAMPLE);
   const now = Math.floor(Date.now() / 1000);
@@ -679,6 +684,31 @@ export const host = {
   async moveWindow(id: string) {
     if (PREVIEW) console.info('[preview] window to the other screen:', id);
     else await invoke('move_window', { id });
+  },
+  /* Post-it (note.ts): the drawing copied as a bitmap, from its pixels (the bar's window never
+     has the focus the browser's clipboard asks for); preview: the browser's clipboard */
+  async noteCopy(image: HTMLCanvasElement) {
+    if (PREVIEW) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': await pngOf(image) })]);
+      return;
+    }
+    const { data } = (image.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, image.width, image.height);
+    await invoke('note_copy', new Uint8Array(data.buffer, data.byteOffset, data.byteLength), { headers: { width: String(image.width) } });
+  },
+  /* Saved as PNG in Pictures\Pastille, named after the date and time; preview: a download */
+  async noteSave(image: HTMLCanvasElement) {
+    const png = await pngOf(image);
+    if (!PREVIEW) {
+      await invoke('note_save', new Uint8Array(await png.arrayBuffer()));
+      return;
+    }
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(png);
+    a.download = `${tr('Post-it', 'Sticky note')} ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
   /* Starts the program of the window `id` again; Rust finds its path */
   async newWindow(id: string) {
