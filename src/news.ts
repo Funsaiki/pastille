@@ -34,6 +34,7 @@ export const NEWS: { version: string; date: string; items: Item[] }[] = [
       { d: SIZE, bg: 'var(--fill)', title: tr('Taille du téléphone', 'Phone size'), body: tr('De 70 à 120 %, dans Apparence › Téléphone', 'From 70 to 120%, in Appearance › Phone') },
       { d: PLACE, bg: '#c9d8ff', title: tr('Position du téléphone', 'Phone position'), body: tr('À gauche, au centre ou à droite de l’écran', 'Left, middle or right of the screen') },
       { d: ICONS.star, bg: '#ffe08a', title: tr('Nouveautés', 'What’s new'), body: tr('Cette page, proposée dans Notifs après chaque mise à jour', 'This page, offered in Notifs after each update') },
+      { d: WRENCH, bg: '#f6c6da', title: tr('Plus léger, plus fiable', 'Lighter, more reliable'), body: tr('Moins de travail en arrière-plan et quelques bugs corrigés', 'Less work in the background and a few bugs fixed') },
     ],
   },
   {
