@@ -1,6 +1,6 @@
 //! Post-it of the pastel bar: the drawing copied to the clipboard, or saved as PNG in
 //! Pictures\Pastille. The bar's window never has the focus the browser's clipboard asks for:
-//! the page sends the image here, as raw bytes (no JSON).
+//! the page sends the image here, as raw bytes (no JSON, unless Tauri falls back to postMessage).
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -26,9 +26,19 @@ const OPEN_TRIES: usize = 10;  // another program may hold the clipboard for a m
 const OPEN_WAIT: Duration = Duration::from_millis(20);
 
 fn raw(request: &Request<'_>) -> Result<Vec<u8>, String> {
-    match request.body() {
+    bytes(request.body())
+}
+
+fn bytes(body: &InvokeBody) -> Result<Vec<u8>, String> {
+    match body {
         InvokeBody::Raw(bytes) => Ok(bytes.clone()),
-        _ => Err("image expected as raw bytes".into()),
+        // postMessage, Tauri's fallback when its IPC protocol fails: the bytes as a JSON array
+        InvokeBody::Json(serde_json::Value::Array(items)) => items
+            .iter()
+            .map(|v| v.as_u64().and_then(|n| u8::try_from(n).ok()))
+            .collect::<Option<Vec<u8>>>()
+            .ok_or_else(|| "image expected as bytes".into()),
+        _ => Err("image expected as bytes".into()),
     }
 }
 
@@ -152,6 +162,14 @@ mod tests {
         assert_eq!(&d[20..24], &16u32.to_le_bytes());
         // Bottom row first: blue, white; then red, green
         assert_eq!(&d[40..56], &[255, 0, 0, 255, 255, 255, 255, 255, 0, 0, 255, 255, 0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn bytes_raw_or_as_a_json_array() {
+        assert_eq!(bytes(&InvokeBody::Raw(vec![1, 2, 255])), Ok(vec![1, 2, 255]));
+        assert_eq!(bytes(&InvokeBody::Json(serde_json::json!([1, 2, 255]))), Ok(vec![1, 2, 255]));
+        assert!(bytes(&InvokeBody::Json(serde_json::json!([1, 256]))).is_err());
+        assert!(bytes(&InvokeBody::Json(serde_json::json!({ "image": [1] }))).is_err());
     }
 
     #[test]
