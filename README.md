@@ -12,7 +12,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
   <img src="docs/apps.webp" alt="The phone laid flat: apps, recents and folders" width="760">
 </p>
 <p align="center">
-  <img src="docs/bar.webp" alt="The pastel bar with the Spotify player open" width="740">
+  <img src="docs/bar.webp" alt="The pastel bar with the Spotify player open" width="788">
 </p>
 
 > The interface is in English and French: Pastille starts in the language of Windows, and the settings page switches between the two.
@@ -23,7 +23,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 - Volume, microphone, per-app volume mixer, CPU and memory usage, network speed.
 - Spotify now playing: title, cover art, controls and, once Spotify is connected, its own volume, shuffle and repeat.
 - Shortcuts to Wi-Fi, Bluetooth, Windows Settings and a power menu (with confirmation).
-- A **Settings** page, behind the wrench next to your name: language, start with Windows, the pastel bar, customization, Spotify connection, `apps.json`, updates.
+- A **Settings** page, behind the wrench next to your name: language, start with Windows, the pastel bar, customization, Spotify connection, `apps.json`, updates and what's new.
 - **Apps** tab: apps running in the background (notification area). **Notifs** tab: recent downloads, Steam updates, restart required by Windows Update, low disk space.
 
 **Apps**
@@ -37,6 +37,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 - Open windows with hover previews, pinned apps and alerts.
 - The notification area, whose icons respond just like in the Windows taskbar (right-click included).
 - Sound, a calendar and a Spotify player.
+- A sticky note to draw on, with several pages: copy the drawing or save it as PNG.
 
 **Customize** (in the settings page)
 - Accent, case, screen and ink colors, from a palette or any custom color.
@@ -49,7 +50,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 2. The installer is not signed, so Windows shows "Windows protected your PC". Click "More info", then "Run anyway".
 3. Pastille opens by itself the first time. After that, **Alt+Space** opens and closes it; Escape or a click outside the phone closes it too.
 
-Updates: from version 1.11.0, Pastille checks the releases by itself and shows new versions in its **Notifs** tab; one click downloads, verifies and installs the update, then Pastille restarts. Earlier versions are updated by running the new installer, after quitting Pastille. Your config, Spotify connection and customization are kept.
+Updates: from version 1.11.0, Pastille checks the releases by itself and shows new versions in its **Notifs** tab, and from 1.14.0 on its island and on the pill's Apps tile too; one click downloads, verifies and installs the update, then Pastille restarts. Earlier versions are updated by running the new installer, after quitting Pastille. Your config, Spotify connection and customization are kept.
 
 Settings are in the phone: click the wrench next to your name. The menu of Pastille's icon, next to the clock, has **Show**, **Settings** and **Quit**; when the pastel bar is on, open this menu by right-clicking the Apps tile of the pill.
 

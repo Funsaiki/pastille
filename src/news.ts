@@ -8,7 +8,7 @@ import { version } from '../package.json';
 import { el, notifParts } from './dom';
 import { PREVIEW } from './host';
 import { LOCALE, tr } from './i18n';
-import { ICONS, WRENCH } from './icons';
+import { DOWNLOAD, ICONS, NOTE, WRENCH } from './icons';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -29,8 +29,10 @@ const MENU = 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01';
 export const NEWS: { version: string; date: string; items: Item[] }[] = [
   {
     version: '1.14.0',
-    date: '2026-10-24',
+    date: '2026-10-25',
     items: [
+      { d: NOTE, bg: '#ffe08a', title: tr('Post-it', 'Sticky note'), body: tr('Le crayon de la barre pastel : dessiner, copier, enregistrer en PNG', 'The pastel bar’s pencil: draw, copy, save as PNG') },
+      { d: DOWNLOAD, bg: 'var(--fill)', title: tr('Mises à jour bien visibles', 'Updates you can’t miss'), body: tr('L’île du téléphone s’allonge, un point apparaît sur Apps', 'The phone’s island grows, a dot shows on Apps') },
       { d: SIZE, bg: 'var(--fill)', title: tr('Taille du téléphone', 'Phone size'), body: tr('De 70 à 120 %, dans Apparence › Téléphone', 'From 70 to 120%, in Appearance › Phone') },
       { d: PLACE, bg: '#c9d8ff', title: tr('Position du téléphone', 'Phone position'), body: tr('À gauche, au centre ou à droite de l’écran', 'Left, middle or right of the screen') },
       { d: ICONS.star, bg: '#ffe08a', title: tr('Nouveautés', 'What’s new'), body: tr('Cette page, proposée dans Notifs après chaque mise à jour', 'This page, offered in Notifs after each update') },

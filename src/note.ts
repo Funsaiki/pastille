@@ -49,8 +49,6 @@ const PAPERS = [
   { c: '#ffffff', name: tr('Blanc', 'White') },
 ];
 
-/* The pill's button: a note with its corner folded and a scribble */
-export const NOTE = 'M5 4h14a1 1 0 011 1v9l-6 6H5a1 1 0 01-1-1V5a1 1 0 011-1zM14 20v-5a1 1 0 011-1h5M8 10.5c1.2-1.6 2.4-1.6 3 0s1.8 1.6 3 0';
 const UNDO = 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11';
 const REDO = 'M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 000 11H13';
 const ERASE = 'M8.5 20l-4-4a2 2 0 010-2.8l9.2-9.2a2 2 0 012.8 0l4 4a2 2 0 010 2.8L13 20zM20 20h-7M9 9.5l6.5 6.5';

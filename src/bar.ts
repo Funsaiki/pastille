@@ -8,12 +8,12 @@
    edge, says when the mouse is on the pill or clicks elsewhere, and only takes the mouse on
    the rectangles sent by `reportRects`. Browser preview: bar.html (?screen=2).
    ══════════════════════════════════════════════════════════ */
-import { CLOSE, ICONS, LEFT, MIC, MIC_OFF, OPEN, PIN, PLUS, RIGHT, SPEAKER, SPEAKER_OFF, icon } from './icons';
+import { CLOSE, ICONS, LEFT, MIC, MIC_OFF, NOTE, OPEN, PIN, PLUS, RIGHT, SPEAKER, SPEAKER_OFF, icon } from './icons';
 import { el, iconCanvas, latestOnly } from './dom';
 import { applyColors, palette, setAppearance } from './appearance';
 import { CONFIG, setConfig } from './config';
 import { LANGUAGE, LOCALE, percent, rememberLanguage, tr, translatePage } from './i18n';
-import { NOTE, initNote, noteHidden, noteShown } from './note';
+import { initNote, noteHidden, noteShown } from './note';
 import {
   PREVIEW, host, type AppIcon, type AudioState, type BarWindow, type NowPlaying, type PinnedApp, type RepeatMode,
   type ShuffleMode, type SpotifyVolume, type TrayAction, type TrayApp,

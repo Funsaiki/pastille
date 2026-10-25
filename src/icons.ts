@@ -58,6 +58,8 @@ export const PLUS = 'M12 5v14M5 12h14';
 export const DOWN_ARROW = 'M12 4v11M7 10l5 5 5-5';
 export const TRAY = 'M5 20h14';
 export const DOWNLOAD = DOWN_ARROW + TRAY;
+/* Post-it: the pill's button (and What's new): a note with its corner folded and a scribble */
+export const NOTE = 'M5 4h14a1 1 0 011 1v9l-6 6H5a1 1 0 01-1-1V5a1 1 0 011-1zM14 20v-5a1 1 0 011-1h5M8 10.5c1.2-1.6 2.4-1.6 3 0s1.8 1.6 3 0';
 
 /* Sound, for the phone and the bar */
 export const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
