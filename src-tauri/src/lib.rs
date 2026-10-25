@@ -129,6 +129,7 @@ pub fn run() {
             feed::feed,
             feed::open_download,
             update::install_update,
+            update::update_available,
             tray_apps::tray_apps,
             tray_apps::tray_app_action,
             tray_apps::tray_click,

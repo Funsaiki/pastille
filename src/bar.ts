@@ -694,6 +694,7 @@ function show(peek = false) {
     refreshTimer = window.setInterval(refreshWindows, REFRESH_MS);
     refreshMedia();
     mediaTimer = window.setInterval(refreshMedia, MEDIA_MS);
+    refreshUpdate();
     reportRects();
   }
   // Only for a moment, unless the mouse comes onto it
@@ -701,6 +702,23 @@ function show(peek = false) {
     clearTimeout(hideTimer);
     hideTimer = window.setTimeout(hide, PEEK_MS);
   }
+}
+
+/* ── Pastille update (asked for by Funsaiki: more visible than in the phone's Notifs): a dot
+   on Apps, whose click brings up the phone and its island. Read each time the pill comes out;
+   the dot pops in again each time. ── */
+let appsTitle = '';
+let updateRun = 0;
+
+async function refreshUpdate() {
+  const run = ++updateRun;
+  const version = await host.updateAvailable().catch(() => null);
+  if (run !== updateRun) return;
+  const apps = $('bar-apps');
+  appsTitle ||= apps.title;
+  apps.querySelector('.bar-update')?.remove();
+  apps.title = version ? tr(`Mise à jour ${version} disponible`, `Update ${version} available`) + '\n' + appsTitle : appsTitle;
+  if (version) apps.append(el('span', 'bar-update'));
 }
 
 /* Several signals often arrive together: a single read */

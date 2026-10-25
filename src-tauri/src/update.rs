@@ -93,6 +93,12 @@ pub fn available(app: &AppHandle) -> Option<String> {
     app.state::<Pending>().0.lock().unwrap().as_ref().map(|u| u.version.clone())
 }
 
+/// The same for the pastel bar's dot on Apps, read each time the pill comes out
+#[tauri::command]
+pub fn update_available(app: AppHandle) -> Option<String> {
+    available(&app)
+}
+
 /// Click on the notification: download, signature checked, installer run, then
 /// Pastille quits (doesn't return). In development, stops after the check.
 #[tauri::command]

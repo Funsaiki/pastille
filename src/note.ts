@@ -10,7 +10,7 @@
 import { el, playOnce } from './dom';
 import { isHex } from './appearance';
 import { host } from './host';
-import { CLOSE, LEFT, PLUS, RIGHT, icon } from './icons';
+import { CLOSE, DOWNLOAD, LEFT, PLUS, RIGHT, icon } from './icons';
 import { tr } from './i18n';
 
 /* c: the pen's color, null for the eraser; w: width; p: points x, y in CSS pixels of the sheet */
@@ -55,7 +55,6 @@ const UNDO = 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11';
 const REDO = 'M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 000 11H13';
 const ERASE = 'M8.5 20l-4-4a2 2 0 010-2.8l9.2-9.2a2 2 0 012.8 0l4 4a2 2 0 010 2.8L13 20zM20 20h-7M9 9.5l6.5 6.5';
 const COPY = 'M9 8h10a1 1 0 011 1v11a1 1 0 01-1 1H9a1 1 0 01-1-1V9a1 1 0 011-1zM4 16V5a1 1 0 011-1h10';
-const SAVE = 'M12 4v11M7 10l5 5 5-5M5 20h14';
 const TRASH = 'M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3';
 const CHECK = 'M5 12.5l4.5 4.5L19 7';
 
@@ -490,7 +489,7 @@ export function initNote() {
   iconButton('note-eraser', ERASE, toggleEraser);
   iconButton('note-clear', TRASH, clear);
   iconButton('note-copy', COPY, () => withCheck($('note-copy'), COPY, tr('Copie impossible', "Couldn't copy"), () => host.noteCopy(image())));
-  iconButton('note-save', SAVE, () => withCheck($('note-save'), SAVE, tr('Enregistrement impossible', "Couldn't save"), async () => {
+  iconButton('note-save', DOWNLOAD, () => withCheck($('note-save'), DOWNLOAD, tr('Enregistrement impossible', "Couldn't save"), async () => {
     toast(tr('Enregistré', 'Saved'), await host.noteSave(image()));
     tearOff();
   }));

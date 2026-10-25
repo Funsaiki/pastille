@@ -675,6 +675,11 @@ export const host = {
       await invoke('close_window', { id });
     }
   },
+  /* Version of the update found by the last check, if any (preview: ?update) */
+  async updateAvailable(): Promise<string | null> {
+    if (PREVIEW) return new URLSearchParams(location.search).has('update') ? '1.12.0' : null;
+    return invoke<string | null>('update_available');
+  },
   /* Number of screens */
   async barScreens(): Promise<number> {
     if (PREVIEW) return 2;

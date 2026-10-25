@@ -232,11 +232,36 @@ button, input { font-family: 'Nunito', sans-serif; }
   background: linear-gradient(180deg, var(--screen-top) 0%, var(--screen-mid) 34%, #ffffff 100%);
 }
 .island {
-  position: absolute; left: 50%; top: 14px; transform: translateX(-50%); width: 104px; height: 30px;
+  position: absolute; right: calc(50% - 52px); top: 14px; width: 104px; height: 30px;
   border-radius: 15px; background: var(--ink); display: flex; align-items: center; justify-content: flex-end;
   padding-right: 12px; box-sizing: border-box; z-index: 2;
 }
-.island span { width: 10px; height: 10px; border-radius: 50%; background: var(--case-top); border: 2px solid var(--lens-ring); }
+.island-lens { position: relative; width: 10px; height: 10px; border-radius: 50%; background: var(--case-top); border: 2px solid var(--lens-ring); }
+/* Update available (asked for by Funsaiki, not in the mockup): the island grows to the left,
+   the lens stays in place (the status bar leaves ~30 px there, none on the right), a download
+   arrow and "Update" appear once it has grown; a click installs. Quick settings view only. */
+.island { transition: width .55s cubic-bezier(.34, 1.4, .64, 1); }
+.island.grown { width: var(--grown, 104px); }
+.island-update {
+  position: absolute; inset: 0; display: flex; align-items: center; gap: 6px; padding: 0 0 0 12px;
+  border: 0; border-radius: inherit; background: none; color: #ffffff; font: inherit; font-weight: 900; font-size: 12px;
+  cursor: pointer; opacity: 0; visibility: hidden; transition: opacity .1s, visibility 0s .1s;
+}
+.island.grown .island-update { opacity: 1; visibility: visible; transition: opacity .2s .25s; }
+.island-update svg { flex: none; color: var(--fill); }
+.island-label { white-space: nowrap; transition: color .15s; }
+.island-update:hover .island-label { color: var(--fill); }
+.island-update:active { scale: .96; }
+.island-update:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+/* Downloading: the arrow drops into the tray again and again */
+.island-update:disabled { cursor: progress; }
+/* first path: the arrow, without its tray */
+.island-update:disabled svg path:first-child { animation: tp-drop .9s cubic-bezier(.45, .05, .55, .95) infinite; }
+@keyframes tp-drop {
+  0% { translate: 0 -5px; opacity: 0; }
+  35%, 70% { translate: 0 0; opacity: 1; }
+  100% { translate: 0 3px; opacity: 0; }
+}
 
 /* ══ Quick settings view ══ */
 .view-settings { position: absolute; inset: 0; box-sizing: border-box; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px; }

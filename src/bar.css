@@ -61,6 +61,14 @@ button { font-family: inherit; }
 .bar-tile.closed { box-shadow: none; }
 /* Apps: ink background like the phone's Apps button, four accent squares */
 .bar-tile.bar-apps { background: var(--ink); color: var(--fill); box-shadow: 0 3px 0 var(--ink-deep); }
+/* Pastille update available (asked for by Funsaiki): an accent dot on Apps, which pops in
+   each time the pill comes out, once it is up */
+.bar-update {
+  position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; box-sizing: border-box;
+  border-radius: 50%; border: 2.5px solid var(--ink); background: var(--fill);
+  animation: tp-dot .45s .3s cubic-bezier(.34, 1.56, .64, 1) backwards;
+}
+@keyframes tp-dot { from { scale: 0; } }
 /* Several windows of the same program: their count, like the groups of the apps view */
 .bar-count {
   position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;

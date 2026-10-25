@@ -7,7 +7,7 @@
    and notifications (PC alerts, Steam, downloads) are real.
    ══════════════════════════════════════════════════════════ */
 import { CONFIG, setConfig, type AppItem, type Favorite } from './config';
-import { ALERT, CLOSE, EYE, ICONS, MIC, MIC_OFF, OPEN, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, WRENCH, icon } from './icons';
+import { ALERT, CLOSE, DOWN_ARROW, EYE, ICONS, MIC, MIC_OFF, OPEN, PIN, POWER, RESTART, SPEAKER, SPEAKER_OFF, TRAY, WRENCH, icon } from './icons';
 import { SETTINGS, calcResult } from './search';
 import { el, iconCanvas, latestOnly, notifParts, playOnce } from './dom';
 import { applyColors, palette } from './appearance';
@@ -207,6 +207,7 @@ function openPowerMenu() {
   closeTrayMenu(false);
   $('power-error').hidden = true;
   $('settings').inert = true;   // no click or Tab behind the menu
+  $('island').inert = true;
   $('power').classList.add('open');
   $('power-cancel').focus({ preventScroll: true });   // Enter cancels, as in Windows dialogs
 }
@@ -214,6 +215,7 @@ function openPowerMenu() {
 function closePowerMenu(refocus = true) {
   $('power').classList.remove('open');
   $('settings').inert = false;
+  $('island').inert = false;
   if (refocus) powerButton()?.focus({ preventScroll: true });
 }
 
@@ -772,12 +774,61 @@ async function installUpdate() {
   if (updating) return;
   updating = true;
   renderNotifs();
+  renderIsland();
   try {
     await host.installUpdate();
   } finally {
     updating = false;
     renderNotifs();
+    renderIsland();
   }
+}
+
+/* ── Update in the island (asked for by Funsaiki: more visible than in Notifs alone). Once
+   the phone is up, the island grows to the left and offers it; a click installs. Quick
+   settings view only: laid flat, the island is on the side of the apps view. ── */
+const GROW_MS = 650;   // the rise (0.5 s), then a moment: it grows in front of the user
+let islandTimer = 0;
+let islandReady = false;
+
+function initIsland() {
+  // The arrow apart from its tray: it drops on its own while downloading (styles.css)
+  const ic = icon(TRAY, 14, 2.6);
+  ic.prepend(icon(DOWN_ARROW, 14, 2.6).firstChild!);
+  $('island-update').prepend(ic);
+  $('island-update').addEventListener('click', () => installUpdate().catch((e) => report('Pastille', e)));
+}
+
+/* The island grows after `ms`, if an update is offered by then */
+function growIsland(ms: number) {
+  shrinkIsland();
+  islandTimer = window.setTimeout(() => {
+    islandReady = true;
+    renderIsland();
+  }, ms);
+}
+
+function shrinkIsland() {
+  clearTimeout(islandTimer);
+  islandReady = false;
+  renderIsland();
+}
+
+function renderIsland() {
+  const update = feed.find((e) => e.kind === 'update');
+  const grown = islandReady && update !== undefined;
+  const button = $('island-update') as HTMLButtonElement;
+  if (grown) {
+    // Icon, label and lens: 67 px around the label ("Mise à jour": 130 px, the status bar leaves 132)
+    const label = button.querySelector<HTMLElement>('.island-label')!;
+    $('island').style.setProperty('--grown', label.offsetWidth + 67 + 'px');
+    button.title = updating
+      ? tr(`Téléchargement de la ${update.version}…`, `Downloading ${update.version}…`)
+      : tr(`Pastille ${update.version} est disponible · Clic : installer (Pastille redémarre)`, `Pastille ${update.version} is available · Click: install (Pastille restarts)`);
+  }
+  $('island').classList.toggle('grown', grown);
+  button.disabled = updating;
+  button.tabIndex = grown ? 0 : -1;
 }
 
 /* Cleared notifications: kept from one opening to the next (the window's storage) */
@@ -846,6 +897,7 @@ async function refreshFeed() {
     saveDismissed();
   }
   renderNotifs();
+  renderIsland();
 }
 
 /* ── Tabs of the bottom card (asked for by Funsaiki): Apps (notification area) or
@@ -1498,6 +1550,7 @@ function showApps(query = '') {
   clearTimeout(settleTimer);
   settleTimer = setTimeout(() => setSettled(true), TURN_MS + 50);
   $('settings').hidden = true;
+  shrinkIsland();
   closeMixer();
   closePrefs();
   closeTrayMenu(false);
@@ -1538,6 +1591,7 @@ function enterSettings(afterTurn: boolean) {
   $('apps').hidden = true;
   $('settings').classList.toggle('tp-fade-late', afterTurn);
   $('settings').hidden = false;
+  growIsland(afterTurn ? TURN_MS : GROW_MS);
   renderSettings();
   startStats();
   refreshAudio();
@@ -2004,6 +2058,7 @@ export async function init() {
   renderActions();
   renderPowerChoices();
   renderTiles();
+  initIsland();
   // Appearance not saved: at the top of the Settings page, or in Notifs if it has closed since
   initCustom(refreshPalette, (e) => {
     const title = tr('Personnaliser', 'Customize');

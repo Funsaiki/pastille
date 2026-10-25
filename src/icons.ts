@@ -54,6 +54,11 @@ export const LEFT = 'M15 6l-6 6 6 6';
 export const RIGHT = 'M9 6l6 6-6 6';
 export const PLUS = 'M12 5v14M5 12h14';
 
+/* Download: the post-it's Save, the island's update (whose arrow drops on its own) */
+export const DOWN_ARROW = 'M12 4v11M7 10l5 5 5-5';
+export const TRAY = 'M5 20h14';
+export const DOWNLOAD = DOWN_ARROW + TRAY;
+
 /* Sound, for the phone and the bar */
 export const SPEAKER = 'M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 010 6M19 6.5a7.5 7.5 0 010 11';
 export const SPEAKER_OFF = 'M4 9h4l5-4v14l-5-4H4zM17 10l4 4M21 10l-4 4';

@@ -63,7 +63,11 @@
 
     <div class="phone-body">
     <div class="screen">
-      <div class="island" aria-hidden="true"><span></span></div>
+      <div class="island" id="island">
+        <!-- Update available (asked for by Funsaiki, not in the mockup): the island grows and says so -->
+        <button class="island-update" id="island-update" tabindex="-1"><span class="island-label" data-en="Get update">Mise à jour</span></button>
+        <span class="island-lens" aria-hidden="true"></span>
+      </div>
 
       <!-- Quick settings view, phone upright -->
       <div class="view-settings" id="settings">
