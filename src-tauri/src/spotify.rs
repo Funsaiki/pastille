@@ -1054,7 +1054,7 @@ mod tests {
         assert!(has_scopes(&format!("other {SCOPES}")));
         assert!(!has_scopes("user-read-playback-state user-modify-playback-state"), "connection from before the playlists");
         assert!(is_playable("spotify:playlist:37i9dQZF1DX"));
-        assert!(is_playable("spotify:user:johnny:collection"));
+        assert!(is_playable("spotify:user:me:collection"));
         assert!(!is_playable("spotify:"), "the Spotify launcher opens, it isn't played");
         assert!(!is_playable("steam://rungameid/1"));
     }

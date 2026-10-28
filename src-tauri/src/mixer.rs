@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn spotify_is_found_by_its_program() {
         assert!(is_spotify(r"C:\Program Files\WindowsApps\SpotifyAB.SpotifyMusic_1.304.258.0_x64__zpdnekdrzrea0\Spotify.exe"));
-        assert!(is_spotify(r"C:\Users\johnny\AppData\Roaming\Spotify\spotify.exe"));
+        assert!(is_spotify(r"C:\Users\me\AppData\Roaming\Spotify\spotify.exe"));
         assert!(!is_spotify(r"C:\Outils\spotify-dl.exe"));
         assert!(!is_spotify(SYSTEM));
     }

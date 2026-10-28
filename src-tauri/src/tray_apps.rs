@@ -383,7 +383,7 @@ mod tests {
         let excluded = Excluded::new();
         assert!(excluded.contains(&format!(r"{windir}\explorer.exe").to_lowercase()));
         assert!(excluded.contains(&std::env::current_exe().unwrap().to_string_lossy().to_lowercase()));
-        assert!(!excluded.contains(r"c:\users\johnny\appdata\local\discord\app-1.0\discord.exe"));
+        assert!(!excluded.contains(r"c:\users\me\appdata\local\discord\app-1.0\discord.exe"));
     }
 
     #[test]
