@@ -12,7 +12,7 @@
 //! Everything happens on the thread of taskbar.rs, which hides the Windows taskbar.
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering::SeqCst};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering::SeqCst};
 use std::sync::Mutex;
 
 use windows::core::{w, BOOL, GUID, PCWSTR};
@@ -36,6 +36,8 @@ static HOST: AtomicIsize = AtomicIsize::new(0);
 /// "TaskbarCreated" message, specific to each Windows session
 static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
 static ICONS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
+/// An icon added, removed, shown or hidden since the last `take_changed`
+static CHANGED: AtomicBool = AtomicBool::new(false);
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
 const TRAY_CLASS: PCWSTR = w!("Shell_TrayWnd");
@@ -205,14 +207,21 @@ fn notify(n: &Notify) -> bool {
                         clicked: None,
                     };
                     icons.push(entry);
+                    CHANGED.store(true, SeqCst);
                     icons.len() - 1
                 }
                 None => return false,
             };
+            let hidden = icons[index].hidden;
             icons[index].update(n);
+            CHANGED.fetch_or(icons[index].hidden != hidden, SeqCst);
             true
         }
-        NIM_DELETE => found.map(|index| icons.remove(index)).is_some(),
+        NIM_DELETE => {
+            let removed = found.map(|index| icons.remove(index)).is_some();
+            CHANGED.fetch_or(removed, SeqCst);
+            removed
+        }
         NIM_SETVERSION => match found {
             Some(index) if n.version <= 4 => {
                 icons[index].version = n.version;
@@ -416,14 +425,28 @@ pub fn icons() -> Option<Vec<Live>> {
         return None;
     }
     let mut icons = ICONS.lock().unwrap();
-    // App stopped without removing its icon (crash, forced stop)
-    icons.retain(|e| unsafe { IsWindow(Some(HWND(e.hwnd as *mut _))) }.as_bool());
+    icons.retain(alive);
     let live = icons
         .iter()
         .filter(|e| !e.hidden)
         .map(|e| Live { key: key_of(e.id), pid: switch::pid_of(HWND(e.hwnd as *mut _)), tip: e.tip.clone(), clicks: e.callback != 0 })
         .collect();
     Some(live)
+}
+
+/// Whether the icons changed since the last call: one added, removed, shown or hidden, or
+/// whose app stopped without removing it. The open notification area card then reads its
+/// list again (bar.rs): an app quit from its own menu disappears from it.
+pub fn take_changed() -> bool {
+    let mut icons = ICONS.lock().unwrap();
+    let before = icons.len();
+    icons.retain(alive);
+    CHANGED.swap(false, SeqCst) || icons.len() != before
+}
+
+/// False: its app stopped without removing it (crash, forced stop)
+fn alive(e: &Entry) -> bool {
+    unsafe { IsWindow(Some(HWND(e.hwnd as *mut _))) }.as_bool()
 }
 
 fn key_of(id: u32) -> String {

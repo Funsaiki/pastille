@@ -41,7 +41,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use crate::bar_pins::{self, Pin};
 use crate::i18n::tr;
 use crate::shell_hook::{self, Event};
-use crate::{bar_preview, config, launcher, open_windows, switch, taskbar, tray_apps};
+use crate::{bar_preview, config, launcher, open_windows, switch, taskbar, tray_apps, tray_host};
 
 /// Height of the bar windows, in logical pixels: the pill, and above it the notification
 /// area with a menu open
@@ -307,6 +307,8 @@ enum Action {
     Outside(usize),
     /// Windows to read again
     Changed(usize),
+    /// Notification area to read again, if its card is open (main pill only)
+    Tray,
 }
 
 fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
@@ -355,6 +357,9 @@ fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
                 actions.push(Action::Outside(i));
             }
         }
+        if screens.first().is_some_and(|s| s.out) && tray_host::take_changed() {
+            actions.push(Action::Tray);
+        }
     }
     for action in actions {
         match action {
@@ -376,6 +381,9 @@ fn tick(app: &AppHandle, pressed_before: &mut bool, signals: &Receiver<Event>) {
             }
             Action::Changed(i) => {
                 let _ = app.emit_to(label(i), "bar:windows", ());
+            }
+            Action::Tray => {
+                let _ = app.emit_to(label(0), "bar:tray", ());
             }
         }
     }

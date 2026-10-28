@@ -1355,6 +1355,9 @@ function init() {
     host.onBarOutside(clickedOutside),
     host.onBarReset(() => hide(true)),
     host.onBarPins(refreshPins),
+    host.onBarTray(() => {
+      if (popOpen()) refreshTray();
+    }),
   ]).then(() => {
     if (!shown) host.barHidden();
   });

@@ -630,6 +630,10 @@ export const host = {
   onBarWindows(fn: () => void): Promise<unknown> {
     return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:windows', fn);
   },
+  /* Notification area icons added or removed (main screen's window) */
+  onBarTray(fn: () => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:tray', fn);
+  },
   onBarPointer(fn: (inside: boolean) => void): Promise<unknown> {
     return PREVIEW ? Promise.resolve() : getCurrentWindow().listen<boolean>('bar:pointer', (e) => fn(e.payload));
   },
