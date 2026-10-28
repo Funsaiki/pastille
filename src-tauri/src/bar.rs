@@ -583,13 +583,15 @@ pub async fn close_window(id: String) -> Result<(), String> {
 /// a Store app by its identifier
 #[tauri::command]
 pub async fn new_window(id: String) -> Result<(), String> {
-    let target = crate::com::com_task(move || Ok(relaunch_target(&id))).await??;
-    crate::blocking(move || crate::shell::open_as_is(&target)).await?
+    let (target, params) = crate::com::com_task(move || Ok(relaunch_target(&id))).await??;
+    crate::blocking(move || crate::shell::open_command(&target, &params)).await?
 }
 
 /// With COM: the identifier of a hosted app is read from its window (ApplicationFrameHost,
-/// launched again on its own, would open nothing)
-fn relaunch_target(id: &str) -> Result<String, String> {
+/// launched again on its own, would open nothing), like the relaunch command its app may
+/// give it (Steam's windows belong to steamwebhelper.exe, which doesn't start alone).
+/// The program and its parameters.
+fn relaunch_target(id: &str) -> Result<(String, String), String> {
     let hwnd = open_windows::app_window(id)?;
     let (path, pid) = switch::process_of(hwnd);
     let path = path.ok_or(tr("Programme de la fenêtre introuvable.", "The window's program was not found."))?;
@@ -598,10 +600,10 @@ fn relaunch_target(id: &str) -> Result<String, String> {
     } else if tray_apps::is_packaged(&path) {
         tray_apps::app_id(pid)
     } else {
-        return Ok(path);
+        return Ok(open_windows::window_relaunch(hwnd).map_or((path, String::new()), |r| (r.program, r.params)));
     };
     app_id
-        .map(|id| format!(r"shell:AppsFolder\{id}"))
+        .map(|id| (format!(r"shell:AppsFolder\{id}"), String::new()))
         .ok_or_else(|| tr("Identifiant de l'application introuvable.", "The app's identifier was not found.").to_string())
 }
 

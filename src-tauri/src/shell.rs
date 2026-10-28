@@ -160,8 +160,14 @@ pub(crate) fn encode_query(text: &str) -> String {
 /// ("%20" stays "%20"), and a .ps1 opens as in Explorer instead of being run
 /// by PowerShell (.exe, .bat… are launched, as with a double click)
 pub fn open_as_is(path: &str) -> Result<(), String> {
-    eprintln!("[pastille] open {path}");
-    shell_execute(path, "", working_dir(path).as_deref(), None).map_err(|e| format!("{path} : {}", e.message().trim_end()))
+    open_command(path, "")
+}
+
+/// Like `open_as_is`, with parameters as written: the relaunch command an app gives its
+/// windows (open_windows::window_relaunch)
+pub fn open_command(path: &str, params: &str) -> Result<(), String> {
+    eprintln!("[pastille] open {path} {params}");
+    shell_execute(path, params, working_dir(path).as_deref(), None).map_err(|e| format!("{path} : {}", e.message().trim_end()))
 }
 
 /// "steam://…", "spotify:", "ms-settings:"… A one-letter prefix is a drive (C:).

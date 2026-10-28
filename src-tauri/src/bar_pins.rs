@@ -9,7 +9,9 @@
 //! by their app identifier for Store apps (Spotify, Terminal: their folder
 //! changes too), otherwise by their path. The front never sends a path: a window (to
 //! pin) or a program name. Apps hosted by ApplicationFrameHost (Windows Settings,
-//! Calculator) can't be pinned: they share that program.
+//! Calculator) can't be pinned: they share that program. A window whose app gives a
+//! relaunch command, like for the Windows taskbar, is pinned with it: Steam's windows
+//! belong to steamwebhelper.exe, which doesn't start alone, the pin launches steam.exe.
 
 use std::path::Path;
 
@@ -28,6 +30,9 @@ pub struct Pin {
     pub name: String,
     /// Program path: its icon, and how it is launched outside the Store
     pub path: String,
+    /// Parameters of the window's relaunch command, as written
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub params: String,
     /// Store app: launched by `shell:AppsFolder\<identifier>`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
@@ -67,24 +72,32 @@ pub async fn bar_pins(app: AppHandle, known: Vec<String>) -> Vec<PinnedApp> {
 /// Pins the program of the window `id`, at the end
 #[tauri::command]
 pub async fn bar_pin(app: AppHandle, id: String) -> Result<(), String> {
-    let pin = crate::blocking(move || {
-        let hwnd = open_windows::app_window(&id)?;
-        let (path, pid) = switch::process_of(hwnd);
-        let missing = || tr("Programme de la fenêtre introuvable.", "The window's program was not found.").to_string();
-        let path = path.ok_or_else(missing)?;
-        if bar::is_hosted(&path) {
-            return Err(tr("Cette application ne peut pas être épinglée.", "This app can't be pinned.").to_string());
-        }
-        let app_id = if tray_apps::is_packaged(&path) {
-            Some(tray_apps::app_id(pid).ok_or(tr("Identifiant de l'application introuvable.", "The app's identifier was not found."))?)
-        } else {
-            None
-        };
-        program_pin(&path, app_id).ok_or_else(missing)
-    })
-    .await??;
+    let pin = crate::com::com_task(move || Ok(window_pin(&id))).await??;
     add(&app, pin);
     Ok(())
+}
+
+/// With COM: the window's relaunch command is read from it
+fn window_pin(id: &str) -> Result<Pin, String> {
+    let hwnd = open_windows::app_window(id)?;
+    let (path, pid) = switch::process_of(hwnd);
+    let missing = || tr("Programme de la fenêtre introuvable.", "The window's program was not found.").to_string();
+    let path = path.ok_or_else(missing)?;
+    if bar::is_hosted(&path) {
+        return Err(tr("Cette application ne peut pas être épinglée.", "This app can't be pinned.").to_string());
+    }
+    if tray_apps::is_packaged(&path) {
+        let app_id = tray_apps::app_id(pid).ok_or(tr("Identifiant de l'application introuvable.", "The app's identifier was not found."))?;
+        return program_pin(&path, Some(app_id)).ok_or_else(missing);
+    }
+    let mut pin = program_pin(&path, None).ok_or_else(missing)?;
+    // Recognized by the window's program, launched by its relaunch command
+    if let Some(relaunch) = open_windows::window_relaunch(hwnd) {
+        pin.name = relaunch.name.unwrap_or_else(|| crate::mixer::program_name(&relaunch.program));
+        pin.path = relaunch.program;
+        pin.params = relaunch.params;
+    }
+    Ok(pin)
 }
 
 #[tauri::command]
@@ -95,7 +108,7 @@ pub fn bar_unpin(app: AppHandle, exe: String) {
 /// Pin for the program `path`, named like its windows in the bar (`follow` compares them)
 pub fn program_pin(path: &str, app_id: Option<String>) -> Option<Pin> {
     let exe = exe_of(path)?;
-    Some(Pin { exe, name: crate::mixer::program_name(path), path: path.to_string(), app_id })
+    Some(Pin { exe, name: crate::mixer::program_name(path), path: path.to_string(), params: String::new(), app_id })
 }
 
 /// At the end, unless this program is already pinned; also from the launcher's right-click menu (app_menu.rs)
@@ -119,17 +132,18 @@ pub async fn bar_open_pin(app: AppHandle, exe: String) -> Result<(), String> {
     let pin = bar::pins(&app).into_iter().find(|p| p.exe == exe).ok_or(tr("Cette application n'est plus épinglée.", "This app is no longer pinned."))?;
     crate::blocking(move || match &pin.app_id {
         Some(id) => crate::shell::open_as_is(&format!(r"shell:AppsFolder\{id}")),
-        None => crate::shell::open_as_is(&pin.path),
+        None => crate::shell::open_command(&pin.path, &pin.params),
     })
     .await?
 }
 
 /// Windows seen in the bar: the path of a pinned app that has changed (Discord
-/// update) is brought up to date
+/// update) is brought up to date. Not when it launches another program (Steam's
+/// relaunch command)
 pub fn follow(app: &AppHandle, windows: &[BarWindow]) {
     let moved: Vec<(String, String)> = bar::pins(app)
         .iter()
-        .filter(|pin| pin.app_id.is_none())
+        .filter(|pin| pin.app_id.is_none() && exe_of(&pin.path).as_deref() == Some(pin.exe.as_str()))
         .filter_map(|pin| {
             let w = windows.iter().find(|w| w.exe == pin.exe && w.app == pin.name)?;
             (!w.path.eq_ignore_ascii_case(&pin.path)).then(|| (pin.exe.clone(), w.path.clone()))
