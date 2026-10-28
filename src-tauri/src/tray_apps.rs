@@ -59,7 +59,7 @@ pub async fn tray_app_action(key: String, action: String) -> Result<(), String> 
         let program = program_of(&key)?;
         match action.as_str() {
             // An icon that has its clicks: like a click on it
-            "open" if key.starts_with('#') && crate::tray_host::click(&key, "left")? => Ok(()),
+            "open" if key.starts_with('#') && !menu_on_click(&program.path) && crate::tray_host::click(&key, "left")? => Ok(()),
             "open" => open(&program.path),
             "location" => show_in_folder(&program.path),
             "quit" => quit(&program.path, &name_of(&program)),
@@ -75,6 +75,9 @@ pub async fn tray_app_action(key: String, action: String) -> Result<(), String> 
 pub async fn tray_click(key: String, kind: String) -> Result<(), String> {
     crate::blocking(move || {
         let program = program_of(&key)?;
+        if (kind == "left" || kind == "key") && menu_on_click(&program.path) {
+            return open(&program.path);
+        }
         match crate::tray_host::click(&key, &kind)? {
             // No callback message: opened as before
             false if kind == "left" || kind == "key" => open(&program.path),
@@ -82,6 +85,12 @@ pub async fn tray_click(key: String, kind: String) -> Result<(), String> {
         }
     })
     .await?
+}
+
+/// Steam shows its menu on a left click on its icon, in the Windows taskbar too (its window
+/// on a double click): opened instead, like a tile without clicks (requested by Funsaiki)
+fn menu_on_click(path: &str) -> bool {
+    Path::new(path).file_name().is_some_and(|name| name.eq_ignore_ascii_case("steam.exe"))
 }
 
 /// Only a program of the list: the front can't launch or stop anything else
@@ -375,6 +384,14 @@ mod tests {
         assert!(excluded.contains(&format!(r"{windir}\explorer.exe").to_lowercase()));
         assert!(excluded.contains(&std::env::current_exe().unwrap().to_string_lossy().to_lowercase()));
         assert!(!excluded.contains(r"c:\users\johnny\appdata\local\discord\app-1.0\discord.exe"));
+    }
+
+    #[test]
+    fn steam_opens_on_click() {
+        assert!(menu_on_click(r"C:\Program Files (x86)\Steam\steam.exe"));
+        assert!(menu_on_click(r"D:\Steam\STEAM.EXE"));
+        assert!(!menu_on_click(r"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe"));
+        assert!(!menu_on_click(r"C:\Program Files\EarTrumpet\EarTrumpet.exe"));
     }
 
     /// On a program launched by the test: a copy of PING.EXE with a unique name, twice
