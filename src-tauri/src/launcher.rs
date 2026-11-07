@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     UI::{
@@ -90,15 +90,25 @@ fn is_visible(w: &WebviewWindow) -> bool {
     w.is_visible().unwrap_or(false)
 }
 
-/// The transparent window covers the whole screen the mouse is on (taskbar
-/// included): the phone rises from the bottom of the screen and the front scales the stage.
+/// The transparent window covers the screen the mouse is on (taskbar included): the phone
+/// rises from the bottom of the screen and the front scales the stage.
 fn cover_cursor_monitor(w: &WebviewWindow) -> tauri::Result<()> {
     let cursor = w.cursor_position()?;
     let Some(monitor) = w.monitor_from_point(cursor.x, cursor.y)? else { return Ok(()) };
+    let (position, size) = placement(*monitor.position(), *monitor.size());
     // Position first: when changing screens, Windows adapts the size to the new screen's scale
-    w.set_position(*monitor.position())?;
-    w.set_size(*monitor.size())?;
+    w.set_position(position)?;
+    w.set_size(size)?;
     Ok(())
+}
+
+/// The whole screen except its left column of pixels: a foreground window covering the
+/// whole screen is a fullscreen app (game, video) for other programs, and Wallpaper Engine
+/// paused its animated wallpapers while the phone was open (reported by Funsaiki on
+/// 2026-11-07). On the left: the phone sits on the bottom edge and the stage is scaled to
+/// the height (16:9 screens), so nothing moves but the centered phone, by half a pixel.
+fn placement(position: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+    (PhysicalPosition::new(position.x + 1, position.y), PhysicalSize::new(size.width.saturating_sub(1), size.height))
 }
 
 /// When hidden, WebView2 can give memory back (requested by Funsaiki); normal level before each
@@ -231,4 +241,24 @@ fn watch_app_menu(app: &AppHandle, own: isize, pid: u32) {
             return;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Same rule as the pill's fullscreen apps (bar.rs, `blocked`), on a second screen to the left
+    #[test]
+    fn window_is_not_a_fullscreen_app() {
+        let (left, top, width, height) = (-1920, 0, 1920u32, 1080u32);
+        let (position, size) = placement(PhysicalPosition::new(left, top), PhysicalSize::new(width, height));
+        let (right, bottom) = (left + width as i32, top + height as i32);
+        let covers = position.x <= left
+            && position.y <= top
+            && position.x + size.width as i32 >= right
+            && position.y + size.height as i32 >= bottom;
+        assert!(!covers);
+        // Down to the bottom and right edges, from the top
+        assert_eq!((position.y, position.x + size.width as i32, position.y + size.height as i32), (top, right, bottom));
+    }
 }
