@@ -751,6 +751,17 @@ export const host = {
       await invoke('bar_open_pin', { exe });
     }
   },
+  /* Tiles dragged to a new order (keys of bar.ts's groups, "pin:<exe>" for a pinned app):
+     Rust saves that of the pinned ones and gives the order to the other screens' pills */
+  async barReorder(keys: string[]) {
+    if (PREVIEW) {
+      console.info('[preview] new order:', keys.join(', '));
+      const rank = (p: { exe: string }) => keys.indexOf(`pin:${p.exe}`);
+      previewPins = [...previewPins].sort((a, b) => rank(a) - rank(b));
+    } else {
+      await invoke('bar_reorder', { keys });
+    }
+  },
   /* Pins changed (from the other screen too) */
   onBarPins(fn: () => void): Promise<unknown> {
     return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:pins', fn);

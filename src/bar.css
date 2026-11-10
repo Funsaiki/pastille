@@ -102,6 +102,19 @@ button { font-family: inherit; }
 .bar-music.playing .icon-pause { display: block; }
 
 .bar-windows { display: flex; gap: 8px; }
+/* Reordering (Funsaiki's request, 2026-11-10): the dragged tile lifts (5 px shadow, tilted by 3°
+   like the post-it's next sheet) and follows the mouse; the others make room; dropped, it
+   settles with a small bounce (the tabs' curve) */
+.bar-windows.sorting .bar-tile { transition: transform .12s, box-shadow .12s, background .15s, translate .25s var(--ease); }
+.bar-windows .bar-tile.dragging {
+  z-index: 1; cursor: grabbing; transform: translateY(-5px); rotate: 3deg; box-shadow: 0 5px 0 var(--ink) !important;
+  transition: transform .15s var(--ease), rotate .15s var(--ease), box-shadow .15s, background .15s;
+}
+.bar-windows .bar-tile.dropping {
+  z-index: 1;
+  transition: translate .4s cubic-bezier(.34, 1.56, .64, 1), transform .4s cubic-bezier(.34, 1.56, .64, 1),
+    rotate .4s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s, background .15s;
+}
 .bar-windows:empty, .bar-windows:empty + .bar-sep { display: none; }
 .bar-sep { width: 2.5px; height: 26px; flex: none; border-radius: 2px; background: rgb(from var(--ink) r g b / .16); }
 

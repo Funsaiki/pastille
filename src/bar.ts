@@ -71,7 +71,7 @@ interface Group {
 
 let windows: BarWindow[] = [];
 let screens = 1;                 // more than one: "Move to the other screen" in a window's menu
-let order: string[] = [];        // programs in their order of arrival: the tiles do not move
+let order: string[] = [];        // tiles in their order (groups): they do not move by themselves
 let windowsShown = '';           // what is shown: the tiles are only rebuilt if it changes
 const seen = new Set<string>();  // programs already shown: only new ones pop in
 let alerted = new Set<string>(); // programs asking for attention: only new ones ring
@@ -99,16 +99,40 @@ async function refreshWindows() {
 /* A window's tile: that of its pinned app, otherwise that of its program */
 const groupKey = (w: BarWindow) => (pins.some((p) => p.exe === w.exe) ? `pin:${w.exe}` : w.key);
 
-/* Pinned ones in their order, then the other programs in their order of arrival */
+/* All tiles in one order, pinned or not (dragged to reorder, Funsaiki's request of
+   2026-11-10): at first the pinned ones in their saved order, then the other programs in their
+   order of arrival; a new pinned app after the last pinned one, a new program at the end. An open
+   app pinned or unpinned keeps its place. Among themselves, the pinned ones keep their saved
+   order (bar.json): their places are filled in that order. */
 function groups(): Group[] {
-  const pinned = pins.map((pin) => ({ key: `pin:${pin.exe}`, app: pin.name, windows: windows.filter((w) => w.exe === pin.exe), pin }));
-  const keys = new Set(windows.map(groupKey).filter((k) => !k.startsWith('pin:')));
-  order = order.filter((k) => keys.has(k));
-  for (const k of keys) if (!order.includes(k)) order.push(k);
-  return [...pinned, ...order.map((key) => {
-    const list = windows.filter((w) => w.key === key);
-    return { key, app: list[0].app, windows: list };
-  })];
+  const all = new Map<string, Group>();
+  for (const pin of pins) all.set(`pin:${pin.exe}`, { key: `pin:${pin.exe}`, app: pin.name, windows: windows.filter((w) => w.exe === pin.exe), pin });
+  for (const w of windows) {
+    const key = groupKey(w);
+    if (!all.has(key)) all.set(key, { key, app: w.app, windows: [] });
+    if (!key.startsWith('pin:')) all.get(key)!.windows.push(w);
+  }
+  // Pinned or unpinned since: the tile of its program, or of its pinned app
+  const next = (k: string) => {
+    const w = k.startsWith('pin:') ? windows.find((x) => x.exe === k.slice(4)) : windows.find((x) => x.key === k);
+    return w && groupKey(w);
+  };
+  const kept: string[] = [];
+  for (const k of order) {
+    const key = all.has(k) ? k : next(k);
+    if (key && all.has(key) && !kept.includes(key)) kept.push(key);
+  }
+  for (const key of all.keys()) {
+    if (kept.includes(key)) continue;
+    let lastPin = -1;
+    kept.forEach((k, i) => k.startsWith('pin:') && (lastPin = i));
+    if (key.startsWith('pin:')) kept.splice(lastPin + 1, 0, key);
+    else kept.push(key);
+  }
+  const pinKeys = pins.map((p) => `pin:${p.exe}`);
+  let p = 0;
+  order = kept.map((k) => (k.startsWith('pin:') ? pinKeys[p++] : k));
+  return order.map((k) => all.get(k)!);
 }
 
 function renderWindows() {
@@ -117,8 +141,8 @@ function renderWindows() {
   // in place
   const shown = JSON.stringify(list.map((g) => [g.key, g.windows.map((w) => [w.id, w.active, w.attention])]));
   // Not while a menu or a hover preview is open: it is attached to its tile (rebuilt when it
-  // closes)
-  if (menu || preview) return;
+  // closes); nor while a tile is dragged (rebuilt once dropped)
+  if (menu || preview || drag) return;
   if (shown === windowsShown) {
     const tiles = $('bar-windows').children;
     list.forEach((g, i) => g.windows.length && tiles[i]?.setAttribute('aria-label', tileLabel(g)));
@@ -130,12 +154,129 @@ function renderWindows() {
   const calling = new Set(list.filter((g) => g.windows.some((w) => w.attention)).map((g) => g.key));
   $('bar-windows').replaceChildren(...list.map((g, i) => {
     const tile = groupTile(g, i);
+    tile.dataset.key = g.key;
     if (!first && !seen.has(g.key)) popIn(tile);
     else if (calling.has(g.key) && !alerted.has(g.key)) ring(tile);
     seen.add(g.key);
     return tile;
   }));
   alerted = calling;
+}
+
+/* ══ Reordering (Funsaiki's request, 2026-11-10): a tile dragged along the pill lifts and
+   follows the mouse, the others make room; dropped, it settles with a small bounce. The drag
+   starts after DRAG_START px: a click, a middle click and a right-click stay as they are.
+   The order of the pinned ones is saved (bar.json), that of the others kept while Pastille
+   runs. ══ */
+const DRAG_START = 5;
+const DROP_MS = 400;      // .bar-tile.dropping
+let pressed: { tile: HTMLElement; x: number; y: number; id: number } | null = null;
+let drag: { tile: HTMLElement; tiles: HTMLElement[]; centers: number[]; from: number; to: number } | null = null;
+let dragEnd = 0;          // the drop's animation
+let dragged = false;      // the click that ends a drag is not a click
+let dropped = '';         // the tile just dropped: no hover preview until the mouse leaves it
+
+function initSort() {
+  const row = $('bar-windows');
+  row.addEventListener('pointerdown', (e) => {
+    const tile = (e.target as Element).closest<HTMLElement>('.bar-tile');
+    if (e.button !== 0 || drag || menu || !tile || tile.parentElement !== row || row.children.length < 2) return;
+    pressed = { tile, x: e.clientX, y: e.clientY, id: e.pointerId };
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!pressed || e.pointerId !== pressed.id) return;
+    const dx = e.clientX - pressed.x;
+    if (!drag && Math.hypot(dx, e.clientY - pressed.y) >= DRAG_START) startDrag(e);
+    if (drag) follow(dx);
+  });
+  const release = (e: PointerEvent) => {
+    if (!pressed || e.pointerId !== pressed.id) return;
+    pressed = null;
+    if (drag) drop(e.type === 'pointercancel');
+  };
+  window.addEventListener('pointerup', release);
+  window.addEventListener('pointercancel', release);
+  // Before the tile's own click (capture phase)
+  row.addEventListener('click', (e) => {
+    if (!dragged) return;
+    dragged = false;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+}
+
+function startDrag(e: PointerEvent) {
+  const row = $('bar-windows');
+  const tile = pressed!.tile;
+  const tiles = [...row.children] as HTMLElement[];
+  // Layout positions (without translations)
+  drag = { tile, tiles, centers: tiles.map((t) => t.offsetLeft + t.offsetWidth / 2), from: tiles.indexOf(tile), to: tiles.indexOf(tile) };
+  closePreview(false);
+  tile.setPointerCapture(e.pointerId);
+  row.classList.add('sorting');
+  tile.classList.add('dragging');
+}
+
+/* Along the pill, between the first and the last tile; the others make room as soon as its
+   middle reaches theirs (the first and the last one too, where it stops) */
+function follow(dx: number) {
+  const { tile, tiles, centers, from } = drag!;
+  const d = Math.min(centers[centers.length - 1], Math.max(centers[0], centers[from] + dx)) - centers[from];
+  tile.style.translate = `${d}px 0`;
+  const middle = centers[from] + d;
+  let to = from;
+  centers.forEach((c, i) => {
+    if (i < from && middle <= c) to = Math.min(to, i);
+    if (i > from && middle >= c) to = Math.max(to, i);
+  });
+  drag!.to = to;
+  tiles.forEach((t, i) => {
+    if (i === from) return;
+    const shift = i >= to && i < from ? centers[i + 1] - centers[i] : i > from && i <= to ? centers[i - 1] - centers[i] : 0;
+    t.style.translate = shift ? `${shift}px 0` : '';
+  });
+}
+
+/* Settles in its place (or back in its own if cancelled), then the tiles are rebuilt in
+   the new order */
+function drop(cancel: boolean) {
+  const { tile, tiles, centers, from } = drag!;
+  const to = cancel ? from : drag!.to;
+  dragged = true;
+  setTimeout(() => (dragged = false));   // no click came (released outside the tile)
+  tile.classList.remove('dragging');
+  tile.classList.add('dropping');
+  tile.style.translate = `${centers[to] - centers[from]}px 0`;
+  if (cancel) tiles.forEach((t) => t !== tile && (t.style.translate = ''));
+  dragEnd = window.setTimeout(() => {
+    const keys = tiles.map((t) => t.dataset.key!);
+    if (to !== from) {
+      keys.splice(to, 0, ...keys.splice(from, 1));
+      reorder(keys);
+    }
+    endDrag();
+  }, DROP_MS);
+}
+
+function endDrag() {
+  if (!drag) return;
+  clearTimeout(dragEnd);
+  dropped = drag.tile.matches(':hover') ? drag.tile.dataset.key! : '';
+  drag = null;
+  pressed = null;
+  $('bar-windows').classList.remove('sorting');
+  windowsShown = '';
+  renderWindows();
+  autoHide();
+}
+
+/* The new order: the pinned ones among themselves saved (Rust, bar.json), the whole order
+   given to the pills of the other screens */
+function reorder(keys: string[]) {
+  order = keys;
+  const pinned = keys.filter((k) => k.startsWith('pin:'));
+  pins = pinned.map((k) => pins.find((p) => `pin:${p.exe}` === k)!).filter(Boolean);
+  host.barReorder(keys).catch(console.error);
 }
 
 /* The tile of a window asking for attention rings once (like the flashing of the
@@ -297,12 +438,14 @@ let previewTimer = 0;
 
 function hoverTile(g: Group, tile: HTMLElement) {
   clearTimeout(previewTimer);
-  // One card at a time: not over the notification area, the calendar or the player
-  if (menu || cardOpen() || preview?.tile === tile) return;
+  // One card at a time: not over the notification area, the calendar or the player; nor while
+  // a tile is dragged (the dragged tile gets the pointer again once captured)
+  if (menu || drag || g.key === dropped || cardOpen() || preview?.tile === tile) return;
   previewTimer = window.setTimeout(() => openPreview(g, tile), preview ? 0 : PREVIEW_DELAY);
 }
 
 function leavePreview() {
+  dropped = '';
   clearTimeout(previewTimer);
   if (preview) previewTimer = window.setTimeout(closePreview, PREVIEW_LEAVE);
 }
@@ -317,7 +460,7 @@ async function openPreview(g: Group, tile: HTMLElement) {
   if (run !== previewRun) return;
   const card = $('bar-preview');
   const hovered = tile.matches(':hover') || card.matches(':hover');
-  if (!sizes || menu || cardOpen() || !shown || !tile.isConnected || !hovered) {
+  if (!sizes || menu || drag || cardOpen() || !shown || !tile.isConnected || !hovered) {
     closePreview();
     return;
   }
@@ -729,7 +872,8 @@ function windowsChanged() {
 }
 
 function hide(force = false) {
-  if (!shown || (!force && (menu || inside))) return;
+  if (!shown || (!force && (menu || inside || drag))) return;
+  endDrag();
   closePreview();
   closeMenu(false);
   closeCards();
@@ -744,9 +888,10 @@ function hide(force = false) {
   sinkTimer = window.setTimeout(() => host.barHidden(), SINK_MS);
 }
 
+/* Not while a tile is dragged: the mouse may wander off the pill (counted from the drop) */
 function autoHide() {
   clearTimeout(hideTimer);
-  if (shown && !inside) hideTimer = window.setTimeout(hide, HIDE_MS);
+  if (shown && !inside && !drag) hideTimer = window.setTimeout(hide, HIDE_MS);
 }
 
 /* Rust only gives the mouse to the window on these rectangles (8 px margin): the pill
@@ -1294,6 +1439,7 @@ function init() {
   $('bar-pencil').append(icon(NOTE, 20, 2.4));
   $('bar-pencil').addEventListener('click', () => toggleNote());
   initNote();
+  initSort();
   $('bar-sound').addEventListener('click', () => toggleSound());
   $('bar-sound').addEventListener('wheel', (e) => {
     e.preventDefault();
