@@ -34,7 +34,7 @@ The design is inspired by a [Project Sekai inspired Hyprland setup](https://www.
 
 **The pastel bar (optional)**
 - A pill at the bottom of each screen, which slides out when the mouse touches the edge.
-- Open windows with hover previews, pinned apps and alerts.
+- Open windows with hover previews, pinned apps and alerts; drag the icons to reorder them.
 - The notification area, whose icons respond just like in the Windows taskbar (right-click included).
 - Sound, a calendar and a Spotify player.
 - A sticky note to draw on, with several pages: copy the drawing or save it as PNG.

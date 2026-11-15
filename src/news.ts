@@ -23,10 +23,18 @@ const SIZE = 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5';
 const PLACE = 'M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4';
 const PHONE = 'M8 2h8a1 1 0 011 1v18a1 1 0 01-1 1H8a1 1 0 01-1-1V3a1 1 0 011-1zM11 18h2';
 const MENU = 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01';
+const REORDER = 'M3 13h7v7H3zM14 13h7v7h-7zM6.5 10V7.5a2 2 0 012-2h7a2 2 0 012 2V10M15 8l2.5 2.5L20 8';
 
 /* Newest first; a version without anything new to show (a fix) has no entry. The date of
    a version not released yet is set when it is. */
 export const NEWS: { version: string; date: string; items: Item[] }[] = [
+  {
+    version: '1.15.0',
+    date: '2026-11-15',
+    items: [
+      { d: REORDER, bg: '#c9d8ff', title: tr('Réordonner la pilule', 'Reorder the pill'), body: tr('Glisser-déposer ses icônes, épinglées ou non', 'Drag and drop its icons, pinned or not') },
+    ],
+  },
   {
     version: '1.14.0',
     date: '2026-10-25',
