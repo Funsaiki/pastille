@@ -16,7 +16,7 @@
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, WebviewWindow};
 
 use crate::bar::{self, BarWindow};
 use crate::i18n::tr;
@@ -126,6 +126,20 @@ pub fn remove(app: &AppHandle, exe: &str) {
     bar::emit_all(app, "bar:pins");
 }
 
+/// Tiles dragged to a new order on one screen's pill (Funsaiki's request, 2026-11-10; keys of
+/// bar.ts's groups, "pin:<exe>" for a pinned app): the pinned ones' order is saved, the whole
+/// order goes to the other screens' pills (the others' order lives in the pages)
+#[tauri::command]
+pub fn bar_reorder(app: AppHandle, window: WebviewWindow, keys: Vec<String>) {
+    bar::update(&app, |settings| reorder(&mut settings.pinned, &keys));
+    bar::emit_others(&app, window.label(), "bar:order", keys);
+}
+
+/// In the order of `keys`; those it doesn't name keep theirs, after
+fn reorder(pins: &mut [Pin], keys: &[String]) {
+    pins.sort_by_key(|pin| keys.iter().position(|k| k.strip_prefix("pin:") == Some(pin.exe.as_str())).unwrap_or(keys.len()));
+}
+
 /// Launches the pinned app `exe` (when closed: its open windows go through their own tile)
 #[tauri::command]
 pub async fn bar_open_pin(app: AppHandle, exe: String) -> Result<(), String> {
@@ -174,5 +188,16 @@ mod tests {
         let pin: Pin = serde_json::from_str(r#"{ "exe": "code.exe", "name": "Code", "path": "C:/Code.exe" }"#).unwrap();
         assert!(pin.app_id.is_none());
         assert!(!serde_json::to_string(&pin).unwrap().contains("appId"));
+    }
+
+    /// Open programs between them; a pin the order doesn't name (pinned meanwhile) stays, last
+    #[test]
+    fn dragged_order() {
+        let pin = |exe: &str| Pin { exe: exe.into(), name: exe.into(), path: exe.into(), params: String::new(), app_id: None };
+        let mut pins = vec![pin("brave.exe"), pin("epic.exe"), pin("steam.exe"), pin("code.exe")];
+        let keys: Vec<String> = ["code", "pin:steam.exe", "discord", "pin:brave.exe", "pin:epic.exe"].map(String::from).into();
+        reorder(&mut pins, &keys);
+        let order: Vec<&str> = pins.iter().map(|p| p.exe.as_str()).collect();
+        assert_eq!(order, ["steam.exe", "brave.exe", "epic.exe", "code.exe"]);
     }
 }

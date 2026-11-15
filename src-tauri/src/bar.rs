@@ -95,6 +95,13 @@ pub fn emit_all(app: &AppHandle, event: &str) {
     }
 }
 
+/// To the page of each screen but the window `except`
+pub fn emit_others<S: Serialize + Clone>(app: &AppHandle, except: &str, event: &str, payload: S) {
+    for label in app.webview_windows().into_keys().filter(|label| index(label).is_some() && label != except) {
+        let _ = app.emit_to(label, event, payload.clone());
+    }
+}
+
 /// At startup. Bar off: the Windows taskbar is shown again, in case an abrupt stop of the
 /// launcher left it hidden.
 pub fn init(app: &AppHandle) {

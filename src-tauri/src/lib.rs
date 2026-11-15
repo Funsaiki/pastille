@@ -149,6 +149,7 @@ pub fn run() {
             bar_pins::bar_pin,
             bar_pins::bar_unpin,
             bar_pins::bar_open_pin,
+            bar_pins::bar_reorder,
             bar_preview::bar_preview,
             start_menu::start_icons,
             app_menu::app_menu,

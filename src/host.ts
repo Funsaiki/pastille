@@ -766,6 +766,10 @@ export const host = {
   onBarPins(fn: () => void): Promise<unknown> {
     return PREVIEW ? Promise.resolve() : getCurrentWindow().listen('bar:pins', fn);
   },
+  /* Tiles reordered on another screen's pill: the new order */
+  onBarOrder(fn: (keys: string[]) => void): Promise<unknown> {
+    return PREVIEW ? Promise.resolve() : getCurrentWindow().listen<string[]>('bar:order', (e) => fn(e.payload));
+  },
   /* Brings the phone up on the bar's screen */
   async showLauncher() {
     if (PREVIEW) console.info('[preview] open the launcher');

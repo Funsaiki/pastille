@@ -183,17 +183,19 @@ function initSort() {
     if (e.button !== 0 || drag || menu || !tile || tile.parentElement !== row || row.children.length < 2) return;
     pressed = { tile, x: e.clientX, y: e.clientY, id: e.pointerId };
   });
-  window.addEventListener('pointermove', (e) => {
-    if (!pressed || e.pointerId !== pressed.id) return;
-    const dx = e.clientX - pressed.x;
-    if (!drag && Math.hypot(dx, e.clientY - pressed.y) >= DRAG_START) startDrag(e);
-    if (drag) follow(dx);
-  });
   const release = (e: PointerEvent) => {
     if (!pressed || e.pointerId !== pressed.id) return;
     pressed = null;
     if (drag) drop(e.type === 'pointercancel');
   };
+  window.addEventListener('pointermove', (e) => {
+    if (!pressed || e.pointerId !== pressed.id) return;
+    // Released where the page did not see it (off the window): dropped there
+    if (!(e.buttons & 1)) return release(e);
+    const dx = e.clientX - pressed.x;
+    if (!drag && Math.hypot(dx, e.clientY - pressed.y) >= DRAG_START) startDrag(e);
+    if (drag) follow(dx);
+  });
   window.addEventListener('pointerup', release);
   window.addEventListener('pointercancel', release);
   // Before the tile's own click (capture phase)
@@ -215,6 +217,7 @@ function startDrag(e: PointerEvent) {
   tile.setPointerCapture(e.pointerId);
   row.classList.add('sorting');
   tile.classList.add('dragging');
+  reportRects();
 }
 
 /* Along the pill, between the first and the last tile; the others make room as soon as its
@@ -268,15 +271,31 @@ function endDrag() {
   windowsShown = '';
   renderWindows();
   autoHide();
+  reportRects();
 }
 
 /* The new order: the pinned ones among themselves saved (Rust, bar.json), the whole order
-   given to the pills of the other screens */
+   given to the pills of the other screens (orderChanged) */
 function reorder(keys: string[]) {
-  order = keys;
-  const pinned = keys.filter((k) => k.startsWith('pin:'));
-  pins = pinned.map((k) => pins.find((p) => `pin:${p.exe}` === k)!).filter(Boolean);
+  applyOrder(keys);
   host.barReorder(keys).catch(console.error);
+}
+
+/* Pinned ones the order does not name (pinned meanwhile) keep theirs, after */
+function applyOrder(keys: string[]) {
+  order = keys;
+  const rank = (p: PinnedApp) => {
+    const i = keys.indexOf(`pin:${p.exe}`);
+    return i < 0 ? keys.length : i;
+  };
+  pins = [...pins].sort((a, b) => rank(a) - rank(b));
+}
+
+/* Reordered on another screen's pill (Rust's bar:order) */
+function orderChanged(keys: string[]) {
+  applyOrder(keys);
+  windowsShown = '';
+  renderWindows();
 }
 
 /* The tile of a window asking for attention rings once (like the flashing of the
@@ -896,13 +915,16 @@ function autoHide() {
 
 /* Rust only gives the mouse to the window on these rectangles (8 px margin): the pill
    down to the bottom of the window (the mouse goes down there toward the screen edge), the
-   notification area and the menu when open. Layout positions: without the animations. */
+   notification area and the menu when open. Layout positions: without the animations. While a
+   tile is dragged, the whole screen: the window keeps the mouse wherever it wanders, and the
+   pill stays up. */
 let rectsFrame = 0;
 
 function reportRects() {
   cancelAnimationFrame(rectsFrame);
   rectsFrame = requestAnimationFrame(() => {
     const rects: number[][] = [];
+    if (shown && drag) rects.push([-1e5, -1e5, 2e5, 2e5]);
     if (shown) {
       const bar = $('bar');
       rects.push([bar.offsetLeft - 8, bar.offsetTop - 8, bar.offsetWidth + 16, innerHeight - bar.offsetTop + 8]);
@@ -1501,6 +1523,7 @@ function init() {
     host.onBarOutside(clickedOutside),
     host.onBarReset(() => hide(true)),
     host.onBarPins(refreshPins),
+    host.onBarOrder(orderChanged),
     host.onBarTray(() => {
       if (popOpen()) refreshTray();
     }),
